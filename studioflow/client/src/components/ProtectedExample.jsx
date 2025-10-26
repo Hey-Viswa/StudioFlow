@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+// Use relative path - Vite proxy will forward to backend
+const API_BASE = '/api';
 
 export default function ProtectedExample() {
   const { getToken, isLoaded } = useAuth();
@@ -12,12 +13,15 @@ export default function ProtectedExample() {
     if (!isLoaded) return;
     setLoading(true);
     try {
-      const token = await getToken({ template: 'standard' });
+      const token = await getToken();
       if (!token) {
         throw new Error('No session token available');
       }
 
-      const res = await fetch(`${API_BASE}/protected`, {
+      const url = `${API_BASE}/protected`;
+      console.log('Calling API:', url);
+
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -31,8 +35,8 @@ export default function ProtectedExample() {
 
       setResponse(data);
     } catch (err) {
-      console.error(err);
-      setResponse({ error: err.message });
+      console.error('API call error:', err);
+      setResponse({ error: err.message, apiBase: API_BASE });
     } finally {
       setLoading(false);
     }
