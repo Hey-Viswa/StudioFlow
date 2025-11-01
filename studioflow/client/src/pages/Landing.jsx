@@ -1,11 +1,13 @@
-import { SignInButton, SignUpButton } from '@clerk/clerk-react';
+import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Landing = () => {
   const [activeSection, setActiveSection] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const observerOptions = {
@@ -93,16 +95,40 @@ const Landing = () => {
                 FAQ
               </button>
             </div>
+            
+            {/* Auth Buttons - Show different content based on auth status */}
             <div className="flex items-center gap-3">
-              <SignInButton mode="modal">
-                <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">Sign in</Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
-                  Get Started
-                  <ArrowRight className="w-4 h-4 ml-2" />
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
+                    Sign in
+                  </Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
+                    Get Started
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </SignUpButton>
+              </SignedOut>
+              
+              <SignedIn>
+                <Button 
+                  onClick={() => navigate('/dashboard')}
+                  variant="ghost" 
+                  className="hover:scale-105 transition-transform duration-200"
+                >
+                  Dashboard
                 </Button>
-              </SignUpButton>
+                <UserButton 
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-10 h-10 hover:scale-105 transition-transform duration-200"
+                    }
+                  }}
+                />
+              </SignedIn>
             </div>
           </div>
         </div>
@@ -135,13 +161,26 @@ const Landing = () => {
               </p>
               
               <div className="flex flex-wrap gap-4 animate-slide-up" style={{animationDelay: '0.3s'}}>
-                <SignUpButton mode="modal">
-                  <Button size="lg" className="gap-2 hover:scale-105 transition-all duration-200 shadow-2xl shadow-primary/30 hover:shadow-3xl hover:shadow-primary/50 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8">
+                <SignedOut>
+                  <SignUpButton mode="modal">
+                    <Button size="lg" className="gap-2 hover:scale-105 transition-all duration-200 shadow-2xl shadow-primary/30 hover:shadow-3xl hover:shadow-primary/50 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8">
+                      <Sparkles className="w-5 h-5" />
+                      Get Started Free
+                      <ArrowRight className="w-5 h-5" />
+                    </Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <Button 
+                    size="lg" 
+                    onClick={() => navigate('/dashboard')}
+                    className="gap-2 hover:scale-105 transition-all duration-200 shadow-2xl shadow-primary/30 hover:shadow-3xl hover:shadow-primary/50 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8"
+                  >
                     <Sparkles className="w-5 h-5" />
-                    Get Started Free
+                    Go to Dashboard
                     <ArrowRight className="w-5 h-5" />
                   </Button>
-                </SignUpButton>
+                </SignedIn>
                 <Button size="lg" variant="outline" className="gap-2 hover:scale-105 transition-all duration-200 hover:bg-primary/5 border-2">
                   <Play className="w-4 h-4" />
                   Watch Demo
