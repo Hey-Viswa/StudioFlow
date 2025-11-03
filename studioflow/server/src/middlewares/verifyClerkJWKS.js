@@ -1,60 +1,51 @@
 // server/src/middlewares/verifyClerkJWKS.js
-import jwt from 'jsonwebtoken';
-import jwksClient from 'jwks-rsa';
 import Cookies from 'cookies';
+import { createClerkClient } from '@clerk/backend';
+import path from 'node:path';
+import dotenv from 'dotenv';
 
-const JWKS_URI = process.env.CLERK_JWKS_URL || 'https://api.clerk.com/v1/jwks';
-const PERMITTED_ORIGINS = (process.env.CLERK_ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
+// Ensure env vars are loaded when this module is imported directly
+dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
-const client = jwksClient({
-    jwksUri: JWKS_URI,
-    cache: true,
-    cacheMaxEntries: 5,
-    cacheMaxAge: 10 * 60 * 1000,
-});
+let clerkClient;
 
-function getKey(header, callback) {
-    client.getSigningKey(header.kid, (err, key) => {
-        if (err) {
-            return callback(err);
-        }
-        const pubKey = key.getPublicKey();
-        callback(null, pubKey);
-    });
-}
-
-export default function verifyClerk(req, res, next) {
+export default async function verifyClerk(req, res, next) {
     const cookies = new Cookies(req, res);
-    const tokenCookie = cookies.get('__session');
-    const authHeader = req.headers.authorization;
-    const token = tokenCookie || (authHeader && authHeader.replace(/^Bearer\s+/i, ''));
+    const sessionToken = cookies.get('__session');
 
-    if (!token) {
+    if (!sessionToken) {
         return res.status(401).json({ error: 'Not signed in' });
     }
 
-    jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
-        if (err) {
-            console.error('JWT verify error:', err);
-            return res.status(401).json({ error: 'Invalid token' });
+    try {
+        const secretKey = process.env.CLERK_SECRET_KEY;
+        if (!secretKey) {
+            console.error('CLERK_SECRET_KEY is not defined.');
+            return res.status(500).json({ error: 'Server misconfiguration' });
         }
 
-        const now = Math.floor(Date.now() / 1000);
-        if (decoded.exp && decoded.exp < now) {
-            return res.status(401).json({ error: 'Token expired' });
-        }
-        if (decoded.nbf && decoded.nbf > now) {
-            return res.status(401).json({ error: 'Token not yet valid' });
-        }
-        if (decoded.azp && !PERMITTED_ORIGINS.includes(decoded.azp)) {
-            return res.status(401).json({ error: 'Invalid azp claim' });
-        }
-        if (decoded.sts && decoded.sts === 'pending') {
-            return res.status(403).json({ error: 'Organization membership pending' });
+        if (!clerkClient) {
+            clerkClient = createClerkClient({ secretKey });
         }
 
-        req.clerkToken = decoded;
-        req.userId = decoded.sub || decoded.user_id;
-        next();
-    });
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Verifying Clerk session token via cookie; length:', sessionToken.length);
+        }
+        const { session } = await clerkClient.sessions.verifySession({ sessionToken });
+        if (!session) {
+            return res.status(401).json({ error: 'Invalid session' });
+        }
+
+        req.clerkToken = session;
+        req.userId = session.userId;
+
+        return next();
+    } catch (err) {
+        console.error('Clerk session verification failed:', err);
+        return res.status(401).json({ error: 'Invalid token' });
+    }
 }
+
+// Named exports for different import styles
+export const verifyClerkJWKS = verifyClerk;
+export const verifyClerkToken = verifyClerk;

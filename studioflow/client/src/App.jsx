@@ -3,10 +3,17 @@ import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
-import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
+import CreateProject from './pages/CreateProject';
+import AcceptInvite from './pages/AcceptInvite';
+import Pricing from './pages/Pricing';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsConditions from './pages/TermsConditions';
+import CancellationRefund from './pages/CancellationRefund';
+import ShippingDelivery from './pages/ShippingDelivery';
+import ContactUs from './pages/ContactUs';
+import Projects from './pages/Projects';
 
-// Protected Route Component
 function ProtectedRoute({ children }) {
   return (
     <>
@@ -23,6 +30,15 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/invite" element={<AcceptInvite />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-conditions" element={<TermsConditions />} />
+        <Route path="/cancellation-refund" element={<CancellationRefund />} />
+        <Route path="/shipping-delivery" element={<ShippingDelivery />} />
+        <Route path="/contact" element={<ContactUs />} />
+        
+        {/* Dashboard with nested routes */}
         <Route
           path="/dashboard"
           element={
@@ -33,11 +49,10 @@ function App() {
         >
           <Route index element={<DashboardHome />} />
           <Route path="projects" element={<Projects />} />
+          <Route path="projects/new" element={<CreateProject />} />
           <Route path="projects/:projectId" element={<ProjectDetail />} />
-          <Route path="invoices" element={<div className="p-8 text-white">Invoices Page Coming Soon</div>} />
-          <Route path="subscription" element={<div className="p-8 text-white">Subscription Page Coming Soon</div>} />
-          <Route path="settings" element={<div className="p-8 text-white">Settings Page Coming Soon</div>} />
         </Route>
+        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

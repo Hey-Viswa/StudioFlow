@@ -1,31 +1,62 @@
-﻿import { useState } from 'react';
-import { useUser, useAuth, UserButton } from '@clerk/clerk-react';
+﻿import { useState, useEffect } from 'react';
+import { useUser, UserButton } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { user } = useUser();
-  const { getToken } = useAuth();
   const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
   const [apiResponse, setApiResponse] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const callProtectedAPI = async () => {
+  // Fetch projects on component mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
     setLoading(true);
     setError(null);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch projects: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      setProjects(data.projects || []);
+    } catch (err) {
+      console.error('Fetch projects error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const callProtectedAPI = async () => {
+    const tempLoading = true;
+    const tempError = null;
     setApiResponse(null);
     try {
-      const token = await getToken();
-      if (!token) throw new Error('No session token available');
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/protected`, {
         method: 'GET',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) {
         const errorText = await response.text();
@@ -34,10 +65,23 @@ export default function Dashboard() {
       const data = await response.json();
       setApiResponse(data);
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error('Protected API error:', err);
     }
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      active: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30',
+      completed: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
+      'on-hold': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+      archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30'
+    };
+    return colors[status] || colors.active;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No due date';
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const menuItems = [
@@ -98,82 +142,120 @@ export default function Dashboard() {
               <h2 className="text-3xl font-bold">Welcome back, {user?.firstName || 'there'}! </h2>
               <p className="text-muted-foreground">Here's what's happening with your projects today.</p>
             </div>
+            
             <div className="grid gap-4 md:grid-cols-3">
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Active Projects</CardTitle><FolderKanban className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">12</div><p className="text-xs text-muted-foreground">+2 from last month</p></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Clients</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">24</div><p className="text-xs text-muted-foreground">+4 this week</p></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Revenue</CardTitle><Receipt className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">$12,450</div><p className="text-xs text-muted-foreground">+18% from last month</p></CardContent></Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+                  <FolderKanban className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{projects.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {projects.filter(p => p.status === 'active').length} active
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Your Role</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {projects.filter(p => p.userRole === 'owner').length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">projects owned</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Client Access</CardTitle>
+                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {projects.filter(p => p.userRole === 'client').length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">as client</p>
+                </CardContent>
+              </Card>
             </div>
             
             <Card>
               <CardHeader>
-                <CardTitle>Recent Projects</CardTitle>
-                <CardDescription>Your active video editing projects</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Your Projects</CardTitle>
+                    <CardDescription>Manage and track your video editing projects</CardDescription>
+                  </div>
+                  <Button onClick={() => navigate('/dashboard/create-project')} size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Project
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div 
-                    onClick={() => navigate('/project/1')} 
-                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FolderKanban className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium group-hover:text-primary transition-colors">Product Promo Reel</p>
-                        <p className="text-sm text-muted-foreground">Nimbus Co. • Due Sep 30</p>
-                      </div>
-                    </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-                      Active
-                    </span>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading projects...</span>
                   </div>
-                  
-                  <div 
-                    onClick={() => navigate('/project/2')} 
-                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FolderKanban className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium group-hover:text-primary transition-colors">Corporate Training Video</p>
-                        <p className="text-sm text-muted-foreground">TechCorp • Due Oct 15</p>
-                      </div>
-                    </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-500 border border-orange-500/30">
-                      At Risk
-                    </span>
+                ) : error ? (
+                  <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
+                    <p className="text-sm font-medium text-destructive">Error loading projects</p>
+                    <p className="text-sm text-destructive/90 mt-1">{error}</p>
+                    <Button onClick={fetchProjects} variant="outline" size="sm" className="mt-3">
+                      Retry
+                    </Button>
                   </div>
-                  
-                  <div 
-                    onClick={() => navigate('/project/3')} 
-                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FolderKanban className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium group-hover:text-primary transition-colors">Social Media Content Pack</p>
-                        <p className="text-sm text-muted-foreground">BrandFlow • Due Oct 5</p>
-                      </div>
-                    </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-                      On Track
-                    </span>
+                ) : projects.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FolderKanban className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">No projects yet</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Create your first project to get started
+                    </p>
+                    <Button onClick={() => navigate('/dashboard/create-project')}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Project
+                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader><CardTitle>Protected API Test</CardTitle><CardDescription>Test the Clerk JWT authentication with the backend</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <Button onClick={callProtectedAPI} disabled={loading}>{loading ? 'Calling API...' : 'Call Protected API'}</Button>
-                {error && (<div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg"><p className="text-sm font-medium text-destructive">Error:</p><p className="text-sm text-destructive/90 mt-1">{error}</p></div>)}
-                {apiResponse && (<div className="p-4 border border-primary/50 bg-primary/10 rounded-lg"><p className="text-sm font-medium text-primary mb-2"> Success!</p><pre className="text-xs bg-background p-3 rounded overflow-auto">{JSON.stringify(apiResponse, null, 2)}</pre></div>)}
+                ) : (
+                  <div className="space-y-3">
+                    {projects.map((project) => (
+                      <div
+                        key={project._id}
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                        className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <FolderKanban className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium group-hover:text-primary transition-colors">
+                                {project.title}
+                              </p>
+                              {project.userRole === 'owner' && (
+                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                                  Owner
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {project.brief || 'No description'} • Due {formatDate(project.dueDate)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
+                          {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
