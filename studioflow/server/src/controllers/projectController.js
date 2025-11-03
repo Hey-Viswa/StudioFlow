@@ -1,5 +1,11 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
+import { createClerkClient } from '@clerk/backend';
+import { clearUserCache } from '../middlewares/cache.js';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 // @desc    Create a new project
 // @route   POST /api/projects
@@ -13,6 +19,28 @@ export const createProject = async (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
 
+    if (title.length > 50) {
+      return res.status(400).json({ error: 'Title must be 50 characters or less' });
+    }
+
+    if (brief && brief.length > 100) {
+      return res.status(400).json({ error: 'Brief must be 100 characters or less' });
+    }
+
+    // Fetch user details from Clerk
+    let ownerEmail = '';
+    let ownerName = '';
+    try {
+      const user = await clerkClient.users.getUser(ownerId);
+      ownerEmail = user.emailAddresses?.[0]?.emailAddress || '';
+      ownerName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username || user.firstName || ownerEmail;
+    } catch (err) {
+      console.error('Error fetching user from Clerk:', err);
+      // Continue without user details
+    }
+
     // Create project with owner as first member
     const project = await Project.create({
       title,
@@ -20,6 +48,8 @@ export const createProject = async (req, res) => {
       ownerId,
       members: [{
         userId: ownerId,
+        email: ownerEmail,
+        name: ownerName,
         role: 'owner',
         joinedAt: new Date()
       }],
@@ -37,8 +67,11 @@ export const createProject = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    const frontendUrl = process.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
     const inviteLink = `${frontendUrl}/invite?token=${inviteToken}`;
+
+    // Clear user's project list cache
+    clearUserCache(ownerId);
 
     res.status(201).json({
       project,
@@ -58,11 +91,16 @@ export const listProjects = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Find projects where user is owner OR member
+    // Find projects where user is owner OR member, and NOT deleted
     const projects = await Project.find({
-      $or: [
-        { ownerId: userId },
-        { 'members.userId': userId }
+      $and: [
+        { deletedAt: null }, // Exclude soft-deleted projects
+        {
+          $or: [
+            { ownerId: userId },
+            { 'members.userId': userId }
+          ]
+        }
       ]
     }).sort({ createdAt: -1 }); // Most recent first
 
@@ -112,6 +150,13 @@ export const getProjectById = async (req, res) => {
       isOwner: project.isOwner(userId)
     };
 
+    console.log('🔐 Sending project with role:', {
+      userId,
+      userRole,
+      isOwner: projectData.isOwner,
+      ownerId: project.ownerId
+    });
+
     res.json({ project: projectData });
   } catch (error) {
     console.error('Get project error:', error);
@@ -127,15 +172,25 @@ export const generateInvite = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
+    console.log('🔗 Generate invite request:', { projectId: id, userId });
+
     const project = await Project.findById(id);
 
     if (!project) {
+      console.log('❌ Project not found:', id);
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Only owner can generate invites
     if (!project.isOwner(userId)) {
+      console.log('❌ Not owner:', { userId, ownerId: project.owner });
       return res.status(403).json({ error: 'Only project owner can generate invites' });
+    }
+
+    // Check JWT_SECRET
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET not configured in environment variables');
+      return res.status(500).json({ error: 'Server configuration error: JWT_SECRET not set' });
     }
 
     // Create invite token (valid for 7 days)
@@ -153,14 +208,16 @@ export const generateInvite = async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const inviteLink = `${frontendUrl}/invite?token=${inviteToken}`;
 
+    console.log('✅ Invite link generated successfully');
+
     res.json({
       inviteLink,
       expiresIn: '7 days',
       projectTitle: project.title
     });
   } catch (error) {
-    console.error('Generate invite error:', error);
-    res.status(500).json({ error: 'Failed to generate invite' });
+    console.error('❌ Generate invite error:', error);
+    res.status(500).json({ error: 'Failed to generate invite: ' + error.message });
   }
 };
 
@@ -184,6 +241,15 @@ export const updateProject = async (req, res) => {
       return res.status(403).json({ error: 'Only project owner can update' });
     }
 
+    // Validate character limits
+    if (title && title.length > 50) {
+      return res.status(400).json({ error: 'Title must be 50 characters or less' });
+    }
+
+    if (brief && brief.length > 100) {
+      return res.status(400).json({ error: 'Brief must be 100 characters or less' });
+    }
+
     // Update fields
     if (title !== undefined) project.title = title;
     if (brief !== undefined) project.brief = brief;
@@ -191,6 +257,14 @@ export const updateProject = async (req, res) => {
     if (dueDate !== undefined) project.dueDate = dueDate ? new Date(dueDate) : null;
 
     await project.save();
+
+    // Clear cache for all project members
+    clearUserCache(userId);
+    project.members.forEach(member => {
+      if (member.userId !== userId) {
+        clearUserCache(member.userId);
+      }
+    });
 
     res.json({
       project,
@@ -202,7 +276,7 @@ export const updateProject = async (req, res) => {
   }
 };
 
-// @desc    Delete project
+// @desc    Soft delete project (move to trash)
 // @route   DELETE /api/projects/:id
 // @access  Protected (Owner only)
 export const deleteProject = async (req, res) => {
@@ -221,9 +295,119 @@ export const deleteProject = async (req, res) => {
       return res.status(403).json({ error: 'Only project owner can delete' });
     }
 
+    // Soft delete - move to trash
+    project.deletedAt = new Date();
+    project.deletedBy = userId;
+    await project.save();
+
+    // Clear cache for all project members
+    clearUserCache(userId);
+    project.members.forEach(member => {
+      if (member.userId !== userId) {
+        clearUserCache(member.userId);
+      }
+    });
+
+    res.json({ message: 'Project moved to trash. Will be permanently deleted after 30 days.' });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+};
+
+// @desc    Get trash (soft-deleted projects)
+// @route   GET /api/projects/trash
+// @access  Protected
+export const listTrash = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Find projects that were deleted by this user and haven't been 30 days yet
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    const trashedProjects = await Project.find({
+      deletedBy: userId,
+      deletedAt: { $ne: null, $gte: thirtyDaysAgo }
+    }).sort({ deletedAt: -1 });
+
+    // Calculate days remaining for each project
+    const projectsWithDaysRemaining = trashedProjects.map(project => {
+      const deletedDate = new Date(project.deletedAt);
+      const expiryDate = new Date(deletedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const daysRemaining = Math.ceil((expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        ...project.toObject(),
+        daysRemaining
+      };
+    });
+
+    res.json({
+      projects: projectsWithDaysRemaining,
+      count: projectsWithDaysRemaining.length
+    });
+  } catch (error) {
+    console.error('List trash error:', error);
+    res.status(500).json({ error: 'Failed to fetch trash' });
+  }
+};
+
+// @desc    Restore project from trash
+// @route   POST /api/projects/:id/restore
+// @access  Protected (Owner only)
+export const restoreProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Only the person who deleted it can restore
+    if (project.deletedBy !== userId) {
+      return res.status(403).json({ error: 'Only the person who deleted this can restore it' });
+    }
+
+    // Restore project
+    project.deletedAt = null;
+    project.deletedBy = null;
+    await project.save();
+
+    res.json({ 
+      project,
+      message: 'Project restored successfully' 
+    });
+  } catch (error) {
+    console.error('Restore project error:', error);
+    res.status(500).json({ error: 'Failed to restore project' });
+  }
+};
+
+// @desc    Permanently delete project
+// @route   DELETE /api/projects/:id/permanent
+// @access  Protected (Owner only)
+export const permanentlyDeleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Only owner can permanently delete
+    if (!project.isOwner(userId)) {
+      return res.status(403).json({ error: 'Only project owner can permanently delete' });
+    }
+
     await project.deleteOne();
 
-    res.json({ message: 'Project deleted successfully' });
+    res.json({ message: 'Project permanently deleted' });
   } catch (error) {
     console.error('Delete project error:', error);
     res.status(500).json({ error: 'Failed to delete project' });

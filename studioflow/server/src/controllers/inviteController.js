@@ -1,5 +1,10 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
+import { createClerkClient } from '@clerk/backend';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 // @desc    Accept project invite
 // @route   POST /api/invites/accept
@@ -46,9 +51,25 @@ export const acceptInvite = async (req, res) => {
       });
     }
 
+    // Fetch user details from Clerk
+    let userEmail = '';
+    let userName = '';
+    try {
+      const user = await clerkClient.users.getUser(userId);
+      userEmail = user.emailAddresses?.[0]?.emailAddress || '';
+      userName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username || user.firstName || userEmail;
+    } catch (err) {
+      console.error('Error fetching user from Clerk:', err);
+      // Continue without user details
+    }
+
     // Add user to members
     project.members.push({
       userId,
+      email: userEmail,
+      name: userName,
       role: role || 'client',
       joinedAt: new Date()
     });

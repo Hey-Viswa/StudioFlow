@@ -9,6 +9,7 @@ import protectedRoute from './src/routes/protected.js';
 import projectRoutes from './src/routes/projects.js';
 import inviteRoutes from './src/routes/invites.js';
 import paymentRoutes from './src/routes/payment.js';
+import taskCommentRoutes from './src/routes/taskComment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +72,7 @@ app.get('/api/test-auth', async (req, res) => {
 
 app.use('/api/protected', protectedRoute);
 app.use('/api/projects', projectRoutes);
+app.use('/api/projects', taskCommentRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
 
