@@ -2,7 +2,8 @@
 import { useUser, UserButton } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2 } from 'lucide-react';
+import { Progress } from '../components/ui/progress';
+import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
@@ -38,6 +39,8 @@ export default function Dashboard() {
       }
 
       const data = await response.json();
+      console.log('📊 Dashboard - Projects data received:', data);
+      console.log('📊 Dashboard - First project progress:', data.projects?.[0]?.progress);
       setProjects(data.projects || []);
     } catch (err) {
       console.error('Fetch projects error:', err);
@@ -98,7 +101,7 @@ export default function Dashboard() {
         <div className="flex flex-col h-full">
           <div className="h-16 flex items-center justify-between px-6 border-b border-border">
             <div className="flex items-center gap-2">
-              <img src="/studioflowlogo.png" alt="StudioFlow" className="h-5 w-auto" />
+              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
               <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</span>
             </div>
             <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(false)}><X className="w-5 h-5" /></Button>
@@ -122,7 +125,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden"><Menu className="w-5 h-5" /></Button>
               <div className="lg:hidden flex items-center gap-2">
-                <img src="/studioflowlogo.png" alt="StudioFlow" className="h-5 w-auto" />
+                <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
                 <span className="font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</span>
               </div>
               <h1 className="hidden lg:block text-2xl font-bold">Dashboard</h1>
@@ -138,9 +141,19 @@ export default function Dashboard() {
         </header>
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold">Welcome back, {user?.firstName || 'there'}! </h2>
-              <p className="text-muted-foreground">Here's what's happening with your projects today.</p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <h2 className="text-3xl font-bold tracking-tight">Welcome back, {user?.firstName || 'there'}! </h2>
+                <p className="text-muted-foreground">Let's make something amazing today.</p>
+              </div>
+              <Button 
+                onClick={() => navigate('/dashboard/create-project')} 
+                size="lg"
+                className="gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Create New Project
+              </Button>
             </div>
             
             <div className="grid gap-4 md:grid-cols-3">
@@ -184,16 +197,8 @@ export default function Dashboard() {
             
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Your Projects</CardTitle>
-                    <CardDescription>Manage and track your video editing projects</CardDescription>
-                  </div>
-                  <Button onClick={() => navigate('/dashboard/create-project')} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Project
-                  </Button>
-                </div>
+                <CardTitle>Your Projects</CardTitle>
+                <CardDescription>Manage and track your video editing projects</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -222,37 +227,79 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid gap-6 md:grid-cols-2">
                     {projects.map((project) => (
-                      <div
+                      <Card
                         key={project._id}
                         onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                        className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer group"
+                        className="cursor-pointer hover:shadow-xl transition-all duration-300 border-border/50 hover:border-primary/50 group relative overflow-hidden bg-gradient-to-br from-card to-card/50"
                       >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <FolderKanban className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium group-hover:text-primary transition-colors">
+                        {/* Hover gradient overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        
+                        <CardHeader className="pb-4 relative">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-xl leading-tight group-hover:text-primary transition-colors mb-2 line-clamp-1">
                                 {project.title}
+                              </h3>
+                              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                {project.brief || 'No description provided'}
                               </p>
+                            </div>
+                            <div className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
+                              {project.status === 'active' ? 'In Progress' : 
+                               project.status === 'on-hold' ? 'On Hold' :
+                               project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        
+                        <CardContent className="space-y-4 relative">
+                          {/* Progress Section */}
+                          {project.progress !== undefined && (
+                            <div className="space-y-2.5 bg-muted/30 rounded-lg p-4 border border-border/50">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-foreground">Progress</span>
+                                <span className="text-lg font-bold text-primary">{project.progress}%</span>
+                              </div>
+                              <Progress value={project.progress} className="h-2.5" />
+                            </div>
+                          )}
+                          
+                          {/* Footer Info */}
+                          <div className="flex items-center justify-between pt-2">
+                            <div className="flex items-center gap-2">
                               {project.userRole === 'owner' && (
-                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                                   Owner
                                 </span>
                               )}
+                              {project.userRole === 'client' && (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                  Client
+                                </span>
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {project.brief || 'No description'} • Due {formatDate(project.dueDate)}
-                            </p>
+                            <span className="text-sm text-muted-foreground font-medium">
+                              Due {formatDate(project.dueDate)}
+                            </span>
                           </div>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
-                          {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                        </span>
-                      </div>
+                          
+                          {/* View Button */}
+                          <Button 
+                            variant="ghost" 
+                            className="w-full mt-2 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:bg-primary/10 text-primary font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/dashboard/projects/${project._id}`);
+                            }}
+                          >
+                            View Project
+                            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                          </Button>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}

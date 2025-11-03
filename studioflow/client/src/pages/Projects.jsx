@@ -1,207 +1,493 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Search, Plus } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { Checkbox } from '../components/ui/checkbox';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import {
+  Search,
+  Loader2,
+  Plus,
+  LayoutGrid,
+  LayoutList,
+  MoreHorizontal
+} from 'lucide-react';
 
 export default function Projects() {
-  const [viewMode, setViewMode] = useState('table');
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'board'
+  const [selectedProjects, setSelectedProjects] = useState([]);
 
-  // Mock data
-  const projects = [
-    {
-      id: 'PR-1021',
-      name: 'Product Promo Reel',
-      client: 'Nimbus Co.',
-      status: 'In Progress',
-      progress: 64,
-      due: 'Sep 30',
-    },
-    {
-      id: 'WH-0892',
-      name: 'Wedding Highlights',
-      client: 'Carter Family',
-      status: 'Review',
-      progress: 82,
-      due: 'Sep 12',
-    },
-    {
-      id: 'MV-0774',
-      name: 'Music Video Cut',
-      client: 'Neon Wave',
-      status: 'Blocked',
-      progress: 30,
-      due: 'Oct 05',
-    },
-    {
-      id: 'CI-0651',
-      name: 'Corporate Interviews',
-      client: 'Acme Ltd.',
-      status: 'In Progress',
-      progress: 45,
-      due: 'Sep 28',
-    },
-  ];
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+
+      const data = await response.json();
+      console.log('📊 Projects data received:', data);
+      console.log('📊 First project progress:', data.projects?.[0]?.progress);
+      setProjects(data.projects || []);
+    } catch (err) {
+      console.error('Fetch projects error:', err);
+      toast.error('Failed to load projects');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const statusConfig = {
-    'In Progress': { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-    'Review': { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-    'Blocked': { color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+    'active': { 
+      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', 
+      label: 'In Progress', 
+      badge: 'In Progress' 
+    },
+    'completed': { 
+      color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', 
+      label: 'Completed', 
+      badge: 'Completed' 
+    },
+    'on-hold': { 
+      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
+      label: 'Review', 
+      badge: 'Review' 
+    },
+    'archived': { 
+      color: 'bg-red-500/10 text-red-600 border-red-500/20', 
+      label: 'Blocked', 
+      badge: 'Blocked' 
+    }
   };
 
-  const groupedProjects = {
-    'In Progress': projects.filter(p => p.status === 'In Progress'),
-    'Review': projects.filter(p => p.status === 'Review'),
-    'Blocked': projects.filter(p => p.status === 'Blocked'),
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No due date';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
+
+  // Get unique clients for filter
+  const uniqueClients = [...new Set(projects.map(p => 
+    p.members?.find(m => m.role === 'client')?.name || 'No client'
+  ))];
+
+  // Filter projects
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.brief?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
+    const projectClient = project.members?.find(m => m.role === 'client')?.name || 'No client';
+    const matchesClient = clientFilter === 'all' || projectClient === clientFilter;
+    
+    return matchesSearch && matchesStatus && matchesClient;
+  });
+
+  // Group projects by status for board view
+  const groupedProjects = {
+    'active': filteredProjects.filter(p => p.status === 'active'),
+    'on-hold': filteredProjects.filter(p => p.status === 'on-hold'),
+    'archived': filteredProjects.filter(p => p.status === 'archived'),
+    'completed': filteredProjects.filter(p => p.status === 'completed')
+  };
+
+  const activeProjects = projects.filter(p => p.status === 'active').length;
+
+  const toggleProjectSelection = (projectId) => {
+    setSelectedProjects(prev =>
+      prev.includes(projectId)
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  const toggleAllProjects = () => {
+    if (selectedProjects.length === filteredProjects.length) {
+      setSelectedProjects([]);
+    } else {
+      setSelectedProjects(filteredProjects.map(p => p._id));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8">
+    <div className="p-8 relative">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-1">Projects</h1>
-          <p className="text-gray-400">
-            <span className="text-white font-medium">24</span> active
+          <h1 className="text-3xl font-bold mb-1">Projects</h1>
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">{activeProjects}</span> active
           </p>
         </div>
-        <Link to="/dashboard/projects/new">
-          <Button className="bg-primary hover:bg-primary/90">
-            <Plus className="w-4 h-4 mr-2" />
-            New Project
-          </Button>
-        </Link>
+        <Button 
+          onClick={() => navigate('/dashboard/projects/new')} 
+          className="gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          New Project
+        </Button>
       </div>
 
-      {/* Filters & Search */}
-      <div className="flex items-center gap-3 mb-6">
+      {/* Filters & View Toggle */}
+      <div className="flex items-center gap-3 mb-6 relative z-10">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
           <Input
-            type="text"
             placeholder="Search projects"
-            className="pl-10 bg-[#1e293b] border-[#334155] text-white placeholder:text-gray-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
           />
         </div>
-        <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-gray-300 hover:bg-[#334155] hover:text-white">
-          Status
-        </Button>
-        <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-gray-300 hover:bg-[#334155] hover:text-white">
-          Client
-        </Button>
-        <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-gray-300 hover:bg-[#334155] hover:text-white">
-          Sort by
-        </Button>
-      </div>
 
-      {/* View Toggle */}
-      <div className="flex items-center gap-2 mb-6">
-        <Button
-          variant={viewMode === 'table' ? 'default' : 'outline'}
-          onClick={() => setViewMode('table')}
-          className={viewMode === 'table' ? 'bg-primary' : 'bg-[#1e293b] border-[#334155] text-gray-300'}
-        >
-          Table View
-        </Button>
-        <Button
-          variant={viewMode === 'board' ? 'default' : 'outline'}
-          onClick={() => setViewMode('board')}
-          className={viewMode === 'board' ? 'bg-primary' : 'bg-[#1e293b] border-[#334155] text-gray-300'}
-        >
-          Board View
-        </Button>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent className="z-[200]">
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="on-hold">On Hold</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Client" />
+          </SelectTrigger>
+          <SelectContent className="z-[200]">
+            <SelectItem value="all">All Clients</SelectItem>
+            {uniqueClients.map(client => (
+              <SelectItem key={client} value={client}>{client}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('table')}
+          >
+            <LayoutList className="w-4 h-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'board' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('board')}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Table View */}
       {viewMode === 'table' && (
-        <div className="bg-[#0f1420] border border-[#1e293b] rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-[#1e293b]">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Project</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Client</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Progress</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Due</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1e293b]">
-              {projects.map((project) => (
-                <tr key={project.id} className="hover:bg-[#1e293b]/50 cursor-pointer transition-colors">
-                  <td className="px-6 py-4">
-                    <div>
-                      <div className="text-sm font-medium text-white">{project.name}</div>
-                      <div className="text-xs text-gray-500">ID: {project.id}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-300">{project.client}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant="outline" className={statusConfig[project.status].color}>
-                      {project.status}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <Progress value={project.progress} className="h-2 w-24" />
-                      <span className="text-sm text-gray-300 font-medium">{project.progress}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-300">{project.due}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="rounded-md border relative z-0 overflow-visible">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
+                      onCheckedChange={toggleAllProjects}
+                    />
+                  </TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Due</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProjects.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      No projects found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredProjects.map((project) => {
+                    const client = project.members?.find(m => m.role === 'client');
+                    return (
+                      <TableRow
+                        key={project._id}
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedProjects.includes(project._id)}
+                            onCheckedChange={() => toggleProjectSelection(project._id)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium">{project.title}</span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              ID: {project._id.slice(-8).toUpperCase()}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {client?.name || <span className="text-muted-foreground">No client</span>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={statusConfig[project.status]?.color || statusConfig.active.color}
+                          >
+                            {statusConfig[project.status]?.badge || 'Active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3 min-w-[140px]">
+                            <Progress 
+                              value={project.progress || 0} 
+                              className="h-2 flex-1" 
+                            />
+                            <span className="text-sm font-medium w-10 text-right">
+                              {project.progress || 0}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatDate(project.dueDate)}</TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          
+          {/* Footer with selection count */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              {selectedProjects.length > 0 ? (
+                <span>{selectedProjects.length} of {filteredProjects.length} row(s) selected.</span>
+              ) : (
+                <span>0 of {filteredProjects.length} row(s) selected.</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled>
+                Previous
+              </Button>
+              <Button variant="outline" size="sm" disabled>
+                Next
+              </Button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Board View */}
       {viewMode === 'board' && (
         <div>
-          <p className="text-sm text-gray-400 mb-6">Quick glance of statuses</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.entries(groupedProjects).map(([status, statusProjects]) => (
-              <div key={status}>
+          <div className="mb-4">
+            <h2 className="text-lg font-medium mb-1">Board view</h2>
+            <p className="text-sm text-muted-foreground">Quick glance of statuses</p>
+          </div>
+          
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {/* In Progress Column */}
+            <div className="flex-1 min-w-[300px]">
+              <div className="border rounded-lg p-4 bg-card">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">{status}</h3>
-                  <Badge variant="outline" className="bg-[#1e293b] text-gray-400 border-[#334155]">
-                    {statusProjects.length}
+                  <h3 className="font-semibold">In Progress</h3>
+                  <Badge variant="secondary">
+                    {groupedProjects['active'].length}
                   </Badge>
                 </div>
+                
                 <div className="space-y-3">
-                  {statusProjects.map((project) => (
-                    <Card key={project.id} className="bg-[#1e293b] border-[#334155] hover:border-primary/50 transition-colors cursor-pointer">
-                      <div className="p-4">
-                        <h4 className="text-base font-semibold text-white mb-2">{project.name}</h4>
-                        <p className="text-sm text-gray-400 mb-3">{project.client} • Due {project.due}</p>
-                        <div className="flex items-center gap-2">
-                          <Progress value={project.progress} className="h-2 flex-1" />
-                          <span className="text-xs text-primary font-medium">{project.progress}%</span>
+                  {groupedProjects['active'].map((project) => {
+                    const client = project.members?.find(m => m.role === 'client');
+                    return (
+                      <div
+                        key={project._id}
+                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                      >
+                        <h4 className="font-semibold mb-1">{project.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-600 border-0">
+                            {project.progress || 0}%
+                          </Badge>
                         </div>
                       </div>
-                    </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Review Column */}
+            <div className="flex-1 min-w-[300px]">
+              <div className="border rounded-lg p-4 bg-card">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Review</h3>
+                  <Badge variant="secondary">
+                    {groupedProjects['on-hold'].length}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-3">
+                  {groupedProjects['on-hold'].map((project) => {
+                    const client = project.members?.find(m => m.role === 'client');
+                    return (
+                      <div
+                        key={project._id}
+                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                      >
+                        <h4 className="font-semibold mb-1">{project.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="bg-orange-500/20 text-orange-600 border-0">
+                            {project.progress || 0}%
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Blocked Column */}
+            <div className="flex-1 min-w-[300px]">
+              <div className="border rounded-lg p-4 bg-card">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Blocked</h3>
+                  <Badge variant="secondary">
+                    {groupedProjects['archived'].length}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-3">
+                  {groupedProjects['archived'].map((project) => {
+                    const client = project.members?.find(m => m.role === 'client');
+                    return (
+                      <div
+                        key={project._id}
+                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                      >
+                        <h4 className="font-semibold mb-1">{project.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Completed Column */}
+            <div className="flex-1 min-w-[300px]">
+              <div className="border rounded-lg p-4 bg-card">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Completed</h3>
+                  <Badge variant="secondary">
+                    {groupedProjects['completed'].length}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-3">
+                  {groupedProjects['completed'].map((project) => {
+                    const client = project.members?.find(m => m.role === 'client');
+                    return (
+                      <div
+                        key={project._id}
+                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
+                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                      >
+                        <h4 className="font-semibold mb-1">{project.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="bg-green-500/20 text-green-600 border-0">
+                            100%
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-gray-400">Showing 1–10 of 24</p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-gray-300">
-            Previous
-          </Button>
-          <Button variant="outline" className="bg-[#1e293b] border-[#334155] text-gray-300">
-            Next
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
+

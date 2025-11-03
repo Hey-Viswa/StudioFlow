@@ -1,12 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { Progress } from '../components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import TasksTab from '../components/TasksTab';
+import CommentsTab from '../components/CommentsTab';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import {
   ArrowLeft,
   Loader2,
@@ -20,7 +32,11 @@ import {
   Edit,
   Trash2,
   Save,
-  X
+  X,
+  AlertTriangle,
+  ListTodo,
+  MessageSquare,
+  Upload
 } from 'lucide-react';
 
 export default function ProjectDetail() {
@@ -42,6 +58,8 @@ export default function ProjectDetail() {
   });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
 
   useEffect(() => {
     fetchProject();
@@ -70,6 +88,11 @@ export default function ProjectDetail() {
 
       const data = await response.json();
       setProject(data.project);
+      console.log('🔐 Project loaded:', {
+        userRole: data.project.userRole,
+        isOwner: data.project.isOwner,
+        ownerId: data.project.ownerId
+      });
     } catch (err) {
       console.error('Fetch project error:', err);
       setError(err.message);
@@ -99,9 +122,10 @@ export default function ProjectDetail() {
 
       const data = await response.json();
       setInviteLink(data.inviteLink);
+      toast.success('Invite link generated successfully!');
     } catch (err) {
       console.error('Generate invite error:', err);
-      alert(`Error: ${err.message}`);
+      toast.error(err.message || 'Failed to generate invite link');
     } finally {
       setGeneratingInvite(false);
     }
@@ -111,6 +135,7 @@ export default function ProjectDetail() {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
       setCopied(true);
+      toast.success('Link copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -120,6 +145,7 @@ export default function ProjectDetail() {
       title: project.title,
       brief: project.brief || '',
       status: project.status,
+      progress: project.progress || 0,
       dueDate: project.dueDate ? new Date(project.dueDate).toISOString().split('T')[0] : ''
     });
     setIsEditing(true);
@@ -127,11 +153,31 @@ export default function ProjectDetail() {
 
   const cancelEditing = () => {
     setIsEditing(false);
-    setEditForm({ title: '', brief: '', status: '', dueDate: '' });
+    setEditForm({ title: '', brief: '', status: '', progress: 0, dueDate: '' });
   };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
+    
+    // Validate character limits
+    if (name === 'title' && value.length > 50) {
+      toast.error('Title must be 50 characters or less');
+      return;
+    }
+    if (name === 'brief' && value.length > 100) {
+      toast.error('Brief must be 100 characters or less');
+      return;
+    }
+    
+    // Validate progress range
+    if (name === 'progress') {
+      const numValue = Number(value);
+      if (numValue < 0 || numValue > 100) {
+        toast.error('Progress must be between 0 and 100');
+        return;
+      }
+    }
+    
     setEditForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -157,19 +203,26 @@ export default function ProjectDetail() {
       const data = await response.json();
       setProject(data.project);
       setIsEditing(false);
+      toast.success('Project updated successfully!');
     } catch (err) {
       console.error('Update project error:', err);
-      alert(`Error: ${err.message}`);
+      toast.error(err.message || 'Failed to update project');
     } finally {
       setSaving(false);
     }
   };
 
-  const deleteProjectHandler = async () => {
-    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-      return;
-    }
+  const openDeleteConfirm = () => {
+    setShowDeleteConfirm(true);
+    setDeleteConfirmInput('');
+  };
 
+  const closeDeleteConfirm = () => {
+    setShowDeleteConfirm(false);
+    setDeleteConfirmInput('');
+  };
+
+  const deleteProjectHandler = async () => {
     setDeleting(true);
     try {
       const token = await getToken();
@@ -188,10 +241,11 @@ export default function ProjectDetail() {
       }
 
       // Redirect to dashboard after successful deletion
+      toast.success('Project deleted successfully!');
       navigate('/dashboard');
     } catch (err) {
       console.error('Delete project error:', err);
-      alert(`Error: ${err.message}`);
+      toast.error(err.message || 'Failed to delete project');
       setDeleting(false);
     }
   };
@@ -274,6 +328,13 @@ export default function ProjectDetail() {
                         onChange={handleEditChange}
                         className="mt-1"
                       />
+                      <p className={`text-xs mt-1 ${
+                        editForm.title.length > 50 ? 'text-red-500' : 
+                        editForm.title.length > 40 ? 'text-yellow-500' : 
+                        'text-muted-foreground'
+                      }`}>
+                        {editForm.title.length}/50 characters
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="brief">Project Brief</Label>
@@ -285,34 +346,56 @@ export default function ProjectDetail() {
                         rows={3}
                         className="mt-1"
                       />
+                      <p className={`text-xs mt-1 ${
+                        editForm.brief.length > 100 ? 'text-red-500' : 
+                        editForm.brief.length > 80 ? 'text-yellow-500' : 
+                        'text-muted-foreground'
+                      }`}>
+                        {editForm.brief.length}/100 characters
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="status">Status</Label>
-                        <select
-                          id="status"
-                          name="status"
-                          value={editForm.status}
-                          onChange={handleEditChange}
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        <Select 
+                          value={editForm.status} 
+                          onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
                         >
-                          <option value="active">Active</option>
-                          <option value="completed">Completed</option>
-                          <option value="on-hold">On Hold</option>
-                          <option value="archived">Archived</option>
-                        </select>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="on-hold">On Hold</SelectItem>
+                            <SelectItem value="archived">Archived</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
-                        <Label htmlFor="dueDate">Due Date</Label>
+                        <Label htmlFor="progress">Progress (%)</Label>
                         <Input
-                          id="dueDate"
-                          name="dueDate"
-                          type="date"
-                          value={editForm.dueDate}
+                          id="progress"
+                          name="progress"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={editForm.progress}
                           onChange={handleEditChange}
                           className="mt-1"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <Input
+                        id="dueDate"
+                        name="dueDate"
+                        type="date"
+                        value={editForm.dueDate}
+                        onChange={handleEditChange}
+                        className="mt-1"
+                      />
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={saveProject} disabled={saving}>
@@ -360,7 +443,7 @@ export default function ProjectDetail() {
                     <Edit className="w-4 h-4 mr-2" />
                     Edit
                   </Button>
-                  <Button onClick={deleteProjectHandler} variant="destructive" size="sm" disabled={deleting}>
+                  <Button onClick={openDeleteConfirm} variant="destructive" size="sm" disabled={deleting}>
                     {deleting ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
@@ -397,6 +480,17 @@ export default function ProjectDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Progress Bar */}
+            {project.progress !== undefined && (
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Project Progress</h3>
+                  <span className="text-lg font-bold text-primary">{project.progress}%</span>
+                </div>
+                <Progress value={project.progress} className="h-3" />
+              </div>
+            )}
 
             {/* Invite Section - Only for owners */}
             {project.isOwner && (
@@ -488,18 +582,101 @@ export default function ProjectDetail() {
         </Card>
 
         {/* Placeholder for future features */}
+        {/* Tasks, Files, and Comments Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Tasks & Updates</CardTitle>
-            <CardDescription>Coming soon: Track project tasks and updates</CardDescription>
+            <CardTitle>Project Workspace</CardTitle>
+            <CardDescription>Manage tasks, files, and communicate with your team</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              This section will allow you to manage tasks, upload files, and communicate with your team.
-            </p>
+            <Tabs defaultValue="tasks" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="tasks" className="flex items-center gap-2">
+                  <ListTodo className="w-4 h-4" />
+                  Tasks
+                </TabsTrigger>
+                <TabsTrigger value="files" className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Files
+                </TabsTrigger>
+                <TabsTrigger value="comments" className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  Comments
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="tasks" className="mt-6">
+                <TasksTab projectId={projectId} project={project} />
+              </TabsContent>
+              
+              <TabsContent value="files" className="mt-6">
+                <div className="text-center py-12 text-muted-foreground">
+                  <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium mb-2">File Upload Coming Soon</p>
+                  <p className="text-sm">
+                    You'll be able to upload and manage project files here.
+                  </p>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="comments" className="mt-6">
+                <CommentsTab projectId={projectId} project={project} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full border-red-500 border-2">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-500 mt-1" />
+                <div>
+                  <CardTitle className="text-red-600">Delete Project</CardTitle>
+                  <CardDescription className="mt-2">
+                    This will move the project to trash. It can be restored within 30 days before being permanently deleted.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  Please type <strong>{project?.title}</strong> to confirm:
+                </label>
+                <Input
+                  type="text"
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  placeholder="Type project name"
+                  autoFocus
+                  className="border-gray-300 focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={closeDeleteConfirm}
+                  disabled={deleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={deleteProjectHandler}
+                  disabled={deleteConfirmInput !== project?.title || deleting}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deleting ? 'Moving to trash...' : 'Move to Trash'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
