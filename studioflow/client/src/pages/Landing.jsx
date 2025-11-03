@@ -58,7 +58,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <img src="/studioflowlogo.png" alt="StudioFlow" className="h-5 w-auto" />
+              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
               <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</h1>
             </div>
             
@@ -455,7 +455,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <img src="/studioflowlogo.png" alt="StudioFlow" className="h-5 w-auto" />
+              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
               <p className="text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">StudioFlow</span> © 2025
               </p>
