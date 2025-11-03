@@ -6,7 +6,6 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
-import { Checkbox } from '../components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -40,7 +39,6 @@ export default function Projects() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'board'
-  const [selectedProjects, setSelectedProjects] = useState([]);
 
   useEffect(() => {
     fetchProjects();
@@ -131,22 +129,6 @@ export default function Projects() {
 
   const activeProjects = projects.filter(p => p.status === 'active').length;
 
-  const toggleProjectSelection = (projectId) => {
-    setSelectedProjects(prev =>
-      prev.includes(projectId)
-        ? prev.filter(id => id !== projectId)
-        : [...prev, projectId]
-    );
-  };
-
-  const toggleAllProjects = () => {
-    if (selectedProjects.length === filteredProjects.length) {
-      setSelectedProjects([]);
-    } else {
-      setSelectedProjects(filteredProjects.map(p => p._id));
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -236,12 +218,6 @@ export default function Projects() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
-                      onCheckedChange={toggleAllProjects}
-                    />
-                  </TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
@@ -253,7 +229,7 @@ export default function Projects() {
               <TableBody>
                 {filteredProjects.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No projects found.
                     </TableCell>
                   </TableRow>
@@ -266,12 +242,6 @@ export default function Projects() {
                         className="cursor-pointer"
                         onClick={() => navigate(`/dashboard/projects/${project._id}`)}
                       >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedProjects.includes(project._id)}
-                            onCheckedChange={() => toggleProjectSelection(project._id)}
-                          />
-                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <span className="font-medium">{project.title}</span>
@@ -292,12 +262,12 @@ export default function Projects() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-3 min-w-[140px]">
+                          <div className="flex items-center gap-3 w-[180px]">
                             <Progress 
                               value={project.progress || 0} 
-                              className="h-2 flex-1" 
+                              className="h-2.5 flex-1" 
                             />
-                            <span className="text-sm font-medium w-10 text-right">
+                            <span className="text-sm font-semibold w-12 text-right shrink-0">
                               {project.progress || 0}%
                             </span>
                           </div>
@@ -320,14 +290,10 @@ export default function Projects() {
             </Table>
           </div>
           
-          {/* Footer with selection count */}
+          {/* Footer with pagination */}
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
-              {selectedProjects.length > 0 ? (
-                <span>{selectedProjects.length} of {filteredProjects.length} row(s) selected.</span>
-              ) : (
-                <span>0 of {filteredProjects.length} row(s) selected.</span>
-              )}
+              Showing {filteredProjects.length} project(s)
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" disabled>
