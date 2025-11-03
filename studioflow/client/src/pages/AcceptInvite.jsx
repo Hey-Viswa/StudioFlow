@@ -8,7 +8,7 @@ import { Loader2, CheckCircle2, XCircle, UserPlus } from 'lucide-react';
 export default function AcceptInvite() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const [status, setStatus] = useState('verifying'); // verifying, valid, invalid, accepting, success, error
   const [projectInfo, setProjectInfo] = useState(null);
@@ -38,11 +38,7 @@ export default function AcceptInvite() {
       if (data.valid) {
         setStatus('valid');
         setProjectInfo(data.project);
-        
-        // Auto-accept if user is already signed in
-        if (isSignedIn) {
-          handleAccept();
-        }
+        // Don't auto-accept, let user click the button
       } else {
         setStatus('invalid');
         setError(data.error || 'Invalid invite link');
@@ -59,12 +55,20 @@ export default function AcceptInvite() {
     setError(null);
 
     try {
+      // Get Clerk token
+      const clerkToken = await getToken();
+      
+      if (!clerkToken) {
+        throw new Error('Authentication required. Please sign in.');
+      }
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/invites/accept`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${clerkToken}`
         },
         body: JSON.stringify({ token })
       });
@@ -155,7 +159,11 @@ export default function AcceptInvite() {
                   <p className="text-sm text-muted-foreground">
                     Sign in or create an account to accept this invite
                   </p>
-                  <SignInButton mode="modal" redirectUrl={`/invite?token=${token}`}>
+                  <SignInButton 
+                    mode="modal" 
+                    forceRedirectUrl={window.location.href}
+                    fallbackRedirectUrl={window.location.href}
+                  >
                     <Button className="w-full" size="lg">
                       Sign In to Accept
                     </Button>
