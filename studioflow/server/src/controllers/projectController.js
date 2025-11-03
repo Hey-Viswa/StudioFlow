@@ -149,8 +149,8 @@ export const generateInvite = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Use frontend URL from env or default
-    const frontendUrl = process.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5173';
+    // Use frontend URL from env
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const inviteLink = `${frontendUrl}/invite?token=${inviteToken}`;
 
     res.json({

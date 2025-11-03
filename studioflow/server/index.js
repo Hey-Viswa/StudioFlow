@@ -42,6 +42,33 @@ app.get('/api/health', (req, res) => {
     res.json({ok: true, time: new Date().toISOString(), status: 'Server is running'});
 });
 
+// Debug endpoint to test token
+app.get('/api/test-auth', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided', headers: req.headers });
+        }
+        
+        // Try to decode without verification to see what's in the token
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            return res.status(401).json({ error: 'Invalid token format' });
+        }
+        
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        res.json({ 
+            message: 'Token received', 
+            tokenLength: token.length,
+            payload: payload 
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.use('/api/protected', protectedRoute);
 app.use('/api/projects', projectRoutes);
 app.use('/api/invites', inviteRoutes);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -15,18 +16,32 @@ import {
   Calendar,
   Users,
   FileText,
-  Crown
+  Crown,
+  Edit,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [inviteLink, setInviteLink] = useState(null);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    brief: '',
+    status: '',
+    dueDate: ''
+  });
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -36,12 +51,14 @@ export default function ProjectDetail() {
     setLoading(true);
     setError(null);
     try {
+      const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         },
       });
 
@@ -64,12 +81,14 @@ export default function ProjectDetail() {
   const generateInviteLink = async () => {
     setGeneratingInvite(true);
     try {
+      const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects/${projectId}/invite`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         },
       });
 
@@ -93,6 +112,87 @@ export default function ProjectDetail() {
       navigator.clipboard.writeText(inviteLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const startEditing = () => {
+    setEditForm({
+      title: project.title,
+      brief: project.brief || '',
+      status: project.status,
+      dueDate: project.dueDate ? new Date(project.dueDate).toISOString().split('T')[0] : ''
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditForm({ title: '', brief: '', status: '', dueDate: '' });
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const saveProject = async () => {
+    setSaving(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update project');
+      }
+
+      const data = await response.json();
+      setProject(data.project);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Update project error:', err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProjectHandler = async () => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+
+      // Redirect to dashboard after successful deletion
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Delete project error:', err);
+      alert(`Error: ${err.message}`);
+      setDeleting(false);
     }
   };
 
@@ -163,22 +263,113 @@ export default function ProjectDetail() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <CardTitle className="text-2xl">{project.title}</CardTitle>
-                  {project.isOwner && (
-                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                      <Crown className="w-3 h-3 mr-1" />
-                      Owner
-                    </Badge>
-                  )}
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
-                    {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                  </span>
-                </div>
-                {project.brief && (
-                  <CardDescription className="text-base mt-2">{project.brief}</CardDescription>
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="title">Project Title</Label>
+                      <Input
+                        id="title"
+                        name="title"
+                        value={editForm.title}
+                        onChange={handleEditChange}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="brief">Project Brief</Label>
+                      <Textarea
+                        id="brief"
+                        name="brief"
+                        value={editForm.brief}
+                        onChange={handleEditChange}
+                        rows={3}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="status">Status</Label>
+                        <select
+                          id="status"
+                          name="status"
+                          value={editForm.status}
+                          onChange={handleEditChange}
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="on-hold">On Hold</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="dueDate">Due Date</Label>
+                        <Input
+                          id="dueDate"
+                          name="dueDate"
+                          type="date"
+                          value={editForm.dueDate}
+                          onChange={handleEditChange}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={saveProject} disabled={saving}>
+                        {saving ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </>
+                        )}
+                      </Button>
+                      <Button onClick={cancelEditing} variant="outline" disabled={saving}>
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-2">
+                      <CardTitle className="text-2xl">{project.title}</CardTitle>
+                      {project.isOwner && (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                          <Crown className="w-3 h-3 mr-1" />
+                          Owner
+                        </Badge>
+                      )}
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
+                        {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                      </span>
+                    </div>
+                    {project.brief && (
+                      <CardDescription className="text-base mt-2">{project.brief}</CardDescription>
+                    )}
+                  </>
                 )}
               </div>
+              {!isEditing && project.isOwner && (
+                <div className="flex gap-2 ml-4">
+                  <Button onClick={startEditing} variant="outline" size="sm">
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button onClick={deleteProjectHandler} variant="destructive" size="sm" disabled={deleting}>
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    Delete
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-6">

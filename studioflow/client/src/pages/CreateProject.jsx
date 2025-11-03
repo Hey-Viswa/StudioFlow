@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -9,6 +10,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function CreateProject() {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
@@ -28,12 +30,21 @@ export default function CreateProject() {
     setError(null);
 
     try {
+      // Get the session token from Clerk - this returns a JWT
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Not authenticated - please sign in again');
+      }
+
+      console.log('Token obtained, length:', token.length);
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(formData)
       });
