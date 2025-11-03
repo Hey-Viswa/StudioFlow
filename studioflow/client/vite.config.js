@@ -11,6 +11,7 @@ export default defineConfig({
   plugins: [react()],
   envDir: path.resolve(__dirname, '..', '..'),
   server: {
+    port: 3002,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

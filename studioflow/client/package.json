@@ -28,8 +28,8 @@
     "postcss": "^8.4.31"
   },
   "scripts": {
-    "start": "vite --port 3000",
-    "dev": "vite --port 3000",
+    "start": "vite --port 3002",
+    "dev": "vite --port 3002",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest"
