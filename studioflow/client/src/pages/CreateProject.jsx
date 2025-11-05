@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { ArrowLeft, Loader2, ChevronDown, Sparkles, Rocket, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronDown, Rocket, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CreateProject() {
@@ -262,11 +262,20 @@ export default function CreateProject() {
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/dashboard')}
+                  disabled={loading}
+                  className="border-slate-600 hover:border-primary/50 hover:bg-slate-800 transition-all duration-300"
+                >
+                  Cancel
+                </Button>
                 <Button
                   type="submit"
                   disabled={loading || !formData.title}
-                  className="flex-1 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold h-12 rounded-xl shadow-lg hover:shadow-primary/30 transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold h-12 rounded-xl shadow-lg hover:shadow-primary/30 transition-all duration-300 hover:scale-105 group relative overflow-hidden"
                 >
                   {/* Animated background */}
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -281,19 +290,9 @@ export default function CreateProject() {
                       <>
                         <Rocket className="w-5 h-5 mr-2 group-hover:translate-x-1 transition-transform duration-300" />
                         Create Project
-                        <Sparkles className="w-4 h-4 ml-2 group-hover:rotate-12 transition-transform duration-300" />
                       </>
                     )}
                   </span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/dashboard')}
-                  disabled={loading}
-                  className="border-slate-600 hover:border-primary/50 hover:bg-slate-800 transition-all duration-300"
-                >
-                  Cancel
                 </Button>
               </div>
             </form>
