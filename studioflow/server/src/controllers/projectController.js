@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
+import Trash from '../models/Trash.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 
@@ -277,12 +278,14 @@ export const updateProject = async (req, res) => {
 };
 
 // @desc    Soft delete project (move to trash)
+// @desc    Delete project (move to trash)
 // @route   DELETE /api/projects/:id
 // @access  Protected (Owner only)
 export const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
+    const { reason } = req.body; // Optional delete reason
 
     const project = await Project.findById(id);
 
@@ -295,10 +298,38 @@ export const deleteProject = async (req, res) => {
       return res.status(403).json({ error: 'Only project owner can delete' });
     }
 
-    // Soft delete - move to trash
-    project.deletedAt = new Date();
-    project.deletedBy = userId;
-    await project.save();
+    // Get user details for deletion record
+    let userName = '';
+    try {
+      const user = await clerkClient.users.getUser(userId);
+      userName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
+    } catch (err) {
+      console.error('Error fetching user from Clerk:', err);
+    }
+
+    // Create trash entry with full project data
+    const trashEntry = new Trash({
+      originalProjectId: project._id.toString(),
+      title: project.title,
+      brief: project.brief,
+      ownerId: project.ownerId,
+      members: project.members,
+      status: project.status,
+      progress: project.progress,
+      dueDate: project.dueDate,
+      paymentInfo: project.paymentInfo,
+      deletedBy: userId,
+      deletedByName: userName,
+      deleteReason: reason,
+      fullProjectData: project.toObject()
+    });
+
+    await trashEntry.save();
+
+    // Delete the project from main collection
+    await Project.findByIdAndDelete(id);
 
     // Clear cache for all project members
     clearUserCache(userId);
@@ -308,7 +339,10 @@ export const deleteProject = async (req, res) => {
       }
     });
 
-    res.json({ message: 'Project moved to trash. Will be permanently deleted after 30 days.' });
+    res.json({ 
+      message: 'Project moved to trash. Will be permanently deleted after 30 days.',
+      trashId: trashEntry._id
+    });
   } catch (error) {
     console.error('Delete project error:', error);
     res.status(500).json({ error: 'Failed to delete project' });

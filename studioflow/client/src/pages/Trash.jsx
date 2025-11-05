@@ -1,249 +1,355 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
+import {
+  Trash2,
+  Loader2,
+  RotateCcw,
+  XCircle,
+  Clock,
+  AlertTriangle
+} from 'lucide-react';
+import { format } from 'date-fns';
 
-const Trash = () => {
+export default function Trash() {
   const { getToken } = useAuth();
-  const [projects, setProjects] = useState([]);
+  const navigate = useNavigate();
+  const [trashedProjects, setTrashedProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [confirmInput, setConfirmInput] = useState('');
 
   useEffect(() => {
-    fetchTrash();
+    fetchTrashedProjects();
   }, []);
 
-  const fetchTrash = async () => {
+  const fetchTrashedProjects = async () => {
+    setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/trash`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/trash`, {
+        method: 'GET',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch trash');
+      if (!response.ok) {
+        throw new Error('Failed to fetch trashed projects');
       }
 
-      const data = await res.json();
-      setProjects(data.projects || []);
-    } catch (err) {
-      setError(err.message);
+      const data = await response.json();
+      setTrashedProjects(data);
+    } catch (error) {
+      console.error('Fetch trash error:', error);
+      toast.error('Failed to load trashed projects');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRestore = async (projectId) => {
+  const handleRestore = async (trashId) => {
+    setActionLoading(trashId);
     try {
-      setActionLoading(projectId);
       const token = await getToken();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${projectId}/restore`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/trash/${trashId}/restore`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to restore project');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to restore project');
       }
 
-      // Remove from trash list
-      setProjects(projects.filter(p => p._id !== projectId));
-    } catch (err) {
-      alert('Failed to restore: ' + err.message);
+      const data = await response.json();
+      toast.success('Project restored successfully!');
+      
+      setTrashedProjects(prev => prev.filter(p => p._id !== trashId));
+      
+      setTimeout(() => {
+        navigate(`/dashboard/projects/${data.project._id}`);
+      }, 1000);
+    } catch (error) {
+      console.error('Restore error:', error);
+      toast.error(error.message);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handlePermanentDelete = async (projectId) => {
+  const handlePermanentDelete = async (trashId) => {
+    setActionLoading(trashId);
     try {
-      setActionLoading(projectId);
       const token = await getToken();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/projects/${projectId}/permanent`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/trash/${trashId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to permanently delete project');
+      if (!response.ok) {
+        throw new Error('Failed to delete project permanently');
       }
 
-      // Remove from trash list
-      setProjects(projects.filter(p => p._id !== projectId));
-      setConfirmDelete(null);
-      setConfirmInput('');
-    } catch (err) {
-      alert('Failed to delete: ' + err.message);
+      toast.success('Project permanently deleted');
+      setTrashedProjects(prev => prev.filter(p => p._id !== trashId));
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete project');
     } finally {
       setActionLoading(null);
     }
   };
 
-  const openDeleteConfirm = (project) => {
-    setConfirmDelete(project);
-    setConfirmInput('');
+  const handleEmptyTrash = async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/trash`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to empty trash');
+      }
+
+      const data = await response.json();
+      toast.success(`Trash emptied: ${data.deletedCount} project(s) deleted`);
+      setTrashedProjects([]);
+    } catch (error) {
+      console.error('Empty trash error:', error);
+      toast.error('Failed to empty trash');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const closeDeleteConfirm = () => {
-    setConfirmDelete(null);
-    setConfirmInput('');
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return format(new Date(date), 'MMM dd, yyyy');
   };
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">Loading trash...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <p className="text-red-500">Error: {error}</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Trash2 className="w-8 h-8" />
-          Trash
-        </h1>
-        <p className="text-gray-600">
-          Deleted projects are stored here for 30 days before being permanently removed.
-        </p>
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Trash2 className="w-8 h-8" />
+            Trash
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Projects will be permanently deleted after 30 days
+          </p>
+        </div>
+
+        {trashedProjects.length > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Empty Trash
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all {trashedProjects.length} project(s) in trash.
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleEmptyTrash}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Empty Trash
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
-      {projects.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <Trash2 className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Trash is empty</h3>
-              <p className="text-gray-500">Deleted projects will appear here</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {projects.map((project) => (
-            <Card key={project._id} className="border-l-4 border-l-red-500">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {project.title}
-                      <Badge variant="destructive" className="ml-2">
-                        {project.daysRemaining} days left
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription className="mt-2">
-                      {project.brief || 'No description'}
-                    </CardDescription>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Deleted on {new Date(project.deletedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRestore(project._id)}
-                      disabled={actionLoading === project._id}
-                      className="flex items-center gap-2"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Restore
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => openDeleteConfirm(project)}
-                      disabled={actionLoading === project._id}
-                      className="flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete Forever
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+      {trashedProjects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Trash2 className="w-20 h-20 text-muted-foreground/30 mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Trash is empty</h3>
+          <p className="text-muted-foreground max-w-md">
+            Deleted projects will appear here and be automatically removed after 30 days.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-6"
+            onClick={() => navigate('/dashboard/projects')}
+          >
+            Back to Projects
+          </Button>
         </div>
-      )}
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Project</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Deleted By</TableHead>
+                <TableHead>Deleted On</TableHead>
+                <TableHead>Days Left</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {trashedProjects.map((project) => (
+                <TableRow key={project._id}>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-medium">{project.title}</span>
+                      {project.brief && (
+                        <span className="text-sm text-muted-foreground line-clamp-1">
+                          {project.brief}
+                        </span>
+                      )}
+                      {project.deleteReason && (
+                        <span className="text-xs text-muted-foreground italic">
+                          Reason: {project.deleteReason}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize">
+                      {project.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {project.deletedByName || 'Unknown'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {formatDate(project.deletedAt)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className={`text-sm font-medium ${
+                        project.daysRemaining <= 7 ? 'text-destructive' : 'text-muted-foreground'
+                      }`}>
+                        {project.daysRemaining} {project.daysRemaining === 1 ? 'day' : 'days'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRestore(project._id)}
+                        disabled={actionLoading === project._id}
+                      >
+                        {actionLoading === project._id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <RotateCcw className="w-4 h-4 mr-1" />
+                            Restore
+                          </>
+                        )}
+                      </Button>
 
-      {/* Delete Confirmation Modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full border-red-500 border-2">
-            <CardHeader>
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-6 h-6 text-red-500 mt-1" />
-                <div>
-                  <CardTitle className="text-red-600">Delete Project Permanently</CardTitle>
-                  <CardDescription className="mt-2">
-                    This action <strong>cannot be undone</strong>. This will permanently delete the project{' '}
-                    <strong>{confirmDelete.title}</strong> and all its data.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Please type <strong>{confirmDelete.title}</strong> to confirm:
-                </label>
-                <input
-                  type="text"
-                  value={confirmInput}
-                  onChange={(e) => setConfirmInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Type project name"
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={closeDeleteConfirm}
-                  disabled={actionLoading === confirmDelete._id}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => handlePermanentDelete(confirmDelete._id)}
-                  disabled={confirmInput !== confirmDelete.title || actionLoading === confirmDelete._id}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {actionLoading === confirmDelete._id ? 'Deleting...' : 'Delete Permanently'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={actionLoading === project._id}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <AlertTriangle className="w-5 h-5 text-destructive" />
+                              Permanently Delete Project?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to permanently delete "{project.title}"?
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handlePermanentDelete(project._id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete Forever
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
   );
-};
-
-export default Trash;
+}
