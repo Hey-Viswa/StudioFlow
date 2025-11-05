@@ -15,7 +15,9 @@ import {
   Clock,
   Archive,
   ArrowUpRight,
-  MoreHorizontal
+  MoreHorizontal,
+  AlertCircle,
+  Crown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -35,9 +37,11 @@ export default function DashboardHome() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [usage, setUsage] = useState(null);
 
   useEffect(() => {
     fetchProjects();
+    fetchUsage();
   }, []);
 
   useEffect(() => {
@@ -81,6 +85,25 @@ export default function DashboardHome() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsage = async () => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/usage`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsage(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch usage:', err);
     }
   };
 
@@ -174,6 +197,51 @@ export default function DashboardHome() {
 
       {!loading && !error && (
         <>
+          {/* Project Usage Alert for Free Tier */}
+          {usage && usage.plan === 'free' && (
+            <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30">
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <AlertCircle className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">Free Plan - Project Limit</p>
+                      <p className="text-sm text-slate-300">
+                        You're using <strong className="text-amber-400">{usage.currentProjects} of {usage.limit}</strong> projects
+                        {usage.remaining > 0 ? (
+                          <span className="ml-1">({usage.remaining} remaining)</span>
+                        ) : (
+                          <span className="ml-1 text-red-400">(Limit reached!)</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <Link to="/dashboard/subscription">
+                    <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
+                      <Crown className="w-4 h-4 mr-2" />
+                      Upgrade
+                    </Button>
+                  </Link>
+                </div>
+                {/* Progress Bar */}
+                <div className="mt-3 w-full bg-slate-800 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full transition-all ${
+                      usage.currentProjects >= usage.limit 
+                        ? 'bg-red-500' 
+                        : usage.currentProjects / usage.limit > 0.7 
+                        ? 'bg-amber-500' 
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${(usage.currentProjects / usage.limit) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Stats Grid */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="bg-card border-slate-800">

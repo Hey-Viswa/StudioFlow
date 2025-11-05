@@ -1,75 +1,373 @@
-import { Card } from '../components/ui/card';
+import { useState, useEffect } from 'react';
+import { useUser, useAuth } from '@clerk/clerk-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
-import { Settings as SettingsIcon, Wrench, Palette, Bell } from 'lucide-react';
+import { Separator } from '../components/ui/separator';
+import { toast } from 'sonner';
+import { 
+  Settings as SettingsIcon, 
+  User, 
+  Bell, 
+  Shield,
+  CreditCard,
+  Loader2,
+  Check,
+  Crown,
+  Mail,
+  Calendar
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Settings() {
+  const { user } = useUser();
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [subscription, setSubscription] = useState(null);
+  const [preferences, setPreferences] = useState({
+    emailNotifications: true,
+    projectUpdates: true,
+    marketingEmails: false
+  });
+
+  useEffect(() => {
+    fetchSubscription();
+  }, []);
+
+  const fetchSubscription = async () => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/subscriptions/current`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSubscription(data);
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreferenceChange = (key, value) => {
+    setPreferences(prev => ({ ...prev, [key]: value }));
+  };
+
+  const savePreferences = async () => {
+    setSaving(true);
+    try {
+      // Simulate API call - implement actual endpoint later
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      toast.success('Preferences saved successfully');
+    } catch (error) {
+      toast.error('Failed to save preferences');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getPlanBadge = (plan) => {
+    const badges = {
+      free: { color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', label: 'Free' },
+      pro: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: 'Pro' },
+      studio: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', label: 'Studio' }
+    };
+    return badges[plan] || badges.free;
+  };
+
+  const currentPlan = subscription?.subscription?.plan || 'free';
+  const planBadge = getPlanBadge(currentPlan);
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="flex-1 space-y-6 p-8">
       {/* Header */}
-      <div className="mb-8 animate-fade-in">
-        <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-          <SettingsIcon className="w-10 h-10 text-primary animate-spin-slow" />
-          Settings
-        </h1>
-        <p className="text-gray-400">Customize your StudioFlow experience</p>
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight text-white">Settings</h2>
+        <p className="text-muted-foreground text-slate-400">
+          Manage your account settings and preferences
+        </p>
       </div>
 
-      {/* Coming Soon Card */}
-      <Card className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700/50 overflow-hidden relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/10 animate-pulse"></div>
-        <div className="relative p-12 text-center">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/20 mb-6 animate-bounce">
-            <Wrench className="w-12 h-12 text-primary" />
-          </div>
-          
-          <Badge className="mb-4 bg-primary/20 text-primary border-primary/30 px-4 py-1">
-            Coming Soon
-          </Badge>
-          
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Advanced Settings Coming!
-          </h2>
-          
-          <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
-            Soon you'll be able to customize your workspace, manage team members, 
-            set up notifications, and personalize your StudioFlow experience.
-          </p>
-
-          {/* Feature Preview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 hover:border-primary/50 transition-all hover:scale-105 duration-300">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4 mx-auto">
-                <Palette className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-white font-semibold mb-2">Theme Customization</h3>
-              <p className="text-gray-400 text-sm">Choose your preferred color scheme and layout</p>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 hover:border-primary/50 transition-all hover:scale-105 duration-300">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4 mx-auto">
-                <Bell className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-white font-semibold mb-2">Notifications</h3>
-              <p className="text-gray-400 text-sm">Control what updates you receive and how</p>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50 hover:border-primary/50 transition-all hover:scale-105 duration-300">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4 mx-auto">
-                <SettingsIcon className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-white font-semibold mb-2">Workspace Settings</h3>
-              <p className="text-gray-400 text-sm">Manage team members, roles, and permissions</p>
-            </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Sidebar Navigation */}
+          <div className="md:col-span-1">
+            <Card className="bg-card border-slate-800 sticky top-6">
+              <CardContent className="p-4">
+                <nav className="space-y-1">
+                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+                    <User className="w-4 h-4" />
+                    <span className="font-medium">Account</span>
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                    <Bell className="w-4 h-4" />
+                    <span className="font-medium">Notifications</span>
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="font-medium">Billing</span>
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                    <Shield className="w-4 h-4" />
+                    <span className="font-medium">Security</span>
+                  </button>
+                </nav>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="mt-12">
-            <Button className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg font-semibold shadow-lg shadow-primary/20 hover:scale-105 transition-transform duration-300">
-              Notify Me When Available
-            </Button>
+          {/* Main Content */}
+          <div className="md:col-span-2 space-y-6">
+            {/* Account Information */}
+            <Card className="bg-card border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white">Account Information</CardTitle>
+                <CardDescription>Your personal account details</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={user?.imageUrl || '/default-avatar.png'} 
+                    alt={user?.fullName || 'User'} 
+                    className="w-16 h-16 rounded-full border-2 border-slate-700"
+                  />
+                  <div>
+                    <p className="font-semibold text-white">{user?.fullName || 'User'}</p>
+                    <p className="text-sm text-slate-400">{user?.primaryEmailAddress?.emailAddress}</p>
+                  </div>
+                </div>
+
+                <Separator className="bg-slate-800" />
+
+                <div className="grid gap-4">
+                  <div>
+                    <Label className="text-slate-300">Full Name</Label>
+                    <Input 
+                      value={user?.fullName || ''} 
+                      disabled
+                      className="mt-1.5 bg-slate-900 border-slate-700 text-slate-400"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Managed by Clerk authentication</p>
+                  </div>
+
+                  <div>
+                    <Label className="text-slate-300">Email Address</Label>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Input 
+                        value={user?.primaryEmailAddress?.emailAddress || ''} 
+                        disabled
+                        className="bg-slate-900 border-slate-700 text-slate-400"
+                      />
+                      {user?.primaryEmailAddress?.verification?.status === 'verified' && (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                          <Check className="w-3 h-3 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-slate-300">Member Since</Label>
+                    <div className="mt-1.5 flex items-center gap-2 text-slate-400">
+                      <Calendar className="w-4 h-4" />
+                      <span>{new Date(user?.createdAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Subscription Status */}
+            <Card className="bg-card border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Subscription
+                </CardTitle>
+                <CardDescription>Your current plan and billing status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Crown className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-white capitalize">{currentPlan} Plan</p>
+                        <Badge className={planBadge.color}>
+                          {planBadge.label}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-400">
+                        {currentPlan === 'free' 
+                          ? 'Up to 5 projects' 
+                          : 'Unlimited projects'}
+                      </p>
+                    </div>
+                  </div>
+                  {currentPlan === 'free' && (
+                    <Link to="/dashboard/subscription">
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Upgrade Plan
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+
+                {subscription?.subscription?.status && (
+                  <div className="text-sm text-slate-400">
+                    <p>Status: <span className="text-white capitalize">{subscription.subscription.status}</span></p>
+                    {subscription.subscription.subscriptionEndDate && (
+                      <p className="mt-1">
+                        Renews on: <span className="text-white">
+                          {new Date(subscription.subscription.subscriptionEndDate).toLocaleDateString()}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Notification Preferences */}
+            <Card className="bg-card border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Notifications
+                </CardTitle>
+                <CardDescription>Manage your notification preferences</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-white">Email Notifications</Label>
+                      <p className="text-sm text-slate-400">Receive email updates about your projects</p>
+                    </div>
+                    <button
+                      onClick={() => handlePreferenceChange('emailNotifications', !preferences.emailNotifications)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        preferences.emailNotifications ? 'bg-primary' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          preferences.emailNotifications ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <Separator className="bg-slate-800" />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-white">Project Updates</Label>
+                      <p className="text-sm text-slate-400">Get notified when projects are updated</p>
+                    </div>
+                    <button
+                      onClick={() => handlePreferenceChange('projectUpdates', !preferences.projectUpdates)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        preferences.projectUpdates ? 'bg-primary' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          preferences.projectUpdates ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <Separator className="bg-slate-800" />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-white">Marketing Emails</Label>
+                      <p className="text-sm text-slate-400">Receive updates about new features</p>
+                    </div>
+                    <button
+                      onClick={() => handlePreferenceChange('marketingEmails', !preferences.marketingEmails)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        preferences.marketingEmails ? 'bg-primary' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          preferences.marketingEmails ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <Button 
+                    onClick={savePreferences}
+                    disabled={saving}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Preferences'
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Security Section */}
+            <Card className="bg-card border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Security
+                </CardTitle>
+                <CardDescription>Manage your account security</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-slate-400">
+                  Your account is secured with Clerk authentication. To manage your password, 
+                  two-factor authentication, or other security settings, please visit your 
+                  account settings.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
+                  onClick={() => window.open('https://accounts.clerk.dev', '_blank')}
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Manage Security Settings
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
-      </Card>
+      )}
     </div>
   );
 }
