@@ -17,6 +17,7 @@ import {
 export default function DashboardLayout() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -29,19 +30,29 @@ export default function DashboardLayout() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside 
         className={`${
           sidebarCollapsed ? 'w-16' : 'w-64'
-        } bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 ease-in-out relative`}
+        } ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } fixed lg:relative h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 ease-in-out z-50`}
       >
-        {/* Toggle Button */}
+        {/* Toggle Button - Desktop Only */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-6 z-50 rounded-full border border-sidebar-border bg-sidebar shadow-md hover:bg-sidebar-accent w-6 h-6"
+          className="hidden lg:flex absolute -right-3 top-6 z-50 rounded-full border border-sidebar-border bg-sidebar shadow-md hover:bg-sidebar-accent w-6 h-6"
         >
           {sidebarCollapsed ? (
             <Menu className="w-3 h-3" />
@@ -78,6 +89,7 @@ export default function DashboardLayout() {
                   <Link
                     key={item.path}
                     to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
                     title={sidebarCollapsed ? item.name : ''}
                     className={`flex items-center ${
                       sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
@@ -107,6 +119,7 @@ export default function DashboardLayout() {
             <div className="space-y-1">
               <Link
                 to="/dashboard/trash"
+                onClick={() => setMobileMenuOpen(false)}
                 title={sidebarCollapsed ? 'Trash' : ''}
                 className={`flex items-center ${
                   sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
@@ -148,8 +161,30 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-background">
-        <Outlet />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile Header */}
+        <header className="lg:hidden border-b border-sidebar-border bg-sidebar p-4 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+          <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-6 w-auto" />
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: 'w-8 h-8',
+              },
+            }}
+          />
+        </header>
+
+        {/* Page Content */}
+        <div className="flex-1 overflow-y-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

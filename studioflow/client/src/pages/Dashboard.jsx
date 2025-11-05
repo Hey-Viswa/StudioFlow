@@ -3,13 +3,16 @@ import { useUser, UserButton } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
-import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { user } = useUser();
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [filteredProjects, setFilteredProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [apiResponse, setApiResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,6 +29,21 @@ export default function Dashboard() {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Filter projects based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProjects(projects);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = projects.filter(project => 
+        project.title?.toLowerCase().includes(query) ||
+        project.brief?.toLowerCase().includes(query) ||
+        project.status?.toLowerCase().includes(query)
+      );
+      setFilteredProjects(filtered);
+    }
+  }, [searchQuery, projects]);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -148,22 +166,34 @@ export default function Dashboard() {
         </header>
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <h2 className="text-3xl font-bold tracking-tight">Welcome back, {user?.firstName || 'there'}! </h2>
-                <p className="text-muted-foreground">Let's make something amazing today.</p>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Welcome back, {user?.firstName || 'there'}! </h2>
+                <p className="text-sm text-muted-foreground">Let's make something amazing today.</p>
               </div>
               <Button 
                 onClick={() => navigate('/dashboard/create-project')} 
                 size="lg"
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 Create New Project
               </Button>
             </div>
+
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
@@ -188,7 +218,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">projects owned</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="sm:col-span-2 lg:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Client Access</CardTitle>
                   <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -221,90 +251,70 @@ export default function Dashboard() {
                       Retry
                     </Button>
                   </div>
-                ) : projects.length === 0 ? (
+                ) : filteredProjects.length === 0 ? (
                   <div className="text-center py-12">
                     <FolderKanban className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium mb-2">No projects yet</p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Create your first project to get started
+                    <p className="text-lg font-medium mb-2">
+                      {searchQuery ? 'No projects found' : 'No projects yet'}
                     </p>
-                    <Button onClick={() => navigate('/dashboard/create-project')}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Project
-                    </Button>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {searchQuery 
+                        ? 'Try adjusting your search terms' 
+                        : 'Create your first project to get started'
+                      }
+                    </p>
+                    {!searchQuery && (
+                      <Button onClick={() => navigate('/dashboard/create-project')}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Project
+                      </Button>
+                    )}
                   </div>
                 ) : (
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {projects.map((project) => (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredProjects.map((project) => (
                       <Card
                         key={project._id}
                         onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                        className="cursor-pointer hover:shadow-xl transition-all duration-300 border-border/50 hover:border-primary/50 group relative overflow-hidden bg-gradient-to-br from-card to-card/50"
+                        className="cursor-pointer transition-all duration-300 border border-slate-700 group relative overflow-hidden bg-slate-800/80 hover:bg-slate-800 hover:border-primary/50 hover:shadow-lg"
                       >
-                        {/* Hover gradient overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        
-                        <CardHeader className="pb-4 relative">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-xl leading-tight group-hover:text-primary transition-colors mb-2 line-clamp-1">
-                                {project.title}
-                              </h3>
-                              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                                {project.brief || 'No description provided'}
-                              </p>
-                            </div>
-                            <div className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <h3 className="font-bold text-lg text-white line-clamp-1 flex-1">
+                              {project.title}
+                            </h3>
+                            <div className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(project.status)} whitespace-nowrap flex-shrink-0`}>
                               {project.status === 'active' ? 'In Progress' : 
                                project.status === 'on-hold' ? 'On Hold' :
                                project.status.charAt(0).toUpperCase() + project.status.slice(1)}
                             </div>
                           </div>
+                          <p className="text-xs text-slate-400 mb-2">
+                            {project.userRole === 'owner' ? 'Your Project' : 'Client Project'}
+                          </p>
+                          <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed">
+                            {project.brief || 'No description provided'}
+                          </p>
                         </CardHeader>
                         
-                        <CardContent className="space-y-4 relative">
+                        <CardContent className="space-y-3">
                           {/* Progress Section */}
                           {project.progress !== undefined && (
-                            <div className="space-y-2.5 bg-muted/30 rounded-lg p-4 border border-border/50">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-foreground">Progress</span>
-                                <span className="text-lg font-bold text-primary">{project.progress}%</span>
+                                <span className="text-xs font-medium text-slate-400">Progress</span>
+                                <span className="text-sm font-bold text-white">{project.progress}%</span>
                               </div>
-                              <Progress value={project.progress} className="h-2.5" />
+                              <Progress value={project.progress} className="h-1.5 bg-slate-700" />
                             </div>
                           )}
                           
-                          {/* Footer Info */}
-                          <div className="flex items-center justify-between pt-2">
-                            <div className="flex items-center gap-2">
-                              {project.userRole === 'owner' && (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                                  Owner
-                                </span>
-                              )}
-                              {project.userRole === 'client' && (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/20">
-                                  Client
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-sm text-muted-foreground font-medium">
-                              Due {formatDate(project.dueDate)}
+                          {/* Due Date */}
+                          <div className="pt-2 border-t border-slate-700/50">
+                            <span className="text-xs text-slate-400">
+                              Due: {formatDate(project.dueDate)}
                             </span>
                           </div>
-                          
-                          {/* View Button */}
-                          <Button 
-                            variant="ghost" 
-                            className="w-full mt-2 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:bg-primary/10 text-primary font-semibold"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/dashboard/projects/${project._id}`);
-                            }}
-                          >
-                            View Project
-                            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                          </Button>
                         </CardContent>
                       </Card>
                     ))}
