@@ -58,8 +58,8 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</h1>
+              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto" />
+              {/* <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</h1> */}
             </div>
             
             {/* Centered Navigation Pills */}
