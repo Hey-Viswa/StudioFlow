@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Toaster } from './components/ui/sonner';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/DashboardLayout';
@@ -59,6 +61,8 @@ function App() {
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Analytics />
+      <SpeedInsights />
     </Router>
   );
 }
