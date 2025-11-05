@@ -44,7 +44,14 @@ export default function CreateProject() {
 
         if (response.ok) {
           const data = await response.json();
-          setUsage(data);
+          // Transform the response to match our UI needs
+          setUsage({
+            current: data.currentProjects,
+            limit: data.unlimited ? Infinity : data.limit,
+            plan: data.plan
+          });
+        } else {
+          console.error('Failed to fetch usage:', response.status);
         }
       } catch (err) {
         console.error('Failed to fetch usage:', err);
@@ -92,8 +99,13 @@ export default function CreateProject() {
         // Check if it's a limit exceeded error
         if (response.status === 403 && errorData.limit) {
           setLimitExceeded(true);
-          setPlanInfo(errorData);
-          throw new Error(errorData.error || 'Project limit reached');
+          // Transform the error data to match our UI needs
+          setPlanInfo({
+            limit: errorData.limit,
+            current: errorData.currentCount || errorData.current,
+            currentPlan: 'starter' // The backend only limits starter plan
+          });
+          throw new Error(errorData.message || errorData.error || 'Project limit reached');
         }
         
         throw new Error(errorData.error || 'Failed to create project');

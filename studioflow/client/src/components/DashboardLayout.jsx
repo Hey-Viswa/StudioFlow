@@ -62,7 +62,7 @@ export default function DashboardLayout() {
         </Button>
 
         {/* Logo */}
-        <div className="p-6 border-b border-sidebar-border flex items-center justify-center overflow-hidden">
+        <Link to="/" className="p-6 border-b border-sidebar-border flex items-center justify-center overflow-hidden">
           {sidebarCollapsed ? (
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">SF</span>
@@ -70,7 +70,7 @@ export default function DashboardLayout() {
           ) : (
             <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto" />
           )}
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
