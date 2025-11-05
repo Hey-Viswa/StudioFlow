@@ -467,46 +467,34 @@ export default function ProjectDetail() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="dueDate" className="px-1">Due Date & Time</Label>
-                      <div className="flex gap-4 mt-1">
-                        <div className="flex-1">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                id="dueDate"
-                                className="w-full justify-between font-normal bg-slate-900/50 border-slate-700 hover:bg-slate-800/50 hover:border-primary/50 transition-all"
-                              >
-                                {editForm.dueDate ? format(new Date(editForm.dueDate), 'PPP') : 'Select date'}
-                                <Calendar className="h-4 w-4 text-primary" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0 overflow-hidden bg-slate-900 border-slate-700" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
-                                onSelect={(date) => {
-                                  if (date) {
-                                    setEditForm(prev => ({
-                                      ...prev,
-                                      dueDate: format(date, 'yyyy-MM-dd')
-                                    }));
-                                  }
-                                }}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="w-40">
-                          <Input
-                            type="time"
-                            id="dueTime"
-                            defaultValue="10:30"
-                            className="bg-slate-900/50 border-slate-700"
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            id="dueDate"
+                            className="w-full justify-between font-normal mt-1 bg-slate-900/50 border-slate-700 hover:bg-slate-800/50 hover:border-primary/50 transition-all"
+                          >
+                            {editForm.dueDate ? format(new Date(editForm.dueDate), 'PPP') : 'Select date'}
+                            <Calendar className="h-4 w-4 text-primary" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                setEditForm(prev => ({
+                                  ...prev,
+                                  dueDate: format(date, 'yyyy-MM-dd')
+                                }));
+                              }
+                            }}
+                            initialFocus
                           />
-                        </div>
-                      </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={saveProject} disabled={saving}>

@@ -192,48 +192,36 @@ export default function CreateProject() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dueDate" className="px-1">Due Date & Time</Label>
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          id="dueDate"
-                          className="w-full justify-between font-normal"
-                          disabled={loading}
-                        >
-                          {date ? format(date, "PPP") : "Select date"}
-                          <CalendarIcon className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={date}
-                          onSelect={(newDate) => {
-                            setDate(newDate);
-                            if (newDate) {
-                              setFormData(prev => ({
-                                ...prev,
-                                dueDate: format(newDate, "yyyy-MM-dd")
-                              }));
-                            }
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="w-40">
-                    <Input
-                      type="time"
-                      id="dueTime"
-                      defaultValue="10:30"
-                      className="bg-background"
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      id="dueDate"
+                      className="w-full justify-between font-normal"
+                      disabled={loading}
+                    >
+                      {date ? format(date, "PPP") : "Select date"}
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(newDate) => {
+                        setDate(newDate);
+                        if (newDate) {
+                          setFormData(prev => ({
+                            ...prev,
+                            dueDate: format(newDate, "yyyy-MM-dd")
+                          }));
+                        }
+                      }}
+                      initialFocus
                     />
-                  </div>
-                </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {limitExceeded && planInfo && (
