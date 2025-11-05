@@ -17,8 +17,8 @@ export async function checkProjectLimit(req, res, next) {
       console.log('Creating new user with free plan:', req.userId);
       user = await User.create({
         clerkUserId: req.userId,
-        email: req.email || '',
-        name: req.name || '',
+        email: req.userEmail || '',
+        name: req.userName || '',
         subscription: {
           plan: 'free',
           status: 'active'
