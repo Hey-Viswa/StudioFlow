@@ -123,8 +123,11 @@ export default function Subscription() {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         toast.error('Failed to load payment gateway');
+        setProcessingPlan(null);
         return;
       }
+
+      console.log('Creating subscription for plan:', planId);
 
       // Create subscription
       const response = await fetch(`${apiUrl}/subscriptions/create`, {
@@ -137,20 +140,34 @@ export default function Subscription() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create subscription');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Subscription creation failed:', errorData);
+        toast.error(errorData.error || 'Failed to create subscription');
+        setProcessingPlan(null);
+        return;
       }
 
       const { subscriptionId, amount, currency } = await response.json();
+      console.log('Subscription created:', subscriptionId);
+
+      // Check if Razorpay key is configured
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        toast.error('Payment gateway not configured');
+        setProcessingPlan(null);
+        return;
+      }
 
       // Initialize Razorpay
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: razorpayKey,
         subscription_id: subscriptionId,
         name: 'StudioFlow',
         description: `${planId.toUpperCase()} Plan Subscription`,
         currency: currency,
         handler: async function (response) {
           try {
+            console.log('Payment successful, verifying...');
             // Verify payment
             const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
               method: 'POST',
@@ -169,18 +186,29 @@ export default function Subscription() {
               toast.success('Subscription activated successfully!');
               fetchCurrentSubscription();
             } else {
-              toast.error('Payment verification failed');
+              const errorData = await verifyResponse.json().catch(() => ({}));
+              console.error('Payment verification failed:', errorData);
+              toast.error(errorData.error || 'Payment verification failed');
             }
           } catch (error) {
+            console.error('Verification error:', error);
             toast.error('Error verifying payment');
+          } finally {
+            setProcessingPlan(null);
           }
         },
         prefill: {
-          email: currentSubscription?.subscription?.email || '',
-          name: currentSubscription?.subscription?.name || ''
+          email: currentSubscription?.email || '',
+          name: currentSubscription?.name || ''
         },
         theme: {
           color: '#6366f1'
+        },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment modal closed');
+            setProcessingPlan(null);
+          }
         }
       };
 
@@ -188,13 +216,14 @@ export default function Subscription() {
       razorpay.open();
 
       razorpay.on('payment.failed', function (response) {
-        toast.error('Payment failed. Please try again.');
+        console.error('Payment failed:', response.error);
+        toast.error(`Payment failed: ${response.error.description}`);
+        setProcessingPlan(null);
       });
 
     } catch (error) {
       console.error('Upgrade error:', error);
-      toast.error('Failed to process upgrade');
-    } finally {
+      toast.error(error.message || 'Failed to process upgrade');
       setProcessingPlan(null);
     }
   };

@@ -4,7 +4,7 @@ import Project from '../models/Project.js';
 
 /**
  * Middleware to check if user has reached their project creation limit
- * Free (starter) tier: 5 projects max
+ * Free tier: 5 projects max
  * Pro/Studio tiers: Unlimited projects
  */
 export async function checkProjectLimit(req, res, next) {
@@ -12,22 +12,22 @@ export async function checkProjectLimit(req, res, next) {
     // Get user's subscription details
     let user = await User.findOne({ clerkUserId: req.userId });
     
-    // If user doesn't exist, create them with default starter plan
+    // If user doesn't exist, create them with default free plan
     if (!user) {
-      console.log('Creating new user with starter plan:', req.userId);
+      console.log('Creating new user with free plan:', req.userId);
       user = await User.create({
         clerkUserId: req.userId,
         email: req.email || '',
         name: req.name || '',
         subscription: {
-          plan: 'starter',
+          plan: 'free',
           status: 'active'
         }
       });
     }
 
-    // Only check limits for starter (free) plan
-    if (user.subscription.plan === 'starter') {
+    // Only check limits for free plan
+    if (user.subscription.plan === 'free') {
       // Count active projects (not deleted)
       const projectCount = await Project.countDocuments({ 
         ownerId: req.userId,
@@ -76,14 +76,14 @@ export async function getProjectUsage(req, res) {
   try {
     let user = await User.findOne({ clerkUserId: req.userId });
     
-    // If user doesn't exist, create them with default starter plan
+    // If user doesn't exist, create them with default free plan
     if (!user) {
       user = await User.create({
         clerkUserId: req.userId,
         email: req.email || '',
         name: req.name || '',
         subscription: {
-          plan: 'starter',
+          plan: 'free',
           status: 'active'
         }
       });
@@ -95,12 +95,12 @@ export async function getProjectUsage(req, res) {
     });
 
     const planLimits = {
-      starter: { limit: 5, unlimited: false },
+      free: { limit: 5, unlimited: false },
       pro: { limit: null, unlimited: true },
       studio: { limit: null, unlimited: true }
     };
 
-    const currentPlan = user.subscription.plan || 'starter';
+  const currentPlan = user.subscription.plan || 'free';
     const limits = planLimits[currentPlan];
 
     return res.json({

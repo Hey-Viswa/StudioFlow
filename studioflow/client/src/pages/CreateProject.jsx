@@ -103,7 +103,7 @@ export default function CreateProject() {
           setPlanInfo({
             limit: errorData.limit,
             current: errorData.currentCount || errorData.current,
-            currentPlan: 'starter' // The backend only limits starter plan
+            currentPlan: 'free' // The backend only limits free plan
           });
           throw new Error(errorData.message || errorData.error || 'Project limit reached');
         }

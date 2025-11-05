@@ -83,14 +83,14 @@ async function handleUserCreated(data) {
       return;
     }
 
-    // Create new user with starter plan
+      // Create new user with free plan
     const user = await User.create({
       clerkUserId: id,
       email: email_addresses[0]?.email_address || '',
       name: `${first_name || ''} ${last_name || ''}`.trim(),
       profileImage: image_url || '',
       subscription: {
-        plan: 'starter',
+          plan: 'free',
         status: 'active'
       }
     });

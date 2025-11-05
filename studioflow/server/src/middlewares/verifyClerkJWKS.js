@@ -1,10 +1,13 @@
 // server/src/middlewares/verifyClerkJWKS.js
-import { verifyToken } from '@clerk/backend';
+import { verifyToken, createClerkClient } from '@clerk/backend';
 import path from 'node:path';
 import dotenv from 'dotenv';
 
 // Ensure env vars are loaded when this module is imported directly
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+
+// Initialize Clerk client
+const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 export default async function verifyClerk(req, res, next) {
     try {
@@ -65,6 +68,18 @@ export default async function verifyClerk(req, res, next) {
         // - iat: issued at time
         req.clerkPayload = payload;
         req.userId = payload.sub; // Clerk uses 'sub' claim for userId
+        
+        // Fetch user details from Clerk to get email and name
+        try {
+            const user = await clerkClient.users.getUser(payload.sub);
+            req.userEmail = user.emailAddresses?.[0]?.emailAddress || '';
+            req.userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || '';
+        } catch (userError) {
+            console.warn('Could not fetch user details from Clerk:', userError.message);
+            // Continue anyway, email/name will be empty
+            req.userEmail = '';
+            req.userName = '';
+        }
         
         if (process.env.NODE_ENV !== 'production') {
             console.log('Token verified successfully for user:', req.userId);

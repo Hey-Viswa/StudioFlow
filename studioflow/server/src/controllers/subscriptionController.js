@@ -83,13 +83,13 @@ export const getCurrentSubscription = async (req, res) => {
         name: req.userName || '',
         email: req.userEmail || '',
         subscription: {
-          plan: 'starter',
+          plan: 'free',
           status: 'active'
         }
       });
     }
 
-    const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.starter || SUBSCRIPTION_PLANS.free;
+    const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
 
     res.json({
       subscription: user.subscription,
@@ -129,7 +129,7 @@ export const createSubscription = async (req, res) => {
         name: req.userName || '',
         email: req.userEmail || '',
         subscription: {
-          plan: 'starter',
+          plan: 'free',
           status: 'active'
         }
       });
