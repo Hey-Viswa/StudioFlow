@@ -247,9 +247,12 @@ export default function CreateProject() {
                     onChange={handleChange}
                     min={new Date().toISOString().split('T')[0]}
                     disabled={loading}
-                    className="w-full pr-10"
+                    className="w-full pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
                   />
-                  <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none" />
+                  <CalendarIcon 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10" 
+                    onClick={() => document.getElementById('dueDate').showPicker()}
+                  />
                 </div>
               </div>
 
