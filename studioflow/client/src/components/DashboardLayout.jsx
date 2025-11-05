@@ -87,9 +87,9 @@ export default function DashboardLayout() {
                         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 transition-transform duration-200 ${
+                    <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
                       active ? 'scale-110' : 'group-hover:scale-110'
-                    } ${sidebarCollapsed ? '' : ''}`} />
+                    }`} />
                     {!sidebarCollapsed && item.name}
                   </Link>
                 );
@@ -116,7 +116,7 @@ export default function DashboardLayout() {
                     : 'text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive'
                 }`}
               >
-                <Trash2 className={`w-5 h-5 transition-transform duration-200 ${
+                <Trash2 className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
                   isActive('/dashboard/trash') ? 'scale-110' : 'group-hover:scale-110'
                 }`} />
                 {!sidebarCollapsed && 'Trash'}
