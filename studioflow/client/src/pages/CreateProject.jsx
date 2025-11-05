@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
-import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Calendar } from '../components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { ArrowLeft, Loader2, Calendar as CalendarIcon, Rocket, AlertTriangle, ChevronDownIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Rocket, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CreateProject() {
@@ -21,8 +19,6 @@ export default function CreateProject() {
   const [limitExceeded, setLimitExceeded] = useState(false);
   const [planInfo, setPlanInfo] = useState(null);
   const [usage, setUsage] = useState(null);
-  const [date, setDate] = useState();
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     brief: '',
@@ -62,8 +58,55 @@ export default function CreateProject() {
     fetchUsage();
   }, [getToken]);
 
+  const validateDate = (dateString) => {
+    if (!dateString) return { valid: true }; // Date is optional
+    
+    // Date format validation: YYYY-MM-DD
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateString)) {
+      return { valid: false, message: 'Invalid date format. Use YYYY-MM-DD' };
+    }
+
+    // Parse and validate actual date
+    const date = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return { valid: false, message: 'Invalid date' };
+    }
+
+    // Check if date is in the past
+    if (date < today) {
+      return { valid: false, message: 'Due date cannot be in the past' };
+    }
+
+    return { valid: true };
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Validate character limits
+    if (name === 'title' && value.length > 50) {
+      toast.error('Title must be 50 characters or less');
+      return;
+    }
+    if (name === 'brief' && value.length > 100) {
+      toast.error('Brief must be 100 characters or less');
+      return;
+    }
+    
+    // Validate date
+    if (name === 'dueDate' && value) {
+      const validation = validateDate(value);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -184,49 +227,30 @@ export default function CreateProject() {
                   placeholder="Describe the project scope, deliverables, and client requirements..."
                   value={formData.brief}
                   onChange={handleChange}
-                  rows={5}
+                  maxLength={100}
                   disabled={loading}
+                  className="resize-none min-h-[80px] max-h-[200px]"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Optional: Add details about the project that your client should know
+                  {formData.brief.length}/100 characters
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="dueDate" className="px-1">Due Date</Label>
-                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      id="dueDate"
-                      className={cn(
-                        "w-48 justify-between font-normal",
-                        !date && "text-muted-foreground"
-                      )}
-                      disabled={loading}
-                    >
-                      {date ? format(date, "PPP") : "Pick a date"}
-                      <ChevronDownIcon className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                    <Calendar 
-                      mode="single" 
-                      selected={date}
-                      captionLayout="dropdown"
-                      onSelect={(selectedDate) => {
-                        setDate(selectedDate);
-                        if (selectedDate) {
-                          setFormData(prev => ({
-                            ...prev,
-                            dueDate: format(selectedDate, "yyyy-MM-dd")
-                          }));
-                        }
-                        setDatePickerOpen(false);
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date (Optional)</Label>
+                <div className="relative">
+                  <Input
+                    id="dueDate"
+                    name="dueDate"
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={handleChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    disabled={loading}
+                    className="w-full pr-10"
+                  />
+                  <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none" />
+                </div>
               </div>
 
               {limitExceeded && planInfo && (

@@ -20,12 +20,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '../components/ui/popover';
-import { Calendar as CalendarComponent } from '../components/ui/calendar';
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
 import {
@@ -35,6 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import {
   ArrowLeft,
   Loader2,
@@ -54,9 +54,8 @@ import {
   MessageSquare,
   Upload,
   Home,
-  ChevronDownIcon
+  MoreVertical
 } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -81,7 +80,6 @@ export default function ProjectDetail() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [progressValue, setProgressValue] = useState(0);
   const [updatingProgress, setUpdatingProgress] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -200,6 +198,31 @@ export default function ProjectDetail() {
     setEditForm({ title: '', brief: '', status: '', progress: 0, dueDate: '' });
   };
 
+  const validateDate = (dateString) => {
+    // Date format validation: YYYY-MM-DD
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateString)) {
+      return { valid: false, message: 'Invalid date format. Use YYYY-MM-DD' };
+    }
+
+    // Parse and validate actual date
+    const date = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return { valid: false, message: 'Invalid date' };
+    }
+
+    // Check if date is in the past
+    if (date < today) {
+      return { valid: false, message: 'Due date cannot be in the past' };
+    }
+
+    return { valid: true };
+  };
+
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     
@@ -211,6 +234,15 @@ export default function ProjectDetail() {
     if (name === 'brief' && value.length > 100) {
       toast.error('Brief must be 100 characters or less');
       return;
+    }
+    
+    // Validate date
+    if (name === 'dueDate' && value) {
+      const validation = validateDate(value);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
     }
     
     // Validate progress range
@@ -302,7 +334,14 @@ export default function ProjectDetail() {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const url = `${apiUrl}/projects/${projectId}`;
       
-      console.log('📊 Request details:', { url, progress: progressValue });
+      // Automatically set status to 'completed' if progress is 100%
+      const updateData = { progress: progressValue };
+      if (progressValue === 100) {
+        updateData.status = 'completed';
+        console.log('🎉 Progress is 100% - automatically marking as completed');
+      }
+      
+      console.log('📊 Request details:', { url, updateData });
       
       const response = await fetch(url, {
         method: 'PATCH',
@@ -311,7 +350,7 @@ export default function ProjectDetail() {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ progress: progressValue })
+        body: JSON.stringify(updateData)
       });
 
       console.log('📊 Response status:', response.status);
@@ -324,8 +363,14 @@ export default function ProjectDetail() {
 
       const data = await response.json();
       console.log('📊 Success response:', data);
-      toast.success('Progress updated successfully!');
-      setProject(prev => ({ ...prev, progress: progressValue }));
+      
+      if (progressValue === 100) {
+        toast.success('Progress updated to 100% and project marked as completed! 🎉');
+      } else {
+        toast.success('Progress updated successfully!');
+      }
+      
+      setProject(prev => ({ ...prev, progress: progressValue, ...(progressValue === 100 && { status: 'completed' }) }));
       
       // Fetch fresh data to ensure sync
       await fetchProject();
@@ -454,8 +499,8 @@ export default function ProjectDetail() {
                         name="brief"
                         value={editForm.brief}
                         onChange={handleEditChange}
-                        rows={3}
-                        className="mt-1"
+                        maxLength={100}
+                        className="mt-1 resize-none min-h-[80px] max-h-[200px]"
                       />
                       <p className={`text-xs mt-1 ${
                         editForm.brief.length > 100 ? 'text-red-500' : 
@@ -482,36 +527,20 @@ export default function ProjectDetail() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex flex-col gap-3">
-                      <Label htmlFor="dueDate" className="px-1">Due Date</Label>
-                      <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            id="dueDate"
-                            className="w-48 justify-between font-normal"
-                          >
-                            {editForm.dueDate ? new Date(editForm.dueDate).toLocaleDateString() : 'Select date'}
-                            <ChevronDownIcon className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
-                            captionLayout="dropdown"
-                            onSelect={(date) => {
-                              if (date) {
-                                setEditForm(prev => ({
-                                  ...prev,
-                                  dueDate: format(date, 'yyyy-MM-dd')
-                                }));
-                              }
-                              setDatePickerOpen(false);
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                    <div>
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <div className="relative mt-1">
+                        <Input
+                          id="dueDate"
+                          name="dueDate"
+                          type="date"
+                          value={editForm.dueDate}
+                          onChange={handleEditChange}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="pr-10"
+                        />
+                        <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none" />
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={saveProject} disabled={saving}>
@@ -554,20 +583,36 @@ export default function ProjectDetail() {
                 )}
               </div>
               {!isEditing && project.isOwner && (
-                <div className="flex gap-2 ml-4">
-                  <Button onClick={startEditing} variant="outline" size="sm">
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button onClick={openDeleteConfirm} variant="destructive" size="sm" disabled={deleting}>
-                    {deleting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4 mr-2" />
-                    )}
-                    Delete
-                  </Button>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={startEditing}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Project
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={openDeleteConfirm} 
+                      className="text-red-600 focus:text-red-600"
+                      disabled={deleting}
+                    >
+                      {deleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Project
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </CardHeader>
@@ -640,7 +685,7 @@ export default function ProjectDetail() {
                     />
                     <Button 
                       onClick={updateProjectProgress} 
-                      disabled={updatingProgress || progressValue === project.progress}
+                      disabled={updatingProgress}
                       size="sm"
                     >
                       {updatingProgress ? (
