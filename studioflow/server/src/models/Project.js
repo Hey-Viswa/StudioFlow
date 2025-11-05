@@ -128,19 +128,24 @@ const ProjectSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Indexes for better query performance
 ProjectSchema.index({ 'members.userId': 1 });
+ProjectSchema.index({ ownerId: 1, deletedAt: 1 }); // For listing user's projects
+ProjectSchema.index({ deletedBy: 1, deletedAt: 1 }); // For trash queries
+ProjectSchema.index({ createdAt: -1 }); // For sorting by creation date
 
 ProjectSchema.methods.isMember = function(userId) {
-  return this.members.some(member => member.userId === userId);
+  return this.members.some(member => String(member.userId) === String(userId));
 };
 
 ProjectSchema.methods.getUserRole = function(userId) {
-  const member = this.members.find(member => member.userId === userId);
+  const member = this.members.find(member => String(member.userId) === String(userId));
   return member ? member.role : null;
 };
 
 ProjectSchema.methods.isOwner = function(userId) {
-  return this.ownerId === userId;
+  // Convert both to strings to ensure proper comparison
+  return String(this.ownerId) === String(userId);
 };
 
 export default mongoose.model('Project', ProjectSchema);

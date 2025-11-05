@@ -93,6 +93,7 @@ export const listProjects = async (req, res) => {
     const userId = req.userId;
 
     // Find projects where user is owner OR member, and NOT deleted
+    // Use lean() for better performance and select only necessary fields
     const projects = await Project.find({
       $and: [
         { deletedAt: null }, // Exclude soft-deleted projects
@@ -103,13 +104,24 @@ export const listProjects = async (req, res) => {
           ]
         }
       ]
-    }).sort({ createdAt: -1 }); // Most recent first
+    })
+    .select('title brief status progress ownerId members createdAt updatedAt deadline') // Only needed fields
+    .lean() // Return plain objects for better performance
+    .sort({ createdAt: -1 }); // Most recent first
 
     // Add user's role to each project for frontend
     const projectsWithRole = projects.map(project => {
-      const userRole = project.getUserRole(userId);
+      // Manually calculate role since we're using lean()
+      let userRole = null;
+      if (String(project.ownerId) === String(userId)) {
+        userRole = 'owner';
+      } else {
+        const member = project.members.find(m => String(m.userId) === String(userId));
+        userRole = member ? member.role : null;
+      }
+      
       return {
-        ...project.toObject(),
+        ...project,
         userRole
       };
     });
@@ -175,7 +187,10 @@ export const generateInvite = async (req, res) => {
 
     console.log('🔗 Generate invite request:', { projectId: id, userId });
 
-    const project = await Project.findById(id);
+    // Only select fields needed for invite generation
+    const project = await Project.findById(id)
+      .select('_id title ownerId')
+      .lean();
 
     if (!project) {
       console.log('❌ Project not found:', id);
@@ -183,8 +198,8 @@ export const generateInvite = async (req, res) => {
     }
 
     // Only owner can generate invites
-    if (!project.isOwner(userId)) {
-      console.log('❌ Not owner:', { userId, ownerId: project.owner });
+    if (String(project.ownerId) !== String(userId)) {
+      console.log('❌ Not owner:', { userId, ownerId: project.ownerId });
       return res.status(403).json({ error: 'Only project owner can generate invites' });
     }
 
@@ -303,18 +318,26 @@ export const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    const { reason } = req.body; // Optional delete reason
+    const reason = req.body?.reason || null; // Make it optional since body might be undefined
+
+    console.log('🗑️ Delete project request:', { projectId: id, userId, reason });
 
     const project = await Project.findById(id);
 
     if (!project) {
+      console.log('❌ Project not found:', id);
       return res.status(404).json({ error: 'Project not found' });
     }
 
+    console.log('✅ Project found:', { title: project.title, ownerId: project.ownerId });
+
     // Only owner can delete
     if (!project.isOwner(userId)) {
+      console.log('❌ Not owner:', { userId, ownerId: project.ownerId });
       return res.status(403).json({ error: 'Only project owner can delete' });
     }
+
+    console.log('✅ Owner verified, proceeding with deletion');
 
     // Get user details for deletion record
     let userName = '';
@@ -323,11 +346,14 @@ export const deleteProject = async (req, res) => {
       userName = user.firstName && user.lastName 
         ? `${user.firstName} ${user.lastName}` 
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
+      console.log('✅ User details fetched:', userName);
     } catch (err) {
-      console.error('Error fetching user from Clerk:', err);
+      console.error('⚠️ Error fetching user from Clerk:', err.message);
+      userName = 'Unknown User';
     }
 
     // Create trash entry with full project data
+    console.log('📦 Creating trash entry...');
     const trashEntry = new Trash({
       originalProjectId: project._id.toString(),
       title: project.title,
@@ -345,25 +371,34 @@ export const deleteProject = async (req, res) => {
     });
 
     await trashEntry.save();
+    console.log('✅ Trash entry created:', trashEntry._id);
 
     // Delete the project from main collection
+    console.log('🗑️ Deleting project from main collection...');
     await Project.findByIdAndDelete(id);
+    console.log('✅ Project deleted from main collection');
 
     // Clear cache for all project members
+    console.log('🔄 Clearing cache for project members...');
     clearUserCache(userId);
     project.members.forEach(member => {
       if (member.userId !== userId) {
         clearUserCache(member.userId);
       }
     });
+    console.log('✅ Cache cleared');
 
     res.json({ 
       message: 'Project moved to trash. Will be permanently deleted after 30 days.',
       trashId: trashEntry._id
     });
   } catch (error) {
-    console.error('Delete project error:', error);
-    res.status(500).json({ error: 'Failed to delete project' });
+    console.error('❌ Delete project error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to delete project',
+      details: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
   }
 };
 
@@ -377,10 +412,14 @@ export const listTrash = async (req, res) => {
     // Find projects that were deleted by this user and haven't been 30 days yet
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     
+    // Use lean() and select only needed fields
     const trashedProjects = await Project.find({
       deletedBy: userId,
       deletedAt: { $ne: null, $gte: thirtyDaysAgo }
-    }).sort({ deletedAt: -1 });
+    })
+    .select('title brief status deletedAt ownerId createdAt')
+    .lean()
+    .sort({ deletedAt: -1 });
 
     // Calculate days remaining for each project
     const projectsWithDaysRemaining = trashedProjects.map(project => {
@@ -389,7 +428,7 @@ export const listTrash = async (req, res) => {
       const daysRemaining = Math.ceil((expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
       
       return {
-        ...project.toObject(),
+        ...project,
         daysRemaining
       };
     });

@@ -9,6 +9,35 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 // Initialize Clerk client
 const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
+// In-memory cache for user details to reduce Clerk API calls
+const userCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+function getCachedUser(userId) {
+    const cached = userCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedUser(userId, userData) {
+    userCache.set(userId, {
+        data: userData,
+        timestamp: Date.now()
+    });
+}
+
+// Cleanup expired cache entries every 10 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [userId, cached] of userCache.entries()) {
+        if (now - cached.timestamp >= CACHE_TTL) {
+            userCache.delete(userId);
+        }
+    }
+}, 10 * 60 * 1000);
+
 export default async function verifyClerk(req, res, next) {
     try {
         // Get the session token from Authorization header or cookies
@@ -45,7 +74,7 @@ export default async function verifyClerk(req, res, next) {
         }
 
         if (process.env.NODE_ENV !== 'production') {
-            console.log('Verifying Clerk token; length:', sessionToken.length);
+            console.log('Verifying Clerk token...');
         }
 
         // Verify the token using Clerk's verifyToken function
@@ -69,20 +98,36 @@ export default async function verifyClerk(req, res, next) {
         req.clerkPayload = payload;
         req.userId = payload.sub; // Clerk uses 'sub' claim for userId
         
-        // Fetch user details from Clerk to get email and name
-        try {
-            const user = await clerkClient.users.getUser(payload.sub);
-            req.userEmail = user.emailAddresses?.[0]?.emailAddress || '';
-            req.userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || '';
-        } catch (userError) {
-            console.warn('Could not fetch user details from Clerk:', userError.message);
-            // Continue anyway, email/name will be empty
-            req.userEmail = '';
-            req.userName = '';
-        }
-        
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('Token verified successfully for user:', req.userId);
+        // Check cache first before making API call to Clerk
+        const cachedUserData = getCachedUser(payload.sub);
+        if (cachedUserData) {
+            req.userEmail = cachedUserData.email;
+            req.userName = cachedUserData.name;
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('✅ User data retrieved from cache:', req.userId);
+            }
+        } else {
+            // Fetch user details from Clerk API only if not in cache
+            try {
+                const user = await clerkClient.users.getUser(payload.sub);
+                const userEmail = user.emailAddresses?.[0]?.emailAddress || '';
+                const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || '';
+                
+                // Cache the user data
+                setCachedUser(payload.sub, { email: userEmail, name: userName });
+                
+                req.userEmail = userEmail;
+                req.userName = userName;
+                
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('✅ User data fetched from Clerk API and cached:', req.userId);
+                }
+            } catch (userError) {
+                console.warn('Could not fetch user details from Clerk:', userError.message);
+                // Continue anyway, email/name will be empty
+                req.userEmail = '';
+                req.userName = '';
+            }
         }
 
         return next();

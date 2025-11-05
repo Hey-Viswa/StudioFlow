@@ -22,12 +22,20 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import {
   Search,
   Loader2,
   Plus,
   LayoutGrid,
   LayoutList,
-  MoreHorizontal
+  MoreHorizontal,
+  Eye,
+  Trash2
 } from 'lucide-react';
 
 export default function Projects() {
@@ -274,13 +282,49 @@ export default function Projects() {
                         </TableCell>
                         <TableCell>{formatDate(project.dueDate)}</TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/dashboard/projects/${project._id}`)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Project
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={async () => {
+                                  try {
+                                    const token = await getToken();
+                                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                                    const response = await fetch(`${apiUrl}/projects/${project._id}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Authorization': `Bearer ${token}`
+                                      }
+                                    });
+                                    if (response.ok) {
+                                      toast.success('Project moved to trash');
+                                      fetchProjects();
+                                    } else {
+                                      toast.error('Failed to delete project');
+                                    }
+                                  } catch (err) {
+                                    toast.error('Failed to delete project');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Move to Trash
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

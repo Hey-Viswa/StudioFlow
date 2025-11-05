@@ -41,8 +41,7 @@ import {
   Share2,
   CheckCircle2,
   Copy,
-  Calendar,
-  ChevronDown,
+  Calendar as CalendarIcon,
   Users,
   FileText,
   Crown,
@@ -54,7 +53,8 @@ import {
   ListTodo,
   MessageSquare,
   Upload,
-  Home
+  Home,
+  ChevronDownIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -86,12 +86,26 @@ export default function ProjectDetail() {
   useEffect(() => {
     fetchProject();
     
-    // Poll for updates every 5 seconds to catch new members
+    // Poll for updates every 30 seconds to catch new members (only when tab is visible)
     const interval = setInterval(() => {
-      fetchProject();
-    }, 5000);
+      // Only poll if document is visible to save API calls
+      if (!document.hidden) {
+        fetchProject();
+      }
+    }, 30000); // Changed from 5s to 30s
     
-    return () => clearInterval(interval);
+    // Also fetch when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchProject();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [projectId]);
 
   const fetchProject = async () => {
@@ -468,20 +482,20 @@ export default function ProjectDetail() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-3">
                       <Label htmlFor="dueDate" className="px-1">Due Date</Label>
                       <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             id="dueDate"
-                            className="w-full justify-between font-normal mt-1 bg-slate-900/50 border-slate-700 hover:bg-slate-800/50 hover:border-primary/50 transition-all"
+                            className="w-48 justify-between font-normal"
                           >
                             {editForm.dueDate ? new Date(editForm.dueDate).toLocaleDateString() : 'Select date'}
-                            <ChevronDown className="h-4 w-4 text-primary" />
+                            <ChevronDownIcon className="h-4 w-4" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 overflow-hidden bg-slate-900 border-slate-700" align="start">
+                        <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                           <CalendarComponent
                             mode="single"
                             selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
@@ -561,7 +575,7 @@ export default function ProjectDetail() {
             {/* Project Details */}
             <div className="grid gap-4 md:grid-cols-3">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <Calendar className="w-5 h-5 text-muted-foreground" />
+                <CalendarIcon className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Due Date</p>
                   <p className="text-sm font-semibold">{formatDate(project.dueDate)}</p>

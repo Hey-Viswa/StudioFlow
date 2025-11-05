@@ -16,9 +16,25 @@ export default function CommentsTab({ projectId, project }) {
 
   useEffect(() => {
     fetchComments();
-    // Poll for new comments every 5 seconds
-    const interval = setInterval(fetchComments, 5000);
-    return () => clearInterval(interval);
+    // Poll for new comments every 30 seconds (only when tab is visible)
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchComments();
+      }
+    }, 30000); // Changed from 5s to 30s
+    
+    // Fetch when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchComments();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [projectId]);
 
   const fetchComments = async () => {

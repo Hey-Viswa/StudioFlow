@@ -9,8 +9,10 @@ import Project from '../models/Project.js';
  */
 export async function checkProjectLimit(req, res, next) {
   try {
-    // Get user's subscription details
-    let user = await User.findOne({ clerkUserId: req.userId });
+    // Get user's subscription details - only select needed fields
+    let user = await User.findOne({ clerkUserId: req.userId })
+      .select('clerkUserId subscription')
+      .lean();
     
     // If user doesn't exist, create them with default free plan
     if (!user) {
@@ -28,7 +30,7 @@ export async function checkProjectLimit(req, res, next) {
 
     // Only check limits for free plan
     if (user.subscription.plan === 'free') {
-      // Count active projects (not deleted)
+      // Count active projects (not deleted) - efficient countDocuments
       const projectCount = await Project.countDocuments({ 
         ownerId: req.userId,
         deletedAt: null 
@@ -74,7 +76,10 @@ export async function checkProjectLimit(req, res, next) {
  */
 export async function getProjectUsage(req, res) {
   try {
-    let user = await User.findOne({ clerkUserId: req.userId });
+    // Only select subscription field
+    let user = await User.findOne({ clerkUserId: req.userId })
+      .select('clerkUserId subscription')
+      .lean();
     
     // If user doesn't exist, create them with default free plan
     if (!user) {
@@ -89,6 +94,7 @@ export async function getProjectUsage(req, res) {
       });
     }
 
+    // Efficient count query
     const projectCount = await Project.countDocuments({ 
       ownerId: req.userId,
       deletedAt: null 
@@ -100,7 +106,7 @@ export async function getProjectUsage(req, res) {
       studio: { limit: null, unlimited: true }
     };
 
-  const currentPlan = user.subscription.plan || 'free';
+    const currentPlan = user.subscription.plan || 'free';
     const limits = planLimits[currentPlan];
 
     return res.json({

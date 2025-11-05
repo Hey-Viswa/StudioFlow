@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { ArrowLeft, Loader2, ChevronDown, Rocket, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Calendar as CalendarIcon, Rocket, AlertTriangle, ChevronDownIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CreateProject() {
@@ -192,23 +192,26 @@ export default function CreateProject() {
                 </p>
               </div>
 
-              <div className="space-y-2">
+              <div className="flex flex-col gap-3">
                 <Label htmlFor="dueDate" className="px-1">Due Date</Label>
                 <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       id="dueDate"
-                      className="w-full justify-between font-normal"
+                      className={cn(
+                        "w-48 justify-between font-normal",
+                        !date && "text-muted-foreground"
+                      )}
                       disabled={loading}
                     >
-                      {date ? date.toLocaleDateString() : "Select date"}
-                      <ChevronDown className="h-4 w-4" />
+                      {date ? format(date, "PPP") : "Pick a date"}
+                      <ChevronDownIcon className="h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
-                    <Calendar
-                      mode="single"
+                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                    <Calendar 
+                      mode="single" 
                       selected={date}
                       captionLayout="dropdown"
                       onSelect={(selectedDate) => {
@@ -268,31 +271,24 @@ export default function CreateProject() {
                   variant="outline"
                   onClick={() => navigate('/dashboard')}
                   disabled={loading}
-                  className="border-slate-600 hover:border-primary/50 hover:bg-slate-800 transition-all duration-300"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={loading || !formData.title}
-                  className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold h-12 rounded-xl shadow-lg hover:shadow-primary/30 transition-all duration-300 hover:scale-105 group relative overflow-hidden"
                 >
-                  {/* Animated background */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  
-                  <span className="relative flex items-center justify-center">
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Creating Your Project...
-                      </>
-                    ) : (
-                      <>
-                        <Rocket className="w-5 h-5 mr-2 group-hover:translate-x-1 transition-transform duration-300" />
-                        Create Project
-                      </>
-                    )}
-                  </span>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="w-4 h-4 mr-2" />
+                      Create Project
+                    </>
+                  )}
                 </Button>
               </div>
             </form>

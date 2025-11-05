@@ -22,12 +22,26 @@ export default function Dashboard() {
   useEffect(() => {
     fetchProjects();
     
-    // Poll for updates every 10 seconds
+    // Poll for updates every 60 seconds (only when tab is visible)
     const interval = setInterval(() => {
-      fetchProjects();
-    }, 10000);
+      // Only poll if document is visible to save API calls
+      if (!document.hidden) {
+        fetchProjects();
+      }
+    }, 60000); // Changed from 10s to 60s
     
-    return () => clearInterval(interval);
+    // Also fetch when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchProjects();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Filter projects based on search query
