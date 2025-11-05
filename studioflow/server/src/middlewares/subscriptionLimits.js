@@ -80,8 +80,8 @@ export async function getProjectUsage(req, res) {
     if (!user) {
       user = await User.create({
         clerkUserId: req.userId,
-        email: req.email || '',
-        name: req.name || '',
+        email: req.userEmail || '',
+        name: req.userName || '',
         subscription: {
           plan: 'free',
           status: 'active'
