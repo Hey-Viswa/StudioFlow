@@ -18,6 +18,13 @@ export default function Dashboard() {
   // Fetch projects on component mount
   useEffect(() => {
     fetchProjects();
+    
+    // Poll for updates every 10 seconds
+    const interval = setInterval(() => {
+      fetchProjects();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchProjects = async () => {

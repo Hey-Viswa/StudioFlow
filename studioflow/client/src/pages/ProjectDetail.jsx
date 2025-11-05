@@ -63,6 +63,13 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     fetchProject();
+    
+    // Poll for updates every 5 seconds to catch new members
+    const interval = setInterval(() => {
+      fetchProject();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [projectId]);
 
   const fetchProject = async () => {
