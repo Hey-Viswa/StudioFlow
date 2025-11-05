@@ -2,23 +2,30 @@
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
+    clerkUserId: {
+        type: String,
+        required: [true, 'Clerk User ID is required'],
+        unique: true,
+        index: true
+    },
     name: { 
         type: String, 
-        required: [true, 'Name is required'],
+        required: false,
         trim: true,
-        minlength: [2, 'Name must be at least 2 characters'],
+        default: '',
         maxlength: [100, 'Name cannot exceed 100 characters']
     },
     email: { 
         type: String, 
-        required: [true, 'Email is required'], 
+        required: false,
         lowercase: true,
         trim: true,
+        default: '',
         match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address']
     },
     passwordHash: { 
         type: String, 
-        required: true,
+        required: false,
         select: false // Don't include password hash by default in queries
     },
     role: { 
@@ -45,7 +52,7 @@ const UserSchema = new mongoose.Schema({
         status: {
             type: String,
             enum: ['active', 'inactive', 'cancelled', 'expired', 'created'],
-            default: 'inactive'
+            default: 'active'
         },
         razorpayCustomerId: {
             type: String,
@@ -83,7 +90,8 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ clerkUserId: 1 }, { unique: true });
+UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ createdAt: -1 });
 
