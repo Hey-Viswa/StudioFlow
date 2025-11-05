@@ -229,16 +229,24 @@ export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    const { title, brief, status, dueDate } = req.body;
+    const { title, brief, status, dueDate, progress } = req.body;
+
+    console.log('📊 Update project request:', { 
+      projectId: id, 
+      userId, 
+      updates: { title, brief, status, dueDate, progress } 
+    });
 
     const project = await Project.findById(id);
 
     if (!project) {
+      console.log('❌ Project not found:', id);
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Only owner can update
     if (!project.isOwner(userId)) {
+      console.log('❌ User is not owner:', { userId, ownerId: project.ownerId });
       return res.status(403).json({ error: 'Only project owner can update' });
     }
 
@@ -251,13 +259,23 @@ export const updateProject = async (req, res) => {
       return res.status(400).json({ error: 'Brief must be 100 characters or less' });
     }
 
+    // Validate progress
+    if (progress !== undefined) {
+      if (progress < 0 || progress > 100) {
+        return res.status(400).json({ error: 'Progress must be between 0 and 100' });
+      }
+      console.log('📊 Updating progress:', { old: project.progress, new: progress });
+    }
+
     // Update fields
     if (title !== undefined) project.title = title;
     if (brief !== undefined) project.brief = brief;
     if (status !== undefined) project.status = status;
     if (dueDate !== undefined) project.dueDate = dueDate ? new Date(dueDate) : null;
+    if (progress !== undefined) project.progress = progress;
 
     await project.save();
+    console.log('✅ Project updated successfully:', { progress: project.progress });
 
     // Clear cache for all project members
     clearUserCache(userId);

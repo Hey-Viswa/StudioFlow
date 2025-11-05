@@ -11,6 +11,8 @@ import inviteRoutes from './src/routes/invites.js';
 import paymentRoutes from './src/routes/payment.js';
 import taskCommentRoutes from './src/routes/taskComment.js';
 import trashRoutes from './src/routes/trash.js';
+import subscriptionRoutes from './src/routes/subscriptions.js';
+import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +79,8 @@ app.use('/api/projects', taskCommentRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/trash', trashRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 
 const PORT = process.env.PORT || 5000;
 

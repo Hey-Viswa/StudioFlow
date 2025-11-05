@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { format } from 'date-fns';
@@ -9,7 +9,8 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
-import { ArrowLeft, Loader2, CalendarIcon } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { ArrowLeft, Loader2, CalendarIcon, Sparkles, Rocket, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CreateProject() {
@@ -17,12 +18,41 @@ export default function CreateProject() {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [limitExceeded, setLimitExceeded] = useState(false);
+  const [planInfo, setPlanInfo] = useState(null);
+  const [usage, setUsage] = useState(null);
   const [date, setDate] = useState();
   const [formData, setFormData] = useState({
     title: '',
     brief: '',
     dueDate: ''
   });
+
+  // Fetch current usage on mount
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${apiUrl}/projects/usage`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUsage(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch usage:', err);
+      }
+    };
+
+    fetchUsage();
+  }, [getToken]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,6 +63,8 @@ export default function CreateProject() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setLimitExceeded(false);
+    setPlanInfo(null);
 
     try {
       // Get the session token from Clerk - this returns a JWT
@@ -56,6 +88,14 @@ export default function CreateProject() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to create project' }));
+        
+        // Check if it's a limit exceeded error
+        if (response.status === 403 && errorData.limit) {
+          setLimitExceeded(true);
+          setPlanInfo(errorData);
+          throw new Error(errorData.error || 'Project limit reached');
+        }
+        
         throw new Error(errorData.error || 'Failed to create project');
       }
 
@@ -87,10 +127,26 @@ export default function CreateProject() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Create New Project</CardTitle>
-            <CardDescription>
-              Start a new video editing project and invite clients to collaborate
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>Create New Project</CardTitle>
+                <CardDescription>
+                  Start a new video editing project and invite clients to collaborate
+                </CardDescription>
+              </div>
+              {usage && (
+                <div className="text-right">
+                  <p className="text-sm font-medium text-muted-foreground">Project Usage</p>
+                  <p className={cn(
+                    "text-lg font-bold",
+                    usage.current >= usage.limit ? "text-destructive" : "text-primary"
+                  )}>
+                    {usage.current} / {usage.limit === Infinity ? '∞' : usage.limit}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize">{usage.plan} Plan</p>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -158,7 +214,36 @@ export default function CreateProject() {
                 </Popover>
               </div>
 
-              {error && (
+              {limitExceeded && planInfo && (
+                <Alert variant="warning" className="border-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertTitle className="text-lg font-semibold">Project Limit Reached</AlertTitle>
+                  <AlertDescription className="mt-2 space-y-3">
+                    <p>
+                      You've reached the limit of <strong>{planInfo.limit} projects</strong> on the <strong className="capitalize">{planInfo.currentPlan}</strong> plan.
+                    </p>
+                    <p>
+                      Current usage: <strong>{planInfo.current} / {planInfo.limit} projects</strong>
+                    </p>
+                    <div className="flex gap-3 mt-4">
+                      <Button
+                        onClick={() => navigate('/dashboard/subscription')}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        Upgrade Your Plan
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate('/dashboard/projects')}
+                      >
+                        Manage Projects
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {error && !limitExceeded && (
                 <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
                   <p className="text-sm font-medium text-destructive">Error</p>
                   <p className="text-sm text-destructive/90 mt-1">{error}</p>
@@ -169,22 +254,32 @@ export default function CreateProject() {
                 <Button
                   type="submit"
                   disabled={loading || !formData.title}
-                  className="flex-1"
+                  className="flex-1 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-semibold h-12 rounded-xl shadow-lg hover:shadow-primary/30 transition-all duration-300 hover:scale-105 group relative overflow-hidden"
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Project'
-                  )}
+                  {/* Animated background */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  
+                  <span className="relative flex items-center justify-center">
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Creating Your Project...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="w-5 h-5 mr-2 group-hover:translate-x-1 transition-transform duration-300" />
+                        Create Project
+                        <Sparkles className="w-4 h-4 ml-2 group-hover:rotate-12 transition-transform duration-300" />
+                      </>
+                    )}
+                  </span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/dashboard')}
                   disabled={loading}
+                  className="border-slate-600 hover:border-primary/50 hover:bg-slate-800 transition-all duration-300"
                 >
                   Cancel
                 </Button>

@@ -17,6 +17,9 @@ import ShippingDelivery from './pages/ShippingDelivery';
 import ContactUs from './pages/ContactUs';
 import Projects from './pages/Projects';
 import Trash from './pages/Trash';
+import Invoices from './pages/Invoices';
+import Subscription from './pages/Subscription';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }) {
   return (
@@ -56,6 +59,9 @@ function App() {
           <Route path="projects" element={<Projects />} />
           <Route path="projects/new" element={<CreateProject />} />
           <Route path="projects/:projectId" element={<ProjectDetail />} />
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="subscription" element={<Subscription />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="trash" element={<Trash />} />
         </Route>
         

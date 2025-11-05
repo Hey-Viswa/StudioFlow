@@ -91,18 +91,25 @@ export default function DashboardLayout() {
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
                     title={sidebarCollapsed ? item.name : ''}
-                    className={`flex items-center ${
+                    className={`flex items-center relative ${
                       sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
                     } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
                       active
-                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg'
+                        ? 'bg-primary/15 text-primary'
                         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                     }`}
                   >
+                    {/* Pill indicator on the right */}
+                    {active && !sidebarCollapsed && (
+                      <span className="absolute right-3 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+                    )}
+                    
                     <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
                       active ? 'scale-110' : 'group-hover:scale-110'
                     }`} />
-                    {!sidebarCollapsed && item.name}
+                    {!sidebarCollapsed && (
+                      <span className={active ? 'font-semibold' : ''}>{item.name}</span>
+                    )}
                   </Link>
                 );
               })}
@@ -121,18 +128,25 @@ export default function DashboardLayout() {
                 to="/dashboard/trash"
                 onClick={() => setMobileMenuOpen(false)}
                 title={sidebarCollapsed ? 'Trash' : ''}
-                className={`flex items-center ${
+                className={`flex items-center relative ${
                   sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
                 } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
                   isActive('/dashboard/trash')
-                    ? 'bg-destructive/20 text-destructive shadow-lg'
+                    ? 'bg-destructive/15 text-destructive'
                     : 'text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive'
                 }`}
               >
+                {/* Pill indicator on the right */}
+                {isActive('/dashboard/trash') && !sidebarCollapsed && (
+                  <span className="absolute right-3 w-2 h-2 bg-destructive rounded-full animate-pulse"></span>
+                )}
+                
                 <Trash2 className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
                   isActive('/dashboard/trash') ? 'scale-110' : 'group-hover:scale-110'
                 }`} />
-                {!sidebarCollapsed && 'Trash'}
+                {!sidebarCollapsed && (
+                  <span className={isActive('/dashboard/trash') ? 'font-semibold' : ''}>Trash</span>
+                )}
               </Link>
             </div>
           </div>

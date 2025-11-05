@@ -247,3 +247,61 @@ body {
   background-size: 200% 200%;
   animation: border-flow 3s ease infinite;
 }
+
+/* Stagger animations for cards */
+.animate-stagger-1 {
+  animation: slide-up 0.6s ease-out 0.1s both;
+}
+
+.animate-stagger-2 {
+  animation: slide-up 0.6s ease-out 0.2s both;
+}
+
+.animate-stagger-3 {
+  animation: slide-up 0.6s ease-out 0.3s both;
+}
+
+/* Spin slow animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Bounce animation */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+/* Scale in animation */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.5s ease-out;
+}
+

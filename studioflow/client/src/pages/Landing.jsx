@@ -296,11 +296,15 @@ const Landing = () => {
                   <span className="text-sm text-muted-foreground">Starter</span>
                   <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">Best for solo</span>
                 </div>
-                <CardTitle className="text-4xl font-bold">$0</CardTitle>
-                <CardDescription>Up to 2 active projects</CardDescription>
+                <CardTitle className="text-4xl font-bold">₹0</CardTitle>
+                <CardDescription>Up to 5 active projects</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-primary mt-0.5" />
+                    <span>Up to 5 projects</span>
+                  </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
                     <span>Project management</span>
@@ -316,9 +320,20 @@ const Landing = () => {
                 </ul>
               </CardContent>
               <CardFooter className="mt-auto">
-                <SignUpButton mode="modal">
-                  <Button variant="outline" className="w-full hover:bg-primary/5 transition-colors">Choose Starter</Button>
-                </SignUpButton>
+                <SignedOut>
+                  <SignUpButton mode="modal">
+                    <Button variant="outline" className="w-full hover:bg-primary/5 transition-colors">Choose Starter</Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <Button 
+                    variant="outline" 
+                    className="w-full hover:bg-primary/5 transition-colors"
+                    onClick={() => navigate('/dashboard/subscription')}
+                  >
+                    Get Started Free
+                  </Button>
+                </SignedIn>
               </CardFooter>
             </Card>
 
@@ -334,7 +349,7 @@ const Landing = () => {
                   <span className="text-sm text-muted-foreground">Pro</span>
                 </div>
                 <CardTitle className="text-5xl font-bold">
-                  $10<span className="text-lg text-muted-foreground font-normal">/mo</span>
+                  ₹799<span className="text-lg text-muted-foreground font-normal">/mo</span>
                 </CardTitle>
                 <CardDescription className="text-base">Unlimited projects</CardDescription>
               </CardHeader>
@@ -350,7 +365,7 @@ const Landing = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Branded invoices + Stripe</span>
+                    <span>Branded invoices + Razorpay</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
@@ -359,12 +374,23 @@ const Landing = () => {
                 </ul>
               </CardContent>
               <CardFooter className="mt-auto">
-                <SignUpButton mode="modal">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700 shadow-2xl shadow-purple-600/40 hover:shadow-3xl hover:shadow-purple-600/60 transition-all font-bold text-base text-white">
-                    Choose Pro
+                <SignedOut>
+                  <SignUpButton mode="modal">
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700 shadow-2xl shadow-purple-600/40 hover:shadow-3xl hover:shadow-purple-600/60 transition-all font-bold text-base text-white">
+                      Choose Pro
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <Button 
+                    className="w-full bg-purple-600 hover:bg-purple-700 shadow-2xl shadow-purple-600/40 hover:shadow-3xl hover:shadow-purple-600/60 transition-all font-bold text-base text-white"
+                    onClick={() => navigate('/dashboard/subscription')}
+                  >
+                    Upgrade to Pro
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                </SignUpButton>
+                </SignedIn>
               </CardFooter>
             </Card>
 
@@ -376,7 +402,7 @@ const Landing = () => {
                   <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">Teams</span>
                 </div>
                 <CardTitle className="text-4xl font-bold">
-                  $25<span className="text-lg text-muted-foreground font-normal">/mo</span>
+                  ₹1,999<span className="text-lg text-muted-foreground font-normal">/mo</span>
                 </CardTitle>
                 <CardDescription>Team permissions</CardDescription>
               </CardHeader>
@@ -401,9 +427,20 @@ const Landing = () => {
                 </ul>
               </CardContent>
               <CardFooter className="mt-auto">
-                <SignUpButton mode="modal">
-                  <Button variant="outline" className="w-full hover:bg-primary/5 transition-colors">Choose Studio</Button>
-                </SignUpButton>
+                <SignedOut>
+                  <SignUpButton mode="modal">
+                    <Button variant="outline" className="w-full hover:bg-primary/5 transition-colors">Choose Studio</Button>
+                  </SignUpButton>
+                </SignedOut>
+                <SignedIn>
+                  <Button 
+                    variant="outline" 
+                    className="w-full hover:bg-primary/5 transition-colors"
+                    onClick={() => navigate('/dashboard/subscription')}
+                  >
+                    Upgrade to Studio
+                  </Button>
+                </SignedIn>
               </CardFooter>
             </Card>
           </div>

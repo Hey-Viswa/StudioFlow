@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -9,7 +10,22 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Progress } from '../components/ui/progress';
+import { Slider } from '../components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../components/ui/popover';
+import { Calendar as CalendarComponent } from '../components/ui/calendar';
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
 import {
@@ -36,8 +52,10 @@ import {
   AlertTriangle,
   ListTodo,
   MessageSquare,
-  Upload
+  Upload,
+  Home
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -60,6 +78,8 @@ export default function ProjectDetail() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [progressValue, setProgressValue] = useState(0);
+  const [updatingProgress, setUpdatingProgress] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -95,6 +115,7 @@ export default function ProjectDetail() {
 
       const data = await response.json();
       setProject(data.project);
+      setProgressValue(data.project.progress || 0);
       console.log('🔐 Project loaded:', {
         userRole: data.project.userRole,
         isOwner: data.project.isOwner,
@@ -257,6 +278,49 @@ export default function ProjectDetail() {
     }
   };
 
+  const updateProjectProgress = async () => {
+    setUpdatingProgress(true);
+    try {
+      console.log('📊 Updating progress:', { projectId, progressValue });
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const url = `${apiUrl}/projects/${projectId}`;
+      
+      console.log('📊 Request details:', { url, progress: progressValue });
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ progress: progressValue })
+      });
+
+      console.log('📊 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update progress' }));
+        console.error('📊 Error response:', errorData);
+        throw new Error(errorData.error || 'Failed to update progress');
+      }
+
+      const data = await response.json();
+      console.log('📊 Success response:', data);
+      toast.success('Progress updated successfully!');
+      setProject(prev => ({ ...prev, progress: progressValue }));
+      
+      // Fetch fresh data to ensure sync
+      await fetchProject();
+    } catch (err) {
+      console.error('Update progress error:', err);
+      toast.error(err.message || 'Failed to update progress');
+    } finally {
+      setUpdatingProgress(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     const colors = {
       active: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30',
@@ -311,6 +375,30 @@ export default function ProjectDetail() {
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
+        {/* Breadcrumb Navigation */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/dashboard" className="flex items-center gap-1">
+                  <Home className="w-4 h-4" />
+                  Dashboard
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/dashboard/projects">Projects</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{project?.title || 'Loading...'}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
@@ -361,48 +449,54 @@ export default function ProjectDetail() {
                         {editForm.brief.length}/100 characters
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="status">Status</Label>
-                        <Select 
-                          value={editForm.status} 
-                          onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="on-hold">On Hold</SelectItem>
-                            <SelectItem value="archived">Archived</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="progress">Progress (%)</Label>
-                        <Input
-                          id="progress"
-                          name="progress"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={editForm.progress}
-                          onChange={handleEditChange}
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select 
+                        value={editForm.status} 
+                        onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="on-hold">On Hold</SelectItem>
+                          <SelectItem value="archived">Archived</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="dueDate">Due Date</Label>
-                      <Input
-                        id="dueDate"
-                        name="dueDate"
-                        type="date"
-                        value={editForm.dueDate}
-                        onChange={handleEditChange}
-                        className="mt-1"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal mt-1 bg-slate-900/50 border-slate-700 hover:bg-slate-800/50 hover:border-primary/50 transition-all",
+                              !editForm.dueDate && "text-slate-400"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4 text-primary" />
+                            {editForm.dueDate ? format(new Date(editForm.dueDate), 'PPP') : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                setEditForm(prev => ({
+                                  ...prev,
+                                  dueDate: format(date, 'yyyy-MM-dd')
+                                }));
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={saveProject} disabled={saving}>
@@ -490,12 +584,62 @@ export default function ProjectDetail() {
 
             {/* Progress Bar */}
             {project.progress !== undefined && (
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">Project Progress</h3>
-                  <span className="text-lg font-bold text-primary">{project.progress}%</span>
+              <div className="space-y-4 border-t pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-white">Progress</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {project.isOwner ? 'Update project completion status' : 'Current completion status'}
+                    </p>
+                  </div>
+                  <div className="text-2xl font-semibold text-white">
+                    {project.isOwner ? progressValue : project.progress}%
+                  </div>
                 </div>
-                <Progress value={project.progress} className="h-3" />
+
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${project.isOwner ? progressValue : project.progress}%` }}
+                  />
+                </div>
+
+                {project.isOwner ? (
+                  <div className="flex items-center gap-3 pt-2">
+                    <Slider 
+                      value={[progressValue]} 
+                      onValueChange={(value) => setProgressValue(value[0])} 
+                      max={100} 
+                      step={1} 
+                      disabled={updatingProgress}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={progressValue}
+                      onChange={(e) => setProgressValue(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                      disabled={updatingProgress}
+                      className="w-16 h-9 text-center"
+                    />
+                    <Button 
+                      onClick={updateProjectProgress} 
+                      disabled={updatingProgress || progressValue === project.progress}
+                      size="sm"
+                    >
+                      {updatingProgress ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Update'
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Only the project owner can update progress
+                  </p>
+                )}
               </div>
             )}
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import { cacheMiddleware } from '../middlewares/cache.js';
+import { checkProjectLimit, getProjectUsage } from '../middlewares/subscriptionLimits.js';
 import {
   createProject,
   listProjects,
@@ -19,11 +20,13 @@ const router = express.Router();
 router.use(verifyClerk);
 
 // Project CRUD with caching on GET requests
-router.post('/', createProject);                          // Create project
+router.post('/', checkProjectLimit, createProject);       // Create project (with limit check)
 router.get('/', cacheMiddleware(2 * 60 * 1000), listProjects);  // List all user's projects (2 min cache)
+router.get('/usage', getProjectUsage);                     // Get project usage/limits
 router.get('/trash', cacheMiddleware(5 * 60 * 1000), listTrash); // Get trashed projects (5 min cache)
 router.get('/:id', cacheMiddleware(1 * 60 * 1000), getProjectById); // Get single project (1 min cache)
 router.put('/:id', updateProject);                        // Update project (owner only)
+router.patch('/:id', updateProject);                      // Update project (owner only) - supports PATCH too
 router.delete('/:id', deleteProject);                     // Soft delete project (move to trash - owner only)
 
 // Trash management
