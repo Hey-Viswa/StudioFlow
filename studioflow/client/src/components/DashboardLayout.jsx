@@ -64,8 +64,8 @@ export default function DashboardLayout() {
         {/* Logo */}
         <Link to="/" className="p-6 border-b border-sidebar-border flex items-center justify-center overflow-hidden">
           {sidebarCollapsed ? (
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">SF</span>
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+              <span className="text-primary-foreground font-bold text-base">SF</span>
             </div>
           ) : (
             <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto" />
