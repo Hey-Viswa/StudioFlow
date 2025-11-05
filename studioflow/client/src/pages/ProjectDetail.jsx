@@ -42,6 +42,7 @@ import {
   CheckCircle2,
   Copy,
   Calendar,
+  ChevronDown,
   Users,
   FileText,
   Crown,
@@ -80,6 +81,7 @@ export default function ProjectDetail() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [progressValue, setProgressValue] = useState(0);
   const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -467,22 +469,23 @@ export default function ProjectDetail() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="dueDate">Due Date</Label>
-                      <Popover>
+                      <Label htmlFor="dueDate" className="px-1">Due Date</Label>
+                      <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             id="dueDate"
                             className="w-full justify-between font-normal mt-1 bg-slate-900/50 border-slate-700 hover:bg-slate-800/50 hover:border-primary/50 transition-all"
                           >
-                            {editForm.dueDate ? format(new Date(editForm.dueDate), 'PPP') : 'Select date'}
-                            <Calendar className="h-4 w-4 text-primary" />
+                            {editForm.dueDate ? new Date(editForm.dueDate).toLocaleDateString() : 'Select date'}
+                            <ChevronDown className="h-4 w-4 text-primary" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                        <PopoverContent className="w-auto p-0 overflow-hidden bg-slate-900 border-slate-700" align="start">
                           <CalendarComponent
                             mode="single"
                             selected={editForm.dueDate ? new Date(editForm.dueDate) : undefined}
+                            captionLayout="dropdown"
                             onSelect={(date) => {
                               if (date) {
                                 setEditForm(prev => ({
@@ -490,8 +493,8 @@ export default function ProjectDetail() {
                                   dueDate: format(date, 'yyyy-MM-dd')
                                 }));
                               }
+                              setDatePickerOpen(false);
                             }}
-                            initialFocus
                           />
                         </PopoverContent>
                       </Popover>

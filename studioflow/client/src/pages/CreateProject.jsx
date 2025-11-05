@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { ArrowLeft, Loader2, CalendarIcon, Sparkles, Rocket, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronDown, Sparkles, Rocket, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CreateProject() {
@@ -22,6 +22,7 @@ export default function CreateProject() {
   const [planInfo, setPlanInfo] = useState(null);
   const [usage, setUsage] = useState(null);
   const [date, setDate] = useState();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     brief: '',
@@ -192,8 +193,8 @@ export default function CreateProject() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Popover>
+                <Label htmlFor="dueDate" className="px-1">Due Date</Label>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -201,24 +202,25 @@ export default function CreateProject() {
                       className="w-full justify-between font-normal"
                       disabled={loading}
                     >
-                      {date ? format(date, "PPP") : "Select date"}
-                      <CalendarIcon className="h-4 w-4" />
+                      {date ? date.toLocaleDateString() : "Select date"}
+                      <ChevronDown className="h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
                     <Calendar
                       mode="single"
                       selected={date}
-                      onSelect={(newDate) => {
-                        setDate(newDate);
-                        if (newDate) {
+                      captionLayout="dropdown"
+                      onSelect={(selectedDate) => {
+                        setDate(selectedDate);
+                        if (selectedDate) {
                           setFormData(prev => ({
                             ...prev,
-                            dueDate: format(newDate, "yyyy-MM-dd")
+                            dueDate: format(selectedDate, "yyyy-MM-dd")
                           }));
                         }
+                        setDatePickerOpen(false);
                       }}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
