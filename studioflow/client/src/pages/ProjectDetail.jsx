@@ -588,18 +588,23 @@ export default function ProjectDetail() {
               {!isEditing && project.isOwner && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 relative z-10"
+                      aria-label="Project options"
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={startEditing}>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={startEditing} className="cursor-pointer">
                       <Edit className="w-4 h-4 mr-2" />
                       Edit Project
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={openDeleteConfirm} 
-                      className="text-red-600 focus:text-red-600"
+                      className="text-red-600 focus:text-red-600 cursor-pointer"
                       disabled={deleting}
                     >
                       {deleting ? (
