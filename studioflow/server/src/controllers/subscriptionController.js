@@ -90,10 +90,13 @@ export const getCurrentSubscription = async (req, res) => {
   try {
     const userId = req.userId;
 
+    console.log('📋 Fetching subscription for user:', userId);
+
     // Get or create user
     let user = await User.findOne({ clerkUserId: userId });
     
     if (!user) {
+      console.log('⚠️  User not found, creating new user');
       // Create user if doesn't exist
       user = await User.create({
         clerkUserId: userId,
@@ -104,12 +107,19 @@ export const getCurrentSubscription = async (req, res) => {
           status: 'active'
         }
       });
+      console.log('✓ Created new user with free plan');
+    } else {
+      console.log('✓ User found');
+      console.log('  Current plan:', user.subscription.plan);
+      console.log('  Status:', user.subscription.status);
+      console.log('  Subscription ID:', user.subscription.razorpaySubscriptionId || 'None');
     }
 
     const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
     
     // Get project count
     const projectCount = await Project.countDocuments({ ownerId: userId });
+    console.log('  Project count:', projectCount, '/', currentPlan.features.maxProjects);
 
     res.json({
       subscription: user.subscription,
@@ -121,7 +131,7 @@ export const getCurrentSubscription = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get subscription error:', error);
+    console.error('❌ Get subscription error:', error);
     res.status(500).json({ error: 'Failed to fetch subscription' });
   }
 };
@@ -281,6 +291,10 @@ export const verifyPayment = async (req, res) => {
       razorpay_signature
     } = req.body;
 
+    console.log('=== VERIFYING PAYMENT ===');
+    console.log('Payment ID:', razorpay_payment_id);
+    console.log('Subscription ID:', razorpay_subscription_id);
+
     // Verify signature
     const generatedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -288,8 +302,11 @@ export const verifyPayment = async (req, res) => {
       .digest('hex');
 
     if (generatedSignature !== razorpay_signature) {
+      console.error('❌ Invalid signature');
       return res.status(400).json({ error: 'Invalid signature' });
     }
+
+    console.log('✓ Signature verified');
 
     // Find user by subscription ID
     const user = await User.findOne({
@@ -297,23 +314,51 @@ export const verifyPayment = async (req, res) => {
     });
 
     if (!user) {
+      console.error('❌ User not found for subscription:', razorpay_subscription_id);
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log('✓ User found:', user.email);
+
     // Get subscription details from Razorpay
     const subscription = await razorpay.subscriptions.fetch(razorpay_subscription_id);
+    console.log('✓ Fetched subscription from Razorpay:', subscription.id);
+    console.log('  Plan ID:', subscription.plan_id);
+    console.log('  Status:', subscription.status);
+    console.log('  Notes:', subscription.notes);
     
-    // Determine plan from subscription notes
-    const planId = subscription.notes?.plan || 'pro';
+    // Determine plan from subscription notes or plan_id
+    let planId = subscription.notes?.plan;
+    
+    // Fallback: determine from plan_id if notes don't have plan
+    if (!planId) {
+      if (subscription.plan_id === process.env.RAZORPAY_PRO_PLAN_ID || subscription.plan_id === 'plan_RcTPS7s2l9ku5N') {
+        planId = 'pro';
+      } else if (subscription.plan_id === process.env.RAZORPAY_STUDIO_PLAN_ID || subscription.plan_id === 'plan_RcTPuLbBYG9E8N') {
+        planId = 'studio';
+      } else {
+        planId = 'pro'; // Default fallback
+      }
+      console.log('⚠️  Plan not in notes, determined from plan_id:', planId);
+    } else {
+      console.log('✓ Plan from notes:', planId);
+    }
 
     // Update user subscription
     user.subscription.plan = planId;
     user.subscription.status = 'active';
     user.subscription.razorpayPaymentId = razorpay_payment_id;
     user.subscription.subscriptionStartDate = new Date(subscription.start_at * 1000);
-    user.subscription.subscriptionEndDate = new Date(subscription.end_at * 1000);
+    user.subscription.subscriptionEndDate = new Date(subscription.current_end * 1000);
+    user.subscription.autoRenew = subscription.status === 'active';
     
     await user.save();
+
+    console.log('✓ User subscription updated to:', planId);
+    console.log('  Status:', user.subscription.status);
+    console.log('  Start:', user.subscription.subscriptionStartDate);
+    console.log('  End:', user.subscription.subscriptionEndDate);
+    console.log('=== PAYMENT VERIFICATION SUCCESS ===');
 
     res.json({
       message: 'Payment verified successfully',

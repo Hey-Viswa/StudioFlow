@@ -25,8 +25,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const { subscription: subData, plan, usage } = subscription;
   const isActive = subData.status === 'active';
   const isCancelled = subData.status === 'cancelled';
-  const nextBillingDate = subData.currentEnd 
-    ? new Date(subData.currentEnd * 1000).toLocaleDateString('en-US', { 
+  const nextBillingDate = subData.subscriptionEndDate 
+    ? new Date(subData.subscriptionEndDate).toLocaleDateString('en-US', { 
         month: 'long', 
         day: 'numeric', 
         year: 'numeric' 
