@@ -107,8 +107,26 @@ export default function Settings() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
+      // Load Razorpay script first
+      const loadScript = () => {
+        return new Promise((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = () => resolve(true);
+          script.onerror = () => resolve(false);
+          document.body.appendChild(script);
+        });
+      };
+
+      const scriptLoaded = await loadScript();
+      if (!scriptLoaded) {
+        throw new Error('Failed to load payment gateway');
+      }
+      
       // Get current plan to reactivate
       const currentPlan = subscription?.plan?.id || 'pro';
+      
+      console.log('Reactivating subscription for plan:', currentPlan);
       
       const response = await fetch(`${apiUrl}/subscriptions/reactivate`, {
         method: 'POST',
@@ -122,8 +140,14 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
+        console.log('Subscription created:', data.subscriptionId);
+        
         // Initialize Razorpay for payment
         const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+        
+        if (!razorpayKey) {
+          throw new Error('Payment gateway not configured');
+        }
         
         const options = {
           key: razorpayKey,
@@ -131,24 +155,42 @@ export default function Settings() {
           name: 'StudioFlow',
           description: `Reactivate ${currentPlan.toUpperCase()} Plan`,
           handler: async function (response) {
-            // Verify payment
-            const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_subscription_id: response.razorpay_subscription_id,
-                razorpay_signature: response.razorpay_signature
-              })
-            });
+            try {
+              console.log('Payment successful, verifying...');
+              // Verify payment
+              const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_subscription_id: response.razorpay_subscription_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
 
-            if (verifyResponse.ok) {
-              toast.success('Subscription reactivated successfully!');
-              await fetchSubscription();
+              if (verifyResponse.ok) {
+                toast.success('Subscription reactivated successfully!');
+                await fetchSubscription();
+              } else {
+                const errorData = await verifyResponse.json();
+                throw new Error(errorData.error || 'Verification failed');
+              }
+            } catch (verifyError) {
+              console.error('Verification error:', verifyError);
+              toast.error('Payment verification failed');
             }
+          },
+          modal: {
+            ondismiss: function() {
+              console.log('Payment modal closed');
+              setIsCancelling(false);
+            }
+          },
+          theme: {
+            color: '#6366f1'
           }
         };
 
@@ -162,7 +204,6 @@ export default function Settings() {
       toast.error('Failed to reactivate subscription', {
         description: error.message
       });
-    } finally {
       setIsCancelling(false);
     }
   };

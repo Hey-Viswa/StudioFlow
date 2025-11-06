@@ -130,16 +130,26 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Subscription Actions</h3>
         <div className="space-y-3">
+          {/* Active Subscription - Show Cancel */}
           {isActive && plan.price > 0 && (
             <>
               <Button 
-                variant="outline" 
+                variant="destructive" 
                 className="w-full justify-start gap-2"
                 onClick={onCancel}
                 disabled={loading}
               >
-                <AlertCircle className="w-4 h-4" />
-                Cancel Subscription
+                {loading ? (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin" />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    Cancel Subscription
+                  </>
+                )}
               </Button>
               <p className="text-xs text-muted-foreground">
                 You'll continue to have access until {nextBillingDate}
@@ -147,15 +157,25 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
             </>
           )}
 
-          {isCancelled && (
+          {/* Cancelled Subscription - Show Reactivate */}
+          {isCancelled && plan.price > 0 && (
             <>
               <Button 
-                className="w-full justify-start gap-2"
+                className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
                 onClick={onReactivate}
                 disabled={loading}
               >
-                <CheckCircle className="w-4 h-4" />
-                Reactivate Subscription
+                {loading ? (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Reactivate Subscription
+                  </>
+                )}
               </Button>
               <p className="text-xs text-muted-foreground">
                 Resume your {plan.name} plan subscription
@@ -163,14 +183,37 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
             </>
           )}
 
+          {/* Free Plan - Show Upgrade Option */}
           {plan.id === 'free' && (
-            <Button 
-              className="w-full justify-start gap-2"
-              onClick={() => window.location.href = '/dashboard/subscription'}
-            >
-              <CheckCircle className="w-4 h-4" />
-              Upgrade to Pro or Studio
-            </Button>
+            <>
+              <Button 
+                className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
+                onClick={() => window.location.href = '/dashboard/subscription'}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Upgrade to Pro or Studio
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Get more projects, team members, and premium features
+              </p>
+            </>
+          )}
+
+          {/* Pro Plan - Show Studio Upgrade Option */}
+          {isActive && plan.id === 'pro' && (
+            <>
+              <Button 
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => window.location.href = '/dashboard/subscription'}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Upgrade to Studio Plan
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                100 projects, unlimited team members, custom workflows
+              </p>
+            </>
           )}
         </div>
       </Card>
