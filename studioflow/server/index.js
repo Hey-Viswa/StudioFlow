@@ -97,8 +97,41 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.get('/api/health', (req, res) => {
-    res.json({ok: true, time: new Date().toISOString(), status: 'Server is running'});
+// Enhanced health check endpoint
+app.get('/api/health', async (req, res) => {
+    try {
+        // Check if database is connected
+        const mongoose = (await import('mongoose')).default;
+        const dbStatus = mongoose.connection.readyState;
+        
+        // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+        const isHealthy = dbStatus === 1;
+        
+        if (isHealthy) {
+            res.status(200).json({
+                ok: true,
+                status: 'healthy',
+                timestamp: new Date().toISOString(),
+                database: 'connected',
+                uptime: process.uptime()
+            });
+        } else {
+            res.status(503).json({
+                ok: false,
+                status: 'unhealthy',
+                timestamp: new Date().toISOString(),
+                database: dbStatus === 0 ? 'disconnected' : dbStatus === 2 ? 'connecting' : 'disconnecting',
+                uptime: process.uptime()
+            });
+        }
+    } catch (error) {
+        res.status(503).json({
+            ok: false,
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error.message
+        });
+    }
 });
 
 // Debug endpoint to test token

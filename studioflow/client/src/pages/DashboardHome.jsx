@@ -4,6 +4,12 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 import { 
   Search, 
   Loader2, 
@@ -157,24 +163,32 @@ export default function DashboardHome() {
   const completedProjectsTrend = getTrend(completedProjects, Math.max(1, completedProjects - 1));
 
   return (
-    <div className="flex-1 space-y-6 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
-          <p className="text-muted-foreground text-slate-400">
-            Overview of your projects and activity
-          </p>
+    <TooltipProvider>
+      <div className="flex-1 space-y-6 p-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
+            <p className="text-muted-foreground text-slate-400">
+              Overview of your projects and activity
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link to="/dashboard/projects/new">
+                  <Button className="bg-primary hover:bg-primary/90">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Project
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create a new project to manage tasks, team members, and invoices</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Link to="/dashboard/projects/new">
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
-          </Link>
-        </div>
-      </div>
 
       {/* Loading State */}
       {loading && (
@@ -218,12 +232,19 @@ export default function DashboardHome() {
                       </p>
                     </div>
                   </div>
-                  <Link to="/dashboard/subscription">
-                    <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
-                      <Crown className="w-4 h-4 mr-2" />
-                      Upgrade
-                    </Button>
-                  </Link>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link to="/dashboard/subscription">
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white">
+                          <Crown className="w-4 h-4 mr-2" />
+                          Upgrade
+                        </Button>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Upgrade to Pro (₹100/mo) or Studio (₹499/mo) for more projects</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 {/* Progress Bar */}
                 <div className="mt-3 w-full bg-slate-800 rounded-full h-2">
@@ -462,6 +483,7 @@ export default function DashboardHome() {
           </Card>
         </>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

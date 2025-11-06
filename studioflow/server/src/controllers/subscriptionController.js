@@ -8,10 +8,21 @@ const clerkClient = createClerkClient({
 });
 
 // Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+let razorpay = null;
+
+try {
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+    console.log('✓ Razorpay initialized successfully');
+  } else {
+    console.warn('⚠️  Razorpay credentials not configured');
+  }
+} catch (error) {
+  console.error('✗ Razorpay initialization failed:', error);
+}
 
 // Subscription plans configuration
 const SUBSCRIPTION_PLANS = {
@@ -22,6 +33,7 @@ const SUBSCRIPTION_PLANS = {
     currency: 'INR',
     features: {
       maxProjects: 5,
+      maxMembers: 1,
       basicInvoicing: true,
       emailSupport: true,
       brandedInvoices: false,
@@ -32,35 +44,39 @@ const SUBSCRIPTION_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 799, // ₹799/month
+    price: 100, // ₹100/month
     currency: 'INR',
-    razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID,
+    razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7sz19ku5N',
     features: {
-      maxProjects: -1, // Unlimited
+      maxProjects: 50,
+      maxMembers: 5,
       basicInvoicing: true,
       emailSupport: true,
       brandedInvoices: true,
       clientCollaboration: true,
       prioritySupport: true,
-      unlimitedProjects: true
+      realTimeUpdates: true,
+      advancedAnalytics: true
     }
   },
   studio: {
     id: 'studio',
     name: 'Studio',
-    price: 1999, // ₹1999/month
+    price: 499, // ₹499/month
     currency: 'INR',
-    razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID,
+    razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',
     features: {
-      maxProjects: -1, // Unlimited
+      maxProjects: 100,
+      maxMembers: -1, // Unlimited
       basicInvoicing: true,
       emailSupport: true,
       brandedInvoices: true,
       clientCollaboration: true,
       prioritySupport: true,
-      unlimitedProjects: true,
+      realTimeUpdates: true,
+      advancedAnalytics: true,
       teamPermissions: true,
-      advancedReviews: true,
+      customWorkflows: true,
       dedicatedSupport: true
     }
   }
@@ -110,20 +126,29 @@ export const createSubscription = async (req, res) => {
     const { planId } = req.body;
     const userId = req.userId;
 
+    console.log('Creating subscription for user:', userId, 'plan:', planId);
+
+    if (!razorpay) {
+      console.error('Razorpay not initialized');
+      return res.status(500).json({ error: 'Payment gateway not configured' });
+    }
+
     if (!['pro', 'studio'].includes(planId)) {
-      return res.status(400).json({ error: 'Invalid plan' });
+      return res.status(400).json({ error: 'Invalid plan selected' });
     }
 
     const plan = SUBSCRIPTION_PLANS[planId];
     
     if (!plan.razorpayPlanId) {
-      return res.status(400).json({ error: 'Razorpay plan not configured' });
+      console.error('Razorpay plan ID not configured for:', planId);
+      return res.status(400).json({ error: 'Plan configuration error' });
     }
 
     // Get or create user
     let user = await User.findOne({ clerkUserId: userId });
     
     if (!user) {
+      console.log('Creating new user:', userId);
       user = await User.create({
         clerkUserId: userId,
         name: req.userName || '',
@@ -139,45 +164,66 @@ export const createSubscription = async (req, res) => {
     let customerId = user.subscription.razorpayCustomerId;
     
     if (!customerId) {
-      const customer = await razorpay.customers.create({
-        name: req.userName || '',
-        email: req.userEmail,
-        fail_existing: 0
-      });
-      customerId = customer.id;
-      
-      user.subscription.razorpayCustomerId = customerId;
-      await user.save();
+      console.log('Creating Razorpay customer for:', req.userEmail);
+      try {
+        const customer = await razorpay.customers.create({
+          name: req.userName || '',
+          email: req.userEmail,
+          fail_existing: 0
+        });
+        customerId = customer.id;
+        
+        user.subscription.razorpayCustomerId = customerId;
+        await user.save();
+        console.log('Created Razorpay customer:', customerId);
+      } catch (customerError) {
+        console.error('Error creating Razorpay customer:', customerError);
+        return res.status(500).json({ error: 'Failed to create customer profile' });
+      }
     }
 
     // Create Razorpay subscription
-    const subscription = await razorpay.subscriptions.create({
-      plan_id: plan.razorpayPlanId,
-      customer_id: customerId,
-      quantity: 1,
-      total_count: 12, // 12 months
-      customer_notify: 1,
-      notes: {
-        userId: userId,
-        email: req.userEmail,
-        plan: planId
-      }
-    });
+    console.log('Creating Razorpay subscription with plan:', plan.razorpayPlanId);
+    try {
+      const subscription = await razorpay.subscriptions.create({
+        plan_id: plan.razorpayPlanId,
+        customer_id: customerId,
+        quantity: 1,
+        total_count: 12, // 12 months
+        customer_notify: 1,
+        notes: {
+          userId: userId,
+          email: req.userEmail,
+          plan: planId
+        }
+      });
 
-    // Update user subscription
-    user.subscription.razorpaySubscriptionId = subscription.id;
-    user.subscription.status = 'created';
-    await user.save();
+      console.log('Razorpay subscription created:', subscription.id);
 
-    res.json({
-      subscriptionId: subscription.id,
-      planId: planId,
-      amount: plan.price * 100, // Convert to paise
-      currency: plan.currency
-    });
+      // Update user subscription
+      user.subscription.razorpaySubscriptionId = subscription.id;
+      user.subscription.status = 'created';
+      await user.save();
+
+      res.json({
+        subscriptionId: subscription.id,
+        planId: planId,
+        amount: plan.price * 100, // Convert to paise
+        currency: plan.currency
+      });
+    } catch (subscriptionError) {
+      console.error('Error creating Razorpay subscription:', subscriptionError);
+      return res.status(500).json({ 
+        error: 'Failed to create subscription', 
+        details: subscriptionError.message 
+      });
+    }
   } catch (error) {
     console.error('Create subscription error:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    res.status(500).json({ 
+      error: 'Failed to create subscription',
+      details: error.message 
+    });
   }
 };
 
