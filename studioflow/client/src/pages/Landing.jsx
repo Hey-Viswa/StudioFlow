@@ -349,7 +349,7 @@ const Landing = () => {
                   <span className="text-sm text-muted-foreground">Pro</span>
                 </div>
                 <CardTitle className="text-5xl font-bold">
-                  ₹1,000<span className="text-lg text-muted-foreground font-normal">/mo</span>
+                  ₹100<span className="text-lg text-muted-foreground font-normal">/mo</span>
                 </CardTitle>
                 <CardDescription className="text-base">For individual professionals</CardDescription>
               </CardHeader>

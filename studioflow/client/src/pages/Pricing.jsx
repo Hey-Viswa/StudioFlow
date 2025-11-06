@@ -24,7 +24,7 @@ export default function Pricing() {
     },
     {
       name: 'Pro',
-      price: '₹1,000',
+      price: '₹100',
       period: '/mo',
       description: 'For professionals',
       badge: 'POPULAR',
