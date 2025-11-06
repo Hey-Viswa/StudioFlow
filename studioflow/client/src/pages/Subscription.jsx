@@ -25,15 +25,15 @@ export default function Subscription() {
     {
       id: 'free',
       name: 'Starter',
-      subtitle: 'Best for solo',
+      subtitle: 'Free Forever',
       price: 0,
       currency: '₹',
       period: '/month',
       features: [
-        'Up to 5 active projects',
-        'Project management',
+        '5 projects included',
+        '1 team member per project',
         'Basic invoicing',
-        'Email support'
+        'Email support (48h response)'
       ],
       color: 'slate',
       popular: false
@@ -41,15 +41,17 @@ export default function Subscription() {
     {
       id: 'pro',
       name: 'Pro',
-      subtitle: 'Unlimited projects',
-      price: 799,
+      subtitle: 'For individual professionals',
+      price: 100,
       currency: '₹',
       period: '/mo',
       features: [
-        'Unlimited projects',
-        'Client collaboration',
+        '50 projects included',
+        '5 team members per project',
+        'Real-time updates',
         'Branded invoices + Razorpay',
-        'Priority support'
+        'Priority support (24h response)',
+        'Advanced analytics'
       ],
       color: 'primary',
       popular: true
@@ -57,15 +59,17 @@ export default function Subscription() {
     {
       id: 'studio',
       name: 'Studio',
-      subtitle: 'Teams',
-      price: 1999,
+      subtitle: 'For agencies & teams',
+      price: 499,
       currency: '₹',
       period: '/mo',
       features: [
-        'Everything in Pro',
-        'Team permissions',
-        'Advanced reviews',
-        'Dedicated support'
+        '100 projects included',
+        'Unlimited team members',
+        'All Pro features',
+        'Advanced analytics',
+        'Custom workflows',
+        'Dedicated support (12h response)'
       ],
       color: 'purple',
       popular: false

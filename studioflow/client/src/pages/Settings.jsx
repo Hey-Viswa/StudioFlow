@@ -219,8 +219,10 @@ export default function Settings() {
                       </div>
                       <p className="text-sm text-slate-400">
                         {currentPlan === 'free' 
-                          ? 'Up to 5 projects' 
-                          : 'Unlimited projects'}
+                          ? '5 projects included' 
+                          : currentPlan === 'pro'
+                          ? '50 projects included'
+                          : '100 projects included'}
                       </p>
                     </div>
                   </div>

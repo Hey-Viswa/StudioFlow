@@ -476,7 +476,7 @@ const Landing = () => {
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
               <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">How many projects can I create?</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Free plan: 5 projects, Pro plan: 50 projects, Studio plan: unlimited projects with full team collaboration.
+                Starter (Free): 5 projects, Pro (₹100/mo): 50 projects, Studio (₹499/mo): 100 projects with unlimited team members.
               </p>
             </div>
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">

@@ -22,15 +22,15 @@ export default function Home() {
     {
       id: 'free',
       name: 'Starter',
-      subtitle: 'Perfect for solo creators',
+      subtitle: 'Free Forever',
       price: 0,
       currency: '₹',
-      period: '/forever',
+      period: '/month',
       features: [
-        'Up to 5 active projects',
-        'Project management',
+        '5 projects included',
+        '1 team member per project',
         'Basic invoicing',
-        'Email support'
+        'Email support (48h)'
       ],
       popular: false,
       cta: 'Start Free'
@@ -38,15 +38,16 @@ export default function Home() {
     {
       id: 'pro',
       name: 'Pro',
-      subtitle: 'For growing businesses',
-      price: 799,
+      subtitle: 'For individual professionals',
+      price: 100,
       currency: '₹',
       period: '/month',
       features: [
-        'Unlimited projects',
-        'Client collaboration',
+        '50 projects included',
+        '5 team members per project',
+        'Real-time updates',
         'Branded invoices + Razorpay',
-        'Priority support',
+        'Priority support (24h)',
         'Advanced analytics'
       ],
       popular: true,
@@ -55,19 +56,20 @@ export default function Home() {
     {
       id: 'studio',
       name: 'Studio',
-      subtitle: 'For teams & agencies',
-      price: 1999,
+      subtitle: 'For agencies & teams',
+      price: 499,
       currency: '₹',
       period: '/month',
       features: [
-        'Everything in Pro',
-        'Team permissions & roles',
-        'Advanced client reviews',
-        'White-label options',
-        'Dedicated account manager'
+        '100 projects included',
+        'Unlimited team members',
+        'All Pro features',
+        'Advanced analytics',
+        'Custom workflows',
+        'Dedicated support (12h)'
       ],
       popular: false,
-      cta: 'Contact Sales'
+      cta: 'Get Started'
     }
   ];
 
