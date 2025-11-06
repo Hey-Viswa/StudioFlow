@@ -252,6 +252,16 @@ export default function ProjectDetail() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Prepare update data
+      const updateData = {
+        title: editForm.title,
+        brief: editForm.brief,
+        status: editForm.status,
+        progress: editForm.progress,
+        dueDate: editForm.dueDate || null // Send null if empty to clear the date
+      };
+      
       const response = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'PUT',
         credentials: 'include',
@@ -259,17 +269,21 @@ export default function ProjectDetail() {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(updateData)
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update project');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update project' }));
+        throw new Error(errorData.error || 'Failed to update project');
       }
 
       const data = await response.json();
       setProject(data.project);
       setIsEditing(false);
       toast.success('Project updated successfully!');
+      
+      // Refresh project data to ensure UI is in sync
+      await fetchProject();
     } catch (err) {
       console.error('Update project error:', err);
       toast.error(err.message || 'Failed to update project');
