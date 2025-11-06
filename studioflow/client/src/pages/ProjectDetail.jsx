@@ -80,6 +80,7 @@ export default function ProjectDetail() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [progressValue, setProgressValue] = useState(0);
   const [updatingProgress, setUpdatingProgress] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -586,41 +587,61 @@ export default function ProjectDetail() {
                 )}
               </div>
               {!isEditing && project.isOwner && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 relative z-10"
-                      aria-label="Project options"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={startEditing} className="cursor-pointer">
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Project
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={openDeleteConfirm} 
-                      className="text-red-600 focus:text-red-600 cursor-pointer"
-                      disabled={deleting}
-                    >
-                      {deleting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete Project
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="relative">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    aria-label="Project options"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                  
+                  {showDropdown && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowDropdown(false)}
+                      />
+                      
+                      {/* Dropdown menu */}
+                      <div className="absolute right-0 top-10 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            startEditing();
+                          }}
+                          className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit Project
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            openDeleteConfirm();
+                          }}
+                          disabled={deleting}
+                          className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deleting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Project
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </CardHeader>
