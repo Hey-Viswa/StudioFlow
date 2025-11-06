@@ -349,7 +349,20 @@ export const verifyPayment = async (req, res) => {
     user.subscription.status = 'active';
     user.subscription.razorpayPaymentId = razorpay_payment_id;
     user.subscription.subscriptionStartDate = new Date(subscription.start_at * 1000);
-    user.subscription.subscriptionEndDate = new Date(subscription.current_end * 1000);
+    
+    // Use current_end if available, otherwise calculate 30 days from start
+    if (subscription.current_end) {
+      user.subscription.subscriptionEndDate = new Date(subscription.current_end * 1000);
+    } else if (subscription.end_at) {
+      user.subscription.subscriptionEndDate = new Date(subscription.end_at * 1000);
+    } else {
+      // Fallback: Calculate 30 days from start date
+      const endDate = new Date(subscription.start_at * 1000);
+      endDate.setDate(endDate.getDate() + 30);
+      user.subscription.subscriptionEndDate = endDate;
+      console.log('⚠️  No end date in subscription, calculated:', endDate);
+    }
+    
     user.subscription.autoRenew = subscription.status === 'active';
     
     await user.save();

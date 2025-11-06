@@ -9,7 +9,7 @@ export const checkExpiredSubscriptions = async () => {
         // Find users with active or cancelled subscriptions that have expired
         const expiredUsers = await User.find({
             'subscription.status': { $in: ['active', 'cancelled'] },
-            'subscription.subscriptionEndDate': { $lte: now },
+            'subscription.subscriptionEndDate': { $lte: now, $ne: null },
             'subscription.plan': { $in: ['pro', 'studio'] }
         });
 
@@ -17,8 +17,13 @@ export const checkExpiredSubscriptions = async () => {
 
         for (const user of expiredUsers) {
             try {
-                await downgradeUserToFree(user._id);
-                console.log(`✓ Downgraded user ${user.email} to free plan`);
+                // Double-check the subscription is actually expired
+                if (user.subscription.subscriptionEndDate && user.subscription.subscriptionEndDate <= now) {
+                    await downgradeUserToFree(user._id);
+                    console.log(`✓ Downgraded user ${user.email} to free plan`);
+                } else {
+                    console.log(`⚠️  Skipped user ${user.email} - end date in future or null`);
+                }
             } catch (error) {
                 console.error(`✗ Failed to downgrade user ${user.email}:`, error);
             }

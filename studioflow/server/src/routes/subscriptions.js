@@ -32,6 +32,37 @@ router.get('/debug/:userId', async (req, res) => {
   }
 });
 
+// Manual fix endpoint to restore subscription (temporary for debugging)
+router.post('/fix/:userId', async (req, res) => {
+  try {
+    const { plan } = req.body; // 'pro' or 'studio'
+    const user = await User.findOne({ clerkUserId: req.params.userId });
+    
+    if (!user) {
+      return res.json({ error: 'User not found' });
+    }
+
+    // Set subscription end date to 30 days from now
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 30);
+
+    user.subscription.plan = plan || 'pro';
+    user.subscription.status = 'active';
+    user.subscription.subscriptionStartDate = new Date();
+    user.subscription.subscriptionEndDate = endDate;
+    user.subscription.autoRenew = true;
+    
+    await user.save();
+    
+    res.json({
+      message: 'Subscription fixed',
+      subscription: user.subscription
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Protected routes
 router.get('/current', verifyClerk, getCurrentSubscription);
 router.post('/create', verifyClerk, createSubscription);
