@@ -46,7 +46,7 @@ const SUBSCRIPTION_PLANS = {
     name: 'Pro',
     price: 100, // ₹100/month
     currency: 'INR',
-    razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7sz19ku5N',
+    razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
     features: {
       maxProjects: 50,
       maxMembers: 5,
