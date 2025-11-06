@@ -350,6 +350,82 @@ export const createComment = async (req, res) => {
 // @desc    Delete a comment
 // @route   DELETE /api/projects/:projectId/comments/:commentId
 // @access  Protected (Comment owner or project owner)
+// @desc    Update a comment
+// @route   PUT /api/projects/:projectId/comments/:commentId
+// @access  Protected
+export const updateComment = async (req, res) => {
+  try {
+    const { projectId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.userId;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Comment text is required' });
+    }
+
+    const project = await Project.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (!project.isMember(userId)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const comment = project.comments.id(commentId);
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Only comment owner can edit
+    if (comment.userId !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
+    }
+
+    // Update comment
+    comment.text = text.trim();
+    comment.edited = true;
+    comment.editedAt = new Date();
+
+    await project.save();
+
+    // Clear cache for all members
+    clearProjectMembersCache(project);
+
+    // Get user details for the response
+    let userName = 'Unknown User';
+    try {
+      const user = await clerkClient.users.getUser(userId);
+      userName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || 'Unknown User';
+    } catch (err) {
+      console.error('Error fetching user from Clerk:', err);
+    }
+
+    res.json({
+      comment: {
+        _id: comment._id,
+        text: comment.text,
+        userId: comment.userId,
+        userName: userName,
+        taskId: comment.taskId,
+        edited: comment.edited,
+        editedAt: comment.editedAt,
+        createdAt: comment.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Update comment error:', error);
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
+};
+
+// @desc    Delete a comment
+// @route   DELETE /api/projects/:projectId/comments/:commentId
+// @access  Protected
 export const deleteComment = async (req, res) => {
   try {
     const { projectId, commentId } = req.params;

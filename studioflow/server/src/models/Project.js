@@ -111,6 +111,13 @@ const ProjectSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    edited: {
+      type: Boolean,
+      default: false
+    },
+    editedAt: {
+      type: Date
+    },
     createdAt: {
       type: Date,
       default: Date.now

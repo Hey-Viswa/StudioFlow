@@ -6,6 +6,7 @@ import {
   deleteTask,
   getComments,
   createComment,
+  updateComment,
   deleteComment
 } from '../controllers/taskCommentController.js';
 import { verifyClerkJWKS } from '../middlewares/verifyClerkJWKS.js';
@@ -21,6 +22,7 @@ router.delete('/:projectId/tasks/:taskId', verifyClerkJWKS, deleteTask);
 // Comment routes
 router.get('/:projectId/comments', verifyClerkJWKS, getComments);
 router.post('/:projectId/comments', verifyClerkJWKS, createComment);
+router.put('/:projectId/comments/:commentId', verifyClerkJWKS, updateComment);
 router.delete('/:projectId/comments/:commentId', verifyClerkJWKS, deleteComment);
 
 export default router;
