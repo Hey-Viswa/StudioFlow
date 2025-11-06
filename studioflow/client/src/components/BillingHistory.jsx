@@ -11,9 +11,11 @@ import {
   Download
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import api from '../lib/api';
 
 export default function BillingHistory() {
+  const { getToken } = useAuth();
   const [billingData, setBillingData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,8 +26,8 @@ export default function BillingHistory() {
   const fetchBillingHistory = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/subscriptions/billing-history');
-      setBillingData(response.data);
+      const response = await api.get('/subscriptions/billing-history', { getToken });
+      setBillingData(response);
     } catch (error) {
       console.error('Failed to fetch billing history:', error);
     } finally {

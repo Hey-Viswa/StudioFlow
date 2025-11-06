@@ -11,9 +11,11 @@ import {
   FileText
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import api from '../lib/api';
 
 export default function BillingDetails({ subscription, onCancel, onReactivate, loading }) {
+  const { getToken } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
 
@@ -24,8 +26,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const fetchInvoices = async () => {
     try {
       setLoadingInvoices(true);
-      const response = await api.get('/subscriptions/invoices');
-      setInvoices(response.data.invoices || []);
+      const response = await api.get('/subscriptions/invoices', { getToken });
+      setInvoices(response.invoices || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
     } finally {
