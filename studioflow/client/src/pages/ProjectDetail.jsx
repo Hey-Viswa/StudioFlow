@@ -30,12 +30,6 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
-import {
   ArrowLeft,
   Loader2,
   Share2,
@@ -85,13 +79,13 @@ export default function ProjectDetail() {
   useEffect(() => {
     fetchProject();
     
-    // Poll for updates every 30 seconds to catch new members (only when tab is visible)
+    // Poll for updates every 60 seconds to catch new members (only when tab is visible)
     const interval = setInterval(() => {
       // Only poll if document is visible to save API calls
       if (!document.hidden) {
         fetchProject();
       }
-    }, 30000); // Changed from 5s to 30s
+    }, 60000); // 60 seconds for better performance
     
     // Also fetch when tab becomes visible again
     const handleVisibilityChange = () => {
@@ -131,11 +125,6 @@ export default function ProjectDetail() {
       const data = await response.json();
       setProject(data.project);
       setProgressValue(data.project.progress || 0);
-      console.log('🔐 Project loaded:', {
-        userRole: data.project.userRole,
-        isOwner: data.project.isOwner,
-        ownerId: data.project.ownerId
-      });
     } catch (err) {
       console.error('Fetch project error:', err);
       setError(err.message);
@@ -339,10 +328,7 @@ export default function ProjectDetail() {
       const updateData = { progress: progressValue };
       if (progressValue === 100) {
         updateData.status = 'completed';
-        console.log('🎉 Progress is 100% - automatically marking as completed');
       }
-      
-      console.log('📊 Request details:', { url, updateData });
       
       const response = await fetch(url, {
         method: 'PATCH',
@@ -354,16 +340,12 @@ export default function ProjectDetail() {
         body: JSON.stringify(updateData)
       });
 
-      console.log('📊 Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to update progress' }));
-        console.error('📊 Error response:', errorData);
         throw new Error(errorData.error || 'Failed to update progress');
       }
 
       const data = await response.json();
-      console.log('📊 Success response:', data);
       
       if (progressValue === 100) {
         toast.success('Progress updated to 100% and project marked as completed! 🎉');

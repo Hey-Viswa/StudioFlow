@@ -4,7 +4,7 @@
 
 const requestCounts = new Map();
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_REQUESTS = 10; // Max 10 requests per window
+const MAX_REQUESTS = 100; // Max 100 requests per window (more reasonable for production)
 
 function cleanup() {
     const now = Date.now();
