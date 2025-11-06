@@ -194,6 +194,14 @@ const startServer = async () => {
     try{
         await connectDB();
         
+        // Check Razorpay environment variables
+        console.log('\n=== Razorpay Configuration Check ===');
+        console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? `${process.env.RAZORPAY_KEY_ID.substring(0, 15)}...` : '❌ MISSING');
+        console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET ? 'Set ✓' : '❌ MISSING');
+        console.log('RAZORPAY_PRO_PLAN_ID:', process.env.RAZORPAY_PRO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPS7s2l9ku5N)');
+        console.log('RAZORPAY_STUDIO_PLAN_ID:', process.env.RAZORPAY_STUDIO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPuLbBYG9E8N)');
+        console.log('===================================\n');
+        
         // Start subscription checker for automatic downgrades
         startSubscriptionChecker();
         
