@@ -462,25 +462,37 @@ const Landing = () => {
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
               <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Can I cancel anytime?</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Yes, your plan will remain active until the end of the billing cycle.
+                Yes, you can cancel anytime. Your plan will remain active until the end of the billing cycle.
               </p>
             </div>
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
-              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Do you offer discounts?</h3>
+              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">How many projects can I create?</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Annual plans include 2 months free compared to monthly.
+                Free plan: 5 projects, Pro plan: 50 projects, Studio plan: unlimited projects with full team collaboration.
               </p>
             </div>
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
-              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Is my media secure?</h3>
+              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Can I invite team members?</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                All uploads are encrypted in transit and at rest.
+                Yes! Generate invite links for your projects. Team members can view progress, add comments, and collaborate in real-time.
               </p>
             </div>
             <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
-              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Which payments are supported?</h3>
+              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Which payment methods are supported?</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Credit cards via Stripe and bank transfers for Studio.
+                We accept all major cards, UPI, net banking, and wallets via Razorpay's secure payment gateway.
+              </p>
+            </div>
+            <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
+              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">What happens to my data if I cancel?</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Your projects are moved to trash and retained for 30 days. You can restore them anytime before permanent deletion.
+              </p>
+            </div>
+            <div className="p-6 rounded-lg border border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group">
+              <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">Do you offer refunds?</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Yes, we offer a 7-day money-back guarantee for new subscriptions. Contact support for assistance.
               </p>
             </div>
           </div>
@@ -498,13 +510,13 @@ const Landing = () => {
               </p>
             </div>
             <div className="flex gap-8 text-sm">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
+              <a href="/privacy-policy" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
                 Privacy
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
+              <a href="/terms-conditions" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
                 Terms
               </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
+              <a href="/contact-us" className="text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-105">
                 Contact
               </a>
             </div>

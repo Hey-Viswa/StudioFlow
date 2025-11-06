@@ -105,7 +105,7 @@ export const listProjects = async (req, res) => {
         }
       ]
     })
-    .select('title brief status progress ownerId members createdAt updatedAt deadline') // Only needed fields
+    .select('title brief status progress ownerId members createdAt updatedAt dueDate') // Only needed fields
     .lean() // Return plain objects for better performance
     .sort({ createdAt: -1 }); // Most recent first
 
