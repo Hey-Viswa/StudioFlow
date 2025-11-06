@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useProjectSocket } from '../hooks/useSocket';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -76,62 +77,68 @@ export default function ProjectDetail() {
   const [updatingProgress, setUpdatingProgress] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    fetchProject();
-    
-    // Poll for updates every 60 seconds to catch new members (only when tab is visible)
-    const interval = setInterval(() => {
-      // Only poll if document is visible to save API calls
-      if (!document.hidden) {
-        fetchProject();
-      }
-    }, 60000); // 60 seconds for better performance
-    
-    // Also fetch when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchProject();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [projectId]);
-
-  const fetchProject = async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch project function that can be called from socket listeners
+  const fetchProject = useCallback(async () => {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects/${projectId}`, {
-        method: 'GET',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
-        },
+        }
       });
 
       if (!response.ok) {
-        if (response.status === 404) throw new Error('Project not found');
-        if (response.status === 403) throw new Error('You don\'t have access to this project');
-        throw new Error('Failed to load project');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch project');
       }
 
       const data = await response.json();
       setProject(data.project);
       setProgressValue(data.project.progress || 0);
+      setInviteLink(data.inviteLink);
+      setError(null);
     } catch (err) {
       console.error('Fetch project error:', err);
       setError(err.message);
+      if (err.message.includes('Access denied') || err.message.includes('not found')) {
+        setTimeout(() => navigate('/dashboard/projects'), 2000);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, getToken, navigate]);
+
+  // Setup Socket.IO for real-time updates
+  useProjectSocket(projectId, {
+    onProjectUpdated: (data) => {
+      console.log('📡 Project updated via socket:', data);
+      toast.info('Project updated by another user');
+      fetchProject();
+    },
+    onMemberJoined: (data) => {
+      console.log('📡 New member joined:', data);
+      toast.success(`${data.member.name || 'Someone'} joined the project`);
+      fetchProject();
+    },
+    onCommentAdded: (data) => {
+      console.log('📡 New comment added:', data);
+      // CommentsTab will handle this
+    },
+    onTaskAdded: (data) => {
+      console.log('📡 New task added:', data);
+      // TasksTab will handle this
+    },
+    onTaskUpdated: (data) => {
+      console.log('📡 Task updated:', data);
+      fetchProject(); // Refresh to get updated progress
+    }
+  });
+
+  useEffect(() => {
+    fetchProject();
+  }, [fetchProject]);
 
   const generateInviteLink = async () => {
     setGeneratingInvite(true);
@@ -674,57 +681,25 @@ export default function ProjectDetail() {
                   <div>
                     <h3 className="text-sm font-medium text-white">Progress</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {project.isOwner ? 'Update project completion status' : 'Current completion status'}
+                      Auto-calculated from completed tasks
                     </p>
                   </div>
                   <div className="text-2xl font-semibold text-white">
-                    {project.isOwner ? progressValue : project.progress}%
+                    {project.progress}%
                   </div>
                 </div>
 
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${project.isOwner ? progressValue : project.progress}%` }}
+                    style={{ width: `${project.progress}%` }}
                   />
                 </div>
 
-                {project.isOwner ? (
-                  <div className="flex items-center gap-3 pt-2">
-                    <Slider 
-                      value={[progressValue]} 
-                      onValueChange={(value) => setProgressValue(value[0])} 
-                      max={100} 
-                      step={1} 
-                      disabled={updatingProgress}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={progressValue}
-                      onChange={(e) => setProgressValue(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                      disabled={updatingProgress}
-                      className="w-16 h-9 text-center"
-                    />
-                    <Button 
-                      onClick={updateProjectProgress} 
-                      disabled={updatingProgress}
-                      size="sm"
-                    >
-                      {updatingProgress ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        'Update'
-                      )}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground pt-2">
-                    Only the project owner can update progress
-                  </p>
-                )}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Progress updates automatically when you complete tasks</span>
+                </div>
               </div>
             )}
 
@@ -797,7 +772,10 @@ export default function ProjectDetail() {
                           <Users className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{member.userId}</p>
+                          <p className="text-sm font-medium">{member.name || member.email || member.userId}</p>
+                          {member.email && member.name && (
+                            <p className="text-xs text-muted-foreground">{member.email}</p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Joined {formatDate(member.joinedAt)}
                           </p>

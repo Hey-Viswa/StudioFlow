@@ -26,6 +26,13 @@ import {
 export default function TasksTab({ projectId, project }) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = useState([]);
+  const [taskStats, setTaskStats] = useState({
+    total: 0,
+    completed: 0,
+    inProgress: 0,
+    pending: 0,
+    progress: 0
+  });
   const [loading, setLoading] = useState(true);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -55,6 +62,11 @@ export default function TasksTab({ projectId, project }) {
       
       const data = await response.json();
       setTasks(data.tasks || []);
+      
+      // Update task statistics
+      if (data.stats) {
+        setTaskStats(data.stats);
+      }
     } catch (error) {
       console.error('Fetch tasks error:', error);
       toast.error('Failed to load tasks');
@@ -88,6 +100,15 @@ export default function TasksTab({ projectId, project }) {
       
       const data = await response.json();
       setTasks([...tasks, data.task]);
+      
+      // Update project progress if returned
+      if (data.progress !== undefined && project) {
+        project.progress = data.progress;
+      }
+      
+      // Refresh tasks to get updated stats
+      await fetchTasks();
+      
       setNewTask({ title: '', description: '', assignedTo: null, dueDate: '', status: 'pending' });
       setShowAddTask(false);
       toast.success('Task created successfully!');
@@ -114,7 +135,15 @@ export default function TasksTab({ projectId, project }) {
       if (!response.ok) throw new Error('Failed to update task');
       
       const data = await response.json();
-      setTasks(tasks.map(t => t._id === taskId ? data.task : t));
+      
+      // Update project progress if returned
+      if (data.progress !== undefined && project) {
+        project.progress = data.progress;
+      }
+      
+      // Refresh tasks to get updated stats
+      await fetchTasks();
+      
       toast.success('Task updated!');
     } catch (error) {
       console.error('Update task error:', error);
@@ -138,7 +167,16 @@ export default function TasksTab({ projectId, project }) {
 
       if (!response.ok) throw new Error('Failed to delete task');
       
-      setTasks(tasks.filter(t => t._id !== taskId));
+      const data = await response.json();
+      
+      // Update project progress if returned
+      if (data.progress !== undefined && project) {
+        project.progress = data.progress;
+      }
+      
+      // Refresh tasks to get updated stats
+      await fetchTasks();
+      
       toast.success('Task deleted!');
     } catch (error) {
       console.error('Delete task error:', error);
@@ -178,8 +216,37 @@ export default function TasksTab({ projectId, project }) {
 
   return (
     <div className="space-y-4">
+      {/* Task Statistics */}
+      {taskStats.total > 0 && (
+        <div className="grid grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg border">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary">{taskStats.total}</div>
+            <div className="text-xs text-muted-foreground">Total Tasks</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-500">{taskStats.completed}</div>
+            <div className="text-xs text-muted-foreground">Completed</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-500">{taskStats.inProgress}</div>
+            <div className="text-xs text-muted-foreground">In Progress</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-500">{taskStats.pending}</div>
+            <div className="text-xs text-muted-foreground">Pending</div>
+          </div>
+        </div>
+      )}
+      
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Tasks</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Tasks</h3>
+          {taskStats.total > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Progress: {taskStats.progress}% ({taskStats.completed}/{taskStats.total} completed)
+            </p>
+          )}
+        </div>
         <Button onClick={() => setShowAddTask(!showAddTask)} size="sm">
           <Plus className="w-4 h-4 mr-2" />
           Add Task

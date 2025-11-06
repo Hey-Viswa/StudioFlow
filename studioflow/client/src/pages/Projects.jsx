@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
+import { useSocket } from '../hooks/useSocket';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
@@ -41,18 +42,18 @@ import {
 export default function Projects() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
+  const socket = useSocket();
   const [projects, setProjects] = useState([]);
+  const [myProjects, setMyProjects] = useState([]);
+  const [sharedProjects, setSharedProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'board'
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'my', 'shared'
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
       const token = await getToken();
@@ -74,13 +75,36 @@ export default function Projects() {
       console.log('📊 Projects data received:', data);
       console.log('📊 First project progress:', data.projects?.[0]?.progress);
       setProjects(data.projects || []);
+      setMyProjects(data.myProjects || []);
+      setSharedProjects(data.sharedProjects || []);
     } catch (err) {
       console.error('Fetch projects error:', err);
       toast.error('Failed to load projects');
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken]);
+
+  // Setup Socket.IO for real-time updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleProjectCreated = () => {
+      console.log('📡 New project created');
+      toast.info('New project available');
+      fetchProjects();
+    };
+
+    socket.on('project-created', handleProjectCreated);
+
+    return () => {
+      socket.off('project-created', handleProjectCreated);
+    };
+  }, [socket, fetchProjects]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const statusConfig = {
     'active': { 
@@ -116,8 +140,16 @@ export default function Projects() {
     p.members?.find(m => m.role === 'client')?.name || 'No client'
   ))];
 
+  // Determine which projects to display based on active tab
+  let displayProjects = projects;
+  if (activeTab === 'my') {
+    displayProjects = myProjects;
+  } else if (activeTab === 'shared') {
+    displayProjects = sharedProjects;
+  }
+
   // Filter projects
-  const filteredProjects = projects.filter(project => {
+  const filteredProjects = displayProjects.filter(project => {
     const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.brief?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
@@ -148,11 +180,11 @@ export default function Projects() {
   return (
     <div className="p-8 relative">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold mb-1">Projects</h1>
           <p className="text-muted-foreground">
-            <span className="font-medium text-foreground">{activeProjects}</span> active
+            <span className="font-medium text-foreground">{activeProjects}</span> active projects
           </p>
         </div>
         <Button 
@@ -162,6 +194,40 @@ export default function Projects() {
           <Plus className="w-4 h-4" />
           New Project
         </Button>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex gap-4 mb-6 border-b">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`pb-3 px-1 border-b-2 transition-colors ${
+            activeTab === 'all'
+              ? 'border-primary text-primary font-medium'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          All Projects ({projects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('my')}
+          className={`pb-3 px-1 border-b-2 transition-colors ${
+            activeTab === 'my'
+              ? 'border-primary text-primary font-medium'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          My Projects ({myProjects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('shared')}
+          className={`pb-3 px-1 border-b-2 transition-colors ${
+            activeTab === 'shared'
+              ? 'border-primary text-primary font-medium'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Shared with Me ({sharedProjects.length})
+        </button>
       </div>
 
       {/* Filters & View Toggle */}
@@ -252,9 +318,16 @@ export default function Projects() {
                       >
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <span className="font-medium">{project.title}</span>
-                            <span className="text-xs text-muted-foreground font-mono">
-                              ID: {project._id.slice(-8).toUpperCase()}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{project.title}</span>
+                              {project.isShared && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Shared
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Owner: {project.ownerName || 'Unknown'}
                             </span>
                           </div>
                         </TableCell>

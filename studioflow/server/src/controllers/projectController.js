@@ -74,6 +74,15 @@ export const createProject = async (req, res) => {
     // Clear user's project list cache
     clearUserCache(ownerId);
 
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('project-created', {
+        projectId: project._id,
+        ownerId: ownerId
+      });
+    }
+
     res.status(201).json({
       project,
       inviteLink,
@@ -109,11 +118,45 @@ export const listProjects = async (req, res) => {
     .lean() // Return plain objects for better performance
     .sort({ createdAt: -1 }); // Most recent first
 
-    // Add user's role to each project for frontend
-    const projectsWithRole = projects.map(project => {
-      // Manually calculate role since we're using lean()
+    // Enhance projects with user names from Clerk and categorize them
+    const enhancedProjects = await Promise.all(projects.map(async (project) => {
+      // Determine if this is user's own project or shared project
+      const isOwner = String(project.ownerId) === String(userId);
+      
+      // Get owner name from Clerk
+      let ownerName = 'Unknown';
+      try {
+        const ownerUser = await clerkClient.users.getUser(project.ownerId);
+        ownerName = ownerUser.firstName && ownerUser.lastName 
+          ? `${ownerUser.firstName} ${ownerUser.lastName}` 
+          : ownerUser.username || ownerUser.emailAddresses?.[0]?.emailAddress || 'Unknown';
+      } catch (err) {
+        console.error('Error fetching owner from Clerk:', err);
+      }
+
+      // Enhance members with actual names from Clerk if missing
+      const enhancedMembers = await Promise.all(project.members.map(async (member) => {
+        if (!member.name || member.name === '') {
+          try {
+            const memberUser = await clerkClient.users.getUser(member.userId);
+            return {
+              ...member,
+              name: memberUser.firstName && memberUser.lastName 
+                ? `${memberUser.firstName} ${memberUser.lastName}` 
+                : memberUser.username || memberUser.emailAddresses?.[0]?.emailAddress || member.userId,
+              email: memberUser.emailAddresses?.[0]?.emailAddress || member.email
+            };
+          } catch (err) {
+            console.error('Error fetching member from Clerk:', err);
+            return member;
+          }
+        }
+        return member;
+      }));
+
+      // Calculate user's role
       let userRole = null;
-      if (String(project.ownerId) === String(userId)) {
+      if (isOwner) {
         userRole = 'owner';
       } else {
         const member = project.members.find(m => String(m.userId) === String(userId));
@@ -122,13 +165,22 @@ export const listProjects = async (req, res) => {
       
       return {
         ...project,
-        userRole
+        ownerName,
+        members: enhancedMembers,
+        userRole,
+        isShared: !isOwner // Flag to indicate if this is a shared project
       };
-    });
+    }));
+
+    // Categorize projects
+    const myProjects = enhancedProjects.filter(p => !p.isShared);
+    const sharedProjects = enhancedProjects.filter(p => p.isShared);
 
     res.json({
-      projects: projectsWithRole,
-      count: projectsWithRole.length
+      projects: enhancedProjects,
+      myProjects,
+      sharedProjects,
+      count: enhancedProjects.length
     });
   } catch (error) {
     console.error('List projects error:', error);
@@ -299,6 +351,15 @@ export const updateProject = async (req, res) => {
         clearUserCache(member.userId);
       }
     });
+
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${id}`).emit('project-updated', {
+        projectId: id,
+        updates: { title, brief, status, dueDate, progress }
+      });
+    }
 
     res.json({
       project,

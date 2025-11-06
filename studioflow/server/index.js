@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectDB } from './src/config/db.js';
@@ -13,6 +15,7 @@ import taskCommentRoutes from './src/routes/taskComment.js';
 import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
+import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from './src/config/sentry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +23,44 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Sentry FIRST (before any other middleware)
+initSentry(app);
+
+// Sentry request tracking (after Sentry init, before routes)
+app.use(sentryRequestHandler());
+app.use(sentryTracingHandler());
+
+// Setup Socket.IO with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow requests with no origin
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = (process.env.CLERK_ALLOWED_ORIGINS || 'http://localhost:5173')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+      
+      if (process.env.FRONTEND_URL) {
+        allowedOrigins.push(process.env.FRONTEND_URL);
+      }
+      
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (origin.includes('.vercel.app')) return callback(null, true);
+      if (origin.includes('localhost')) return callback(null, true);
+      
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true
+  }
+});
+
+// Make io accessible to routes
+app.set('io', io);
+
 const allowedOrigins = (process.env.CLERK_ALLOWED_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
@@ -95,13 +136,38 @@ app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 
+// Sentry error handler (MUST be after routes, before other error handlers)
+app.use(sentryErrorHandler());
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('✅ Client connected:', socket.id);
+
+  // Join project room
+  socket.on('join-project', (projectId) => {
+    socket.join(`project-${projectId}`);
+    console.log(`👤 Socket ${socket.id} joined project-${projectId}`);
+  });
+
+  // Leave project room
+  socket.on('leave-project', (projectId) => {
+    socket.leave(`project-${projectId}`);
+    console.log(`👋 Socket ${socket.id} left project-${projectId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ Client disconnected:', socket.id);
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try{
         await connectDB();
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+        httpServer.listen(PORT, () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+            console.log(`⚡ Socket.IO is ready for real-time updates`);
         });
     } catch (error) {
         console.error('Error starting server:', error); 

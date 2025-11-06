@@ -76,6 +76,20 @@ export const acceptInvite = async (req, res) => {
 
     await project.save();
 
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('member-joined', {
+        projectId,
+        member: {
+          userId,
+          name: userName,
+          email: userEmail,
+          role: role || 'client'
+        }
+      });
+    }
+
     res.status(200).json({
       message: 'Successfully joined project',
       project: {

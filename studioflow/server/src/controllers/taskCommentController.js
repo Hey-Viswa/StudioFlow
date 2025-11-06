@@ -13,6 +13,41 @@ const clearProjectMembersCache = (project) => {
   });
 };
 
+// Helper: Calculate project progress based on completed tasks
+const calculateProgressFromTasks = (project) => {
+  const tasks = project.tasks || [];
+  
+  if (tasks.length === 0) {
+    return 0;
+  }
+
+  const completedTasks = tasks.filter(task => task.status === 'completed').length;
+  const progress = Math.round((completedTasks / tasks.length) * 100);
+  
+  return progress;
+};
+
+// Helper: Update project progress based on tasks
+const updateProjectProgress = async (project) => {
+  const calculatedProgress = calculateProgressFromTasks(project);
+  
+  // Update project progress
+  project.progress = calculatedProgress;
+  
+  // Auto-complete project if all tasks are done
+  if (calculatedProgress === 100 && project.status !== 'completed') {
+    project.status = 'completed';
+  }
+  
+  // Revert to active if tasks are incomplete
+  if (calculatedProgress < 100 && project.status === 'completed') {
+    project.status = 'active';
+  }
+  
+  await project.save();
+  return calculatedProgress;
+};
+
 // @desc    Get all tasks for a project
 // @route   GET /api/projects/:projectId/tasks
 // @access  Protected (Members only)
@@ -31,7 +66,24 @@ export const getTasks = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    res.json({ tasks: project.tasks || [] });
+    // Calculate task statistics
+    const tasks = project.tasks || [];
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(task => task.status === 'completed').length;
+    const inProgressTasks = tasks.filter(task => task.status === 'in-progress').length;
+    const pendingTasks = tasks.filter(task => task.status === 'pending').length;
+    const progress = calculateProgressFromTasks(project);
+
+    res.json({ 
+      tasks,
+      stats: {
+        total: totalTasks,
+        completed: completedTasks,
+        inProgress: inProgressTasks,
+        pending: pendingTasks,
+        progress
+      }
+    });
   } catch (error) {
     console.error('Get tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -86,7 +138,9 @@ export const createTask = async (req, res) => {
     };
 
     project.tasks.push(newTask);
-    await project.save();
+    
+    // Calculate and update progress based on tasks
+    await updateProjectProgress(project);
 
     // Clear cache for all members
     clearProjectMembersCache(project);
@@ -95,7 +149,8 @@ export const createTask = async (req, res) => {
 
     res.status(201).json({ 
       message: 'Task created successfully',
-      task: createdTask
+      task: createdTask,
+      progress: project.progress
     });
   } catch (error) {
     console.error('Create task error:', error);
@@ -143,14 +198,16 @@ export const updateTask = async (req, res) => {
     if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
     if (updates.googleCalendarEventId !== undefined) task.googleCalendarEventId = updates.googleCalendarEventId;
 
-    await project.save();
+    // Calculate and update progress based on tasks
+    await updateProjectProgress(project);
 
     // Clear cache for all members
     clearProjectMembersCache(project);
 
     res.json({ 
       message: 'Task updated successfully',
-      task
+      task,
+      progress: project.progress
     });
   } catch (error) {
     console.error('Update task error:', error);
@@ -177,12 +234,17 @@ export const deleteTask = async (req, res) => {
     }
 
     project.tasks.pull(taskId);
-    await project.save();
+    
+    // Calculate and update progress based on tasks
+    await updateProjectProgress(project);
 
     // Clear cache for all members
     clearProjectMembersCache(project);
 
-    res.json({ message: 'Task deleted successfully' });
+    res.json({ 
+      message: 'Task deleted successfully',
+      progress: project.progress
+    });
   } catch (error) {
     console.error('Delete task error:', error);
     res.status(500).json({ error: 'Failed to delete task' });
@@ -265,6 +327,15 @@ export const createComment = async (req, res) => {
     clearProjectMembersCache(project);
 
     const createdComment = project.comments[project.comments.length - 1];
+
+    // Emit Socket.IO event for real-time comments
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('comment-added', {
+        projectId,
+        comment: createdComment
+      });
+    }
 
     res.status(201).json({ 
       message: 'Comment created successfully',

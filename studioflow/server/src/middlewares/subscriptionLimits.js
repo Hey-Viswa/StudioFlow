@@ -5,7 +5,8 @@ import Project from '../models/Project.js';
 /**
  * Middleware to check if user has reached their project creation limit
  * Free tier: 5 projects max
- * Pro/Studio tiers: Unlimited projects
+ * Pro tier: 50 projects max
+ * Studio tier: 100 projects max
  */
 export async function checkProjectLimit(req, res, next) {
   try {
@@ -28,39 +29,52 @@ export async function checkProjectLimit(req, res, next) {
       });
     }
 
-    // Only check limits for free plan
-    if (user.subscription.plan === 'free') {
-      // Count active projects (not deleted) - efficient countDocuments
-      const projectCount = await Project.countDocuments({ 
-        ownerId: req.userId,
-        deletedAt: null 
-      });
-      
-      // Free tier limit: 5 projects
-      if (projectCount >= 5) {
-        return res.status(403).json({ 
-          error: 'Project limit reached',
-          message: 'Free plan is limited to 5 projects. Upgrade to Pro or Studio for unlimited projects.',
-          currentCount: projectCount,
-          limit: 5,
-          upgradeUrl: '/dashboard/subscription',
-          plans: {
-            pro: {
-              name: 'Pro',
-              price: '₹799/month',
-              projects: 'Unlimited'
-            },
-            studio: {
-              name: 'Studio',
-              price: '₹1999/month',
-              projects: 'Unlimited'
-            }
+    // Count active projects (not deleted) - efficient countDocuments
+    const projectCount = await Project.countDocuments({ 
+      ownerId: req.userId,
+      deletedAt: null 
+    });
+
+    // Define limits based on plan
+    const limits = {
+      free: 5,
+      pro: 50,
+      studio: 100
+    };
+
+    const userPlan = user.subscription.plan || 'free';
+    const limit = limits[userPlan];
+
+    // Check if user has reached their limit
+    if (projectCount >= limit) {
+      const upgradeMessages = {
+        free: 'Free plan is limited to 5 projects. Upgrade to Pro (50 projects) or Studio (100 projects) for more.',
+        pro: 'Pro plan is limited to 50 projects. Upgrade to Studio for 100 projects.',
+        studio: 'Studio plan is limited to 100 projects. You have reached the maximum limit.'
+      };
+
+      return res.status(403).json({ 
+        error: 'Project limit reached',
+        message: upgradeMessages[userPlan],
+        currentCount: projectCount,
+        limit: limit,
+        upgradeUrl: '/dashboard/subscription',
+        plans: {
+          pro: {
+            name: 'Pro',
+            price: '₹799/month',
+            projects: '50 projects'
+          },
+          studio: {
+            name: 'Studio',
+            price: '₹1999/month',
+            projects: '100 projects'
           }
-        });
-      }
+        }
+      });
     }
     
-    // Pro and Studio plans have unlimited projects - allow through
+    // User is within their limit - allow through
     next();
   } catch (error) {
     console.error('Error checking project limit:', error);

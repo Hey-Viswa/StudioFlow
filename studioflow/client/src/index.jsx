@@ -1,9 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { initSentry } from './config/sentry';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+// Initialize Sentry FIRST (before React renders)
+initSentry();
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 

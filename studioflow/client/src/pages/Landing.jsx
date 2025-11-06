@@ -294,20 +294,20 @@ const Landing = () => {
               <CardHeader>
                 <div className="flex items-baseline gap-2 mb-2">
                   <span className="text-sm text-muted-foreground">Starter</span>
-                  <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">Best for solo</span>
+                  <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">Free Forever</span>
                 </div>
-                <CardTitle className="text-4xl font-bold">₹0</CardTitle>
-                <CardDescription>Up to 5 active projects</CardDescription>
+                <CardTitle className="text-4xl font-bold">₹0<span className="text-lg text-muted-foreground font-normal">/mo</span></CardTitle>
+                <CardDescription>Perfect for solo freelancers</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Up to 5 projects</span>
+                    <span><strong>5 projects</strong> included</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Project management</span>
+                    <span>1 team member per project</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
@@ -315,7 +315,7 @@ const Landing = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Email support</span>
+                    <span>Email support (48h)</span>
                   </li>
                 </ul>
               </CardContent>
@@ -349,19 +349,23 @@ const Landing = () => {
                   <span className="text-sm text-muted-foreground">Pro</span>
                 </div>
                 <CardTitle className="text-5xl font-bold">
-                  ₹799<span className="text-lg text-muted-foreground font-normal">/mo</span>
+                  ₹1,000<span className="text-lg text-muted-foreground font-normal">/mo</span>
                 </CardTitle>
-                <CardDescription className="text-base">Unlimited projects</CardDescription>
+                <CardDescription className="text-base">For individual professionals</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Unlimited projects</span>
+                    <span><strong>50 projects</strong> included</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Client collaboration</span>
+                    <span>5 team members per project</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-primary mt-0.5" />
+                    <span>Real-time updates</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
@@ -369,7 +373,7 @@ const Landing = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Priority support</span>
+                    <span>Priority support (24h)</span>
                   </li>
                 </ul>
               </CardContent>
@@ -399,30 +403,34 @@ const Landing = () => {
               <CardHeader>
                 <div className="flex items-baseline gap-2 mb-2">
                   <span className="text-sm text-muted-foreground">Studio</span>
-                  <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">Teams</span>
+                  <span className="text-xs bg-muted px-2 py-1 rounded-full group-hover:bg-primary/10 transition-colors">For Agencies</span>
                 </div>
                 <CardTitle className="text-4xl font-bold">
-                  ₹1,999<span className="text-lg text-muted-foreground font-normal">/mo</span>
+                  ₹499<span className="text-lg text-muted-foreground font-normal">/mo</span>
                 </CardTitle>
-                <CardDescription>Team permissions</CardDescription>
+                <CardDescription>Small agencies & teams</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Everything in Pro</span>
+                    <span><strong>100 projects</strong> included</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Team permissions</span>
+                    <span>Unlimited team members</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Advanced reviews</span>
+                    <span>All Pro features</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-primary mt-0.5" />
-                    <span>Dedicated support</span>
+                    <span>Advanced analytics</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-primary mt-0.5" />
+                    <span>Dedicated support (12h)</span>
                   </li>
                 </ul>
               </CardContent>

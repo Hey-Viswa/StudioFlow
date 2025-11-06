@@ -216,25 +216,10 @@ export default function ContactUs() {
                   <div className="space-y-1">
                     <h3 className="font-semibold">Email Support</h3>
                     <p className="text-sm text-muted-foreground">
-                      For general inquiries and support
+                      For all inquiries and support
                     </p>
-                    <a href="mailto:support@studioflow.studio" className="text-sm text-primary hover:underline">
-                      support@studioflow.studio
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10 text-primary">
-                    <Phone className="h-5 w-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-semibold">Sales Team</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Interested in Studio plan or enterprise solutions?
-                    </p>
-                    <a href="mailto:sales@studioflow.studio" className="text-sm text-primary hover:underline">
-                      sales@studioflow.studio
+                    <a href="mailto:goodlegiri892@gmail.com" className="text-sm text-primary hover:underline">
+                      goodlegiri892@gmail.com
                     </a>
                   </div>
                 </div>
@@ -246,8 +231,7 @@ export default function ContactUs() {
                   <div className="space-y-1">
                     <h3 className="font-semibold">Office Location</h3>
                     <p className="text-sm text-muted-foreground">
-                      StudioFlow Headquarters<br />
-                      Bangalore, Karnataka<br />
+                      Mumbai, Maharashtra<br />
                       India
                     </p>
                   </div>
