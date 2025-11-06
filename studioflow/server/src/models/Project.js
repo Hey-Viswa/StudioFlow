@@ -148,4 +148,53 @@ ProjectSchema.methods.isOwner = function(userId) {
   return String(this.ownerId) === String(userId);
 };
 
+// Auto-calculate progress based on task completion
+ProjectSchema.methods.calculateProgress = function() {
+  if (!this.tasks || this.tasks.length === 0) {
+    return 0;
+  }
+  
+  const completedTasks = this.tasks.filter(task => task.status === 'completed').length;
+  const totalTasks = this.tasks.length;
+  
+  return Math.round((completedTasks / totalTasks) * 100);
+};
+
+// Auto-update project status based on progress
+ProjectSchema.methods.updateStatusBasedOnProgress = function() {
+  const progress = this.calculateProgress();
+  
+  // Don't change status if it's archived
+  if (this.status === 'archived') {
+    return;
+  }
+  
+  // Update status based on progress
+  if (progress === 0) {
+    // No tasks completed - keep active (or leave as-is if on-hold)
+    if (this.status !== 'on-hold') {
+      this.status = 'active';
+    }
+  } else if (progress === 100) {
+    // All tasks completed
+    this.status = 'completed';
+  } else {
+    // Some tasks in progress
+    if (this.status !== 'on-hold') {
+      this.status = 'active';
+    }
+  }
+  
+  this.progress = progress;
+};
+
+// Pre-save middleware to auto-calculate progress and update status
+ProjectSchema.pre('save', function(next) {
+  // Only auto-update if tasks exist
+  if (this.tasks && this.tasks.length > 0) {
+    this.updateStatusBasedOnProgress();
+  }
+  next();
+});
+
 export default mongoose.model('Project', ProjectSchema);

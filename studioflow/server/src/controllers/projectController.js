@@ -296,12 +296,12 @@ export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    const { title, brief, status, dueDate, progress } = req.body;
+    const { title, brief, status, dueDate, progress, tasks } = req.body;
 
     console.log('📊 Update project request:', { 
       projectId: id, 
       userId, 
-      updates: { title, brief, status, dueDate, progress } 
+      updates: { title, brief, status, dueDate, progress, hasTasks: !!tasks } 
     });
 
     const project = await Project.findById(id);
@@ -326,23 +326,40 @@ export const updateProject = async (req, res) => {
       return res.status(400).json({ error: 'Brief must be 100 characters or less' });
     }
 
-    // Validate progress
-    if (progress !== undefined) {
-      if (progress < 0 || progress > 100) {
-        return res.status(400).json({ error: 'Progress must be between 0 and 100' });
-      }
-      console.log('📊 Updating progress:', { old: project.progress, new: progress });
-    }
-
     // Update fields
     if (title !== undefined) project.title = title;
     if (brief !== undefined) project.brief = brief;
-    if (status !== undefined) project.status = status;
     if (dueDate !== undefined) project.dueDate = dueDate ? new Date(dueDate) : null;
-    if (progress !== undefined) project.progress = progress;
+    
+    // Update tasks if provided
+    if (tasks !== undefined) {
+      project.tasks = tasks;
+      console.log('� Tasks updated, auto-calculating progress...');
+    }
+    
+    // Manual status override (only if not letting auto-calc handle it)
+    if (status !== undefined && !tasks) {
+      project.status = status;
+    }
+    
+    // Manual progress override (only if no tasks update)
+    if (progress !== undefined && !tasks) {
+      if (progress < 0 || progress > 100) {
+        return res.status(400).json({ error: 'Progress must be between 0 and 100' });
+      }
+      project.progress = progress;
+      console.log('📊 Manual progress update:', { old: project.progress, new: progress });
+    }
 
+    // Save will trigger pre-save middleware that auto-calculates progress
     await project.save();
-    console.log('✅ Project updated successfully:', { progress: project.progress });
+    
+    console.log('✅ Project updated successfully:', { 
+      progress: project.progress,
+      status: project.status,
+      completedTasks: project.tasks.filter(t => t.status === 'completed').length,
+      totalTasks: project.tasks.length
+    });
 
     // Clear cache for all project members
     clearUserCache(userId);
@@ -357,7 +374,7 @@ export const updateProject = async (req, res) => {
     if (io) {
       io.to(`project-${id}`).emit('project-updated', {
         projectId: id,
-        updates: { title, brief, status, dueDate, progress }
+        updates: { title, brief, status: project.status, dueDate, progress: project.progress }
       });
     }
 
