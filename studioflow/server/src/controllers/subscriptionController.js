@@ -351,17 +351,27 @@ export const verifyPayment = async (req, res) => {
     user.subscription.razorpayPaymentId = razorpay_payment_id;
     user.subscription.subscriptionStartDate = new Date(subscription.start_at * 1000);
     
-    // Use current_end if available, otherwise calculate 30 days from start
+    // Use current_end for next billing date (monthly cycle)
+    // current_end = next billing date for recurring subscriptions
+    // end_at = final subscription expiry (after all cycles)
+    // For monthly SaaS, we want current_end to show next renewal date
     if (subscription.current_end) {
       user.subscription.subscriptionEndDate = new Date(subscription.current_end * 1000);
+      console.log('✓ Using current_end for next billing:', user.subscription.subscriptionEndDate);
+    } else if (subscription.charge_at) {
+      // Fallback to charge_at if current_end not available
+      user.subscription.subscriptionEndDate = new Date(subscription.charge_at * 1000);
+      console.log('✓ Using charge_at for next billing:', user.subscription.subscriptionEndDate);
     } else if (subscription.end_at) {
+      // Last resort: use end_at (but this is subscription expiry, not next billing)
       user.subscription.subscriptionEndDate = new Date(subscription.end_at * 1000);
+      console.log('⚠️  Using end_at (may be far in future):', user.subscription.subscriptionEndDate);
     } else {
       // Fallback: Calculate 30 days from start date
       const endDate = new Date(subscription.start_at * 1000);
       endDate.setDate(endDate.getDate() + 30);
       user.subscription.subscriptionEndDate = endDate;
-      console.log('⚠️  No end date in subscription, calculated:', endDate);
+      console.log('⚠️  No end date in subscription, calculated +30 days:', endDate);
     }
     
     user.subscription.autoRenew = subscription.status === 'active';

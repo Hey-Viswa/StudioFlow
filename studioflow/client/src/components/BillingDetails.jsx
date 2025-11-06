@@ -48,7 +48,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const isActive = subData.status === 'active';
   const isCancelled = subData.status === 'cancelled';
   
-  // Fix billing date - use subscriptionEndDate for next billing
+  // For active subscriptions, this is the next billing/renewal date
+  // For cancelled subscriptions, this is when access ends
   const nextBillingDate = subData.subscriptionEndDate 
     ? new Date(subData.subscriptionEndDate).toLocaleDateString('en-US', { 
         month: 'long', 
@@ -56,6 +57,13 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
         year: 'numeric' 
       })
     : 'N/A';
+  
+  // Determine the label based on subscription status
+  const billingDateLabel = isActive 
+    ? 'Next Billing Date' 
+    : isCancelled 
+    ? 'Access Until' 
+    : 'Subscription End Date';
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -123,7 +131,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Calendar className="w-4 h-4" />
-                <span className="text-sm">Next Billing Date</span>
+                <span className="text-sm">{billingDateLabel}</span>
               </div>
               <span className="text-sm font-medium">{nextBillingDate}</span>
             </div>
