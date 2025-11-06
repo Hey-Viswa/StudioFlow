@@ -126,38 +126,57 @@ export const createSubscription = async (req, res) => {
     const { planId } = req.body;
     const userId = req.userId;
 
-    console.log('Creating subscription for user:', userId, 'plan:', planId);
+    console.log('=== CREATE SUBSCRIPTION REQUEST ===');
+    console.log('User ID:', userId);
+    console.log('Plan ID:', planId);
+    console.log('User Name:', req.userName);
+    console.log('User Email:', req.userEmail);
 
+    // Check Razorpay initialization
     if (!razorpay) {
-      console.error('Razorpay not initialized');
-      return res.status(500).json({ error: 'Payment gateway not configured' });
+      console.error('❌ Razorpay not initialized');
+      return res.status(500).json({ 
+        error: 'Payment gateway not configured. Please contact support.' 
+      });
     }
 
+    // Validate plan
     if (!['pro', 'studio'].includes(planId)) {
+      console.error('❌ Invalid plan:', planId);
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
 
     const plan = SUBSCRIPTION_PLANS[planId];
     
     if (!plan.razorpayPlanId) {
-      console.error('Razorpay plan ID not configured for:', planId);
+      console.error('❌ Razorpay plan ID not configured for:', planId);
       return res.status(400).json({ error: 'Plan configuration error' });
     }
+
+    console.log('✓ Using Razorpay Plan ID:', plan.razorpayPlanId);
 
     // Get or create user
     let user = await User.findOne({ clerkUserId: userId });
     
     if (!user) {
-      console.log('Creating new user:', userId);
-      user = await User.create({
-        clerkUserId: userId,
-        name: req.userName || '',
-        email: req.userEmail || '',
-        subscription: {
-          plan: 'free',
-          status: 'active'
-        }
-      });
+      console.log('✓ Creating new user:', userId);
+      try {
+        user = await User.create({
+          clerkUserId: userId,
+          name: req.userName || '',
+          email: req.userEmail || '',
+          subscription: {
+            plan: 'free',
+            status: 'active'
+          }
+        });
+        console.log('✓ User created successfully');
+      } catch (userError) {
+        console.error('❌ Failed to create user:', userError);
+        return res.status(500).json({ error: 'Failed to create user profile' });
+      }
+    } else {
+      console.log('✓ User found:', user.email);
     }
 
     // Create Razorpay customer if doesn't exist
@@ -175,15 +194,23 @@ export const createSubscription = async (req, res) => {
         
         user.subscription.razorpayCustomerId = customerId;
         await user.save();
-        console.log('Created Razorpay customer:', customerId);
+        console.log('✓ Created Razorpay customer:', customerId);
       } catch (customerError) {
-        console.error('Error creating Razorpay customer:', customerError);
-        return res.status(500).json({ error: 'Failed to create customer profile' });
+        console.error('❌ Error creating Razorpay customer:', customerError);
+        console.error('Customer Error Details:', customerError.error || customerError);
+        return res.status(500).json({ 
+          error: 'Failed to create customer profile',
+          details: customerError.error?.description || customerError.message
+        });
       }
+    } else {
+      console.log('✓ Using existing Razorpay customer:', customerId);
     }
 
     // Create Razorpay subscription
-    console.log('Creating Razorpay subscription with plan:', plan.razorpayPlanId);
+    console.log('Creating Razorpay subscription...');
+    console.log('  Plan ID:', plan.razorpayPlanId);
+    console.log('  Customer ID:', customerId);
     try {
       const subscription = await razorpay.subscriptions.create({
         plan_id: plan.razorpayPlanId,
@@ -198,12 +225,17 @@ export const createSubscription = async (req, res) => {
         }
       });
 
-      console.log('Razorpay subscription created:', subscription.id);
+      console.log('✓ Razorpay subscription created:', subscription.id);
+      console.log('  Status:', subscription.status);
+      console.log('  Short URL:', subscription.short_url);
 
       // Update user subscription
       user.subscription.razorpaySubscriptionId = subscription.id;
       user.subscription.status = 'created';
       await user.save();
+
+      console.log('✓ User subscription updated');
+      console.log('=== SUBSCRIPTION CREATION SUCCESS ===');
 
       res.json({
         subscriptionId: subscription.id,
@@ -212,14 +244,17 @@ export const createSubscription = async (req, res) => {
         currency: plan.currency
       });
     } catch (subscriptionError) {
-      console.error('Error creating Razorpay subscription:', subscriptionError);
+      console.error('❌ Error creating Razorpay subscription:', subscriptionError);
+      console.error('Subscription Error Details:', subscriptionError.error || subscriptionError);
       return res.status(500).json({ 
         error: 'Failed to create subscription', 
-        details: subscriptionError.message 
+        details: subscriptionError.error?.description || subscriptionError.message 
       });
     }
   } catch (error) {
-    console.error('Create subscription error:', error);
+    console.error('=== CREATE SUBSCRIPTION FAILED ===');
+    console.error('❌ Unexpected error:', error);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ 
       error: 'Failed to create subscription',
       details: error.message 
