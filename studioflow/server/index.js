@@ -15,7 +15,6 @@ import taskCommentRoutes from './src/routes/taskComment.js';
 import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
-import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from './src/config/sentry.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,18 +25,11 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const app = express();
 const httpServer = createServer(app);
 
-// CRITICAL: Health check MUST be first - before Sentry, before any middleware
+// CRITICAL: Health check MUST be first - before any middleware
 // Railway needs instant response for healthchecks
 app.get('/api/health', (req, res) => {
     res.status(200).json({ ok: true, status: 'alive' });
 });
-
-// Initialize Sentry FIRST (before any other middleware)
-initSentry(app);
-
-// Sentry request tracking (after Sentry init, before routes)
-app.use(sentryRequestHandler());
-app.use(sentryTracingHandler());
 
 // Setup Socket.IO with CORS
 const io = new Server(httpServer, {
@@ -174,9 +166,6 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
-
-// Sentry error handler (MUST be after routes, before other error handlers)
-app.use(sentryErrorHandler());
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
