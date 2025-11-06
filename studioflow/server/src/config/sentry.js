@@ -68,10 +68,10 @@ export function initSentry(app) {
       return event;
     },
     
-    // Add useful context
+    // Node integrations (updated for new Sentry SDK)
     integrations: [
-      new Sentry.Integrations.Http({ tracing: true }),
-      new Sentry.Integrations.Express({ app }),
+      Sentry.httpIntegration({ tracing: true }),
+      Sentry.expressIntegration({ app }),
     ],
   });
 
