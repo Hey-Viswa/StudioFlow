@@ -26,6 +26,12 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const app = express();
 const httpServer = createServer(app);
 
+// CRITICAL: Health check MUST be first - before Sentry, before any middleware
+// Railway needs instant response for healthchecks
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ ok: true, status: 'alive' });
+});
+
 // Initialize Sentry FIRST (before any other middleware)
 initSentry(app);
 
@@ -96,16 +102,6 @@ app.use(cors({
     credentials: true
 }));
 app.use(express.json());
-
-// Simple health check for Railway (liveness probe - just check if server is up)
-app.get('/api/health', (req, res) => {
-    res.status(200).json({
-        ok: true,
-        status: 'alive',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
-});
 
 // Readiness check (checks database connectivity)
 app.get('/api/ready', async (req, res) => {
