@@ -372,10 +372,13 @@ export const updateProject = async (req, res) => {
     // Emit Socket.IO event for real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${id}`).emit('project-updated', {
+      // Emit to everyone (for dashboard real-time updates)
+      io.emit('project-updated', {
         projectId: id,
-        updates: { title, brief, status: project.status, dueDate, progress: project.progress }
+        ownerId: project.ownerId,
+        updates: { title, brief, status: project.status, dueDate, progress: project.progress, tasks: project.tasks }
       });
+      console.log('📡 Socket.IO: Emitted project-updated event globally');
     }
 
     res.json({
@@ -465,6 +468,16 @@ export const deleteProject = async (req, res) => {
       }
     });
     console.log('✅ Cache cleared');
+
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('project-deleted', {
+        projectId: id,
+        ownerId: project.ownerId
+      });
+      console.log('📡 Socket.IO: Emitted project-deleted event globally');
+    }
 
     res.json({ 
       message: 'Project moved to trash. Will be permanently deleted after 30 days.',

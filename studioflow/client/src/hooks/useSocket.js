@@ -5,10 +5,14 @@ export function useSocket() {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    // Socket.IO connects to base URL, not /api endpoint
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const socketUrl = apiUrl.replace('/api', ''); // Remove /api suffix for Socket.IO
+    
+    console.log('🔌 Connecting to Socket.IO:', socketUrl);
     
     // Initialize socket connection
-    socketRef.current = io(apiUrl, {
+    socketRef.current = io(socketUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true
     });
