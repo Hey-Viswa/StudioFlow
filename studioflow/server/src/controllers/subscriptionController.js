@@ -876,5 +876,131 @@ export const getInvoices = async (req, res) => {
   }
 };
 
+// @desc    Get comprehensive billing history from Razorpay
+// @route   GET /api/subscriptions/billing-history
+// @access  Protected
+export const getBillingHistory = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    console.log('📊 Fetching billing history for user:', userId);
+
+    const user = await User.findOne({ clerkUserId: userId });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const billingHistory = {
+      currentSubscription: null,
+      nextPayment: null,
+      paymentHistory: [],
+      subscriptionCount: 0,
+      totalSpent: 0
+    };
+
+    // Get current subscription details
+    if (user.subscription.razorpaySubscriptionId) {
+      try {
+        const subscription = await razorpay.subscriptions.fetch(
+          user.subscription.razorpaySubscriptionId
+        );
+
+        const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
+
+        billingHistory.currentSubscription = {
+          id: subscription.id,
+          plan: currentPlan.name,
+          amount: currentPlan.price,
+          status: subscription.status,
+          startDate: new Date(subscription.start_at * 1000),
+          currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : null,
+          currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null,
+          endDate: subscription.end_at ? new Date(subscription.end_at * 1000) : null,
+          chargeAt: subscription.charge_at ? new Date(subscription.charge_at * 1000) : null,
+          totalCount: subscription.total_count,
+          paidCount: subscription.paid_count,
+          remainingCount: subscription.remaining_count
+        };
+
+        // Calculate subscription count (how many times renewed)
+        billingHistory.subscriptionCount = subscription.paid_count || 0;
+
+        // Next payment info
+        if (subscription.status === 'active' && subscription.charge_at) {
+          billingHistory.nextPayment = {
+            date: new Date(subscription.charge_at * 1000),
+            amount: currentPlan.price,
+            plan: currentPlan.name
+          };
+        }
+      } catch (subError) {
+        console.error('⚠️  Failed to fetch subscription:', subError.message);
+      }
+    }
+
+    // Fetch payment history from Razorpay
+    if (user.subscription.razorpaySubscriptionId) {
+      try {
+        // Get all payments for this subscription
+        const payments = await razorpay.payments.all({
+          subscription_id: user.subscription.razorpaySubscriptionId,
+          count: 100
+        });
+
+        if (payments.items && payments.items.length > 0) {
+          billingHistory.paymentHistory = payments.items.map(payment => ({
+            id: payment.id,
+            amount: payment.amount / 100, // Convert paise to rupees
+            currency: payment.currency,
+            status: payment.status,
+            method: payment.method,
+            createdAt: new Date(payment.created_at * 1000),
+            description: payment.description || `${billingHistory.currentSubscription?.plan} plan payment`,
+            invoiceId: payment.invoice_id,
+            refunded: payment.refund_status === 'full' || payment.refund_status === 'partial',
+            refundStatus: payment.refund_status
+          }));
+
+          // Calculate total spent (only successful payments)
+          billingHistory.totalSpent = payments.items
+            .filter(p => p.status === 'captured' || p.status === 'authorized')
+            .reduce((sum, p) => sum + (p.amount / 100), 0);
+        }
+      } catch (paymentError) {
+        console.error('⚠️  Failed to fetch payments:', paymentError.message);
+      }
+    }
+
+    // Get local invoices (for refunds and other records)
+    const localInvoices = await Invoice.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    console.log('✓ Billing history compiled');
+    console.log('  Subscription count:', billingHistory.subscriptionCount);
+    console.log('  Payment history items:', billingHistory.paymentHistory.length);
+    console.log('  Total spent: ₹', billingHistory.totalSpent);
+
+    res.json({
+      ...billingHistory,
+      localInvoices: localInvoices.map(inv => ({
+        invoiceNumber: inv.invoiceNumber,
+        type: inv.type,
+        amount: inv.amount,
+        status: inv.status,
+        createdAt: inv.createdAt,
+        description: inv.description
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Get billing history error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch billing history',
+      details: error.message 
+    });
+  }
+};
+
 // Export plans for use in other controllers
 export { SUBSCRIPTION_PLANS };

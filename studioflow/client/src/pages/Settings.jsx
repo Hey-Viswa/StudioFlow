@@ -6,8 +6,10 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import BillingDetails from '../components/BillingDetails';
+import BillingHistory from '../components/BillingHistory';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -18,7 +20,8 @@ import {
   Check,
   Crown,
   Mail,
-  Calendar
+  Calendar,
+  Receipt
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -360,12 +363,32 @@ export default function Settings() {
                 <CreditCard className="w-5 h-5" />
                 Billing & Subscription
               </h2>
-              <BillingDetails 
-                subscription={subscription}
-                onCancel={handleCancelSubscription}
-                onReactivate={handleReactivateSubscription}
-                loading={isCancelling}
-              />
+              
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="overview" className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="flex items-center gap-2">
+                    <Receipt className="w-4 h-4" />
+                    Payment History
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview">
+                  <BillingDetails 
+                    subscription={subscription}
+                    onCancel={handleCancelSubscription}
+                    onReactivate={handleReactivateSubscription}
+                    loading={isCancelling}
+                  />
+                </TabsContent>
+
+                <TabsContent value="history">
+                  <BillingHistory />
+                </TabsContent>
+              </Tabs>
             </div>
 
             {/* Notification Preferences */}
