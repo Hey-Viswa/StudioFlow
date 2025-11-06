@@ -15,10 +15,10 @@ import * as Sentry from '@sentry/node';
  */
 
 export function initSentry(app) {
-  // Only initialize Sentry in production
+  // Only initialize Sentry in production with valid DSN
   if (process.env.NODE_ENV !== 'production' || !process.env.SENTRY_DSN) {
     console.log('⚠️  Sentry disabled (not in production or no DSN)');
-    return;
+    return false; // Return false to indicate Sentry is not initialized
   }
 
   Sentry.init({
@@ -76,10 +76,14 @@ export function initSentry(app) {
   });
 
   console.log('✅ Sentry initialized (Budget mode: 10% sampling)');
+  return true; // Return true to indicate Sentry is initialized
 }
 
 // Sentry error handler middleware
 export function sentryErrorHandler() {
+  if (process.env.NODE_ENV !== 'production' || !process.env.SENTRY_DSN) {
+    return (req, res, next) => next(); // No-op middleware
+  }
   return Sentry.Handlers.errorHandler({
     shouldHandleError(error) {
       // Only send 5xx errors to Sentry
@@ -90,11 +94,17 @@ export function sentryErrorHandler() {
 
 // Sentry request handler middleware
 export function sentryRequestHandler() {
+  if (process.env.NODE_ENV !== 'production' || !process.env.SENTRY_DSN) {
+    return (req, res, next) => next(); // No-op middleware
+  }
   return Sentry.Handlers.requestHandler();
 }
 
 // Sentry tracing handler middleware
 export function sentryTracingHandler() {
+  if (process.env.NODE_ENV !== 'production' || !process.env.SENTRY_DSN) {
+    return (req, res, next) => next(); // No-op middleware
+  }
   return Sentry.Handlers.tracingHandler();
 }
 
