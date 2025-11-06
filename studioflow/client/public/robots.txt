@@ -1,3 +1,10 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+# Disallow private areas
+Disallow: /dashboard/
+Disallow: /invite
+
+# Sitemap
+Sitemap: https://www.studioflow.studio/sitemap.xml

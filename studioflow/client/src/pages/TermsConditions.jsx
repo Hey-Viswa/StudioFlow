@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { ArrowLeft, FileText, Scale, CreditCard, Ban, AlertTriangle, Shield, Users, Clock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -8,32 +9,87 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 export default function TermsConditions() {
   const navigate = useNavigate();
 
+  // Update page title and meta for SEO
+  useEffect(() => {
+    document.title = 'Terms & Conditions - StudioFlow';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 'StudioFlow Terms & Conditions - Read our service agreement, subscription terms, and user responsibilities.');
+    }
+  }, []);
+
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate('/')}
-            className="mr-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          <div className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-semibold">Terms & Conditions</h1>
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            <div className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Terms & Conditions</h1>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/privacy-policy')}>
+              Privacy
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/contact-us')}>
+              Contact
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="container max-w-4xl py-12 space-y-8">
-        {/* Introduction */}
-        <Card>
-          <CardHeader>
+      <div className="container max-w-7xl py-12">
+        <div className="grid lg:grid-cols-4 gap-8">
+          {/* Sidebar Navigation */}
+          <aside className="lg:col-span-1">
+            <div className="sticky top-24 space-y-1">
+              <h3 className="font-semibold mb-4 text-sm text-muted-foreground uppercase tracking-wider">On This Page</h3>
+              <nav className="space-y-1">
+                {[
+                  { id: 'agreement', label: 'Agreement to Terms' },
+                  { id: 'service', label: 'Service Description' },
+                  { id: 'account', label: 'Account Terms' },
+                  { id: 'subscription', label: 'Subscription & Billing' },
+                  { id: 'cancellation', label: 'Cancellation & Refunds' },
+                  { id: 'acceptable-use', label: 'Acceptable Use' },
+                  { id: 'intellectual-property', label: 'Intellectual Property' },
+                  { id: 'termination', label: 'Termination' },
+                  { id: 'liability', label: 'Limitation of Liability' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollToSection(item.id)}
+                    className="block w-full text-left text-sm py-2 px-3 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3 space-y-8">
+            {/* Introduction */}
+            <Card id="agreement">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Agreement to Terms
@@ -57,9 +113,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Service Description */}
-        <Card>
-          <CardHeader>
+            {/* Service Description */}
+            <Card id="service">
+              <CardHeader>
             <CardTitle>1. Service Description</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -79,9 +135,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Account Terms */}
-        <Card>
-          <CardHeader>
+            {/* Account Terms */}
+            <Card id="account">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               2. Account Registration and Security
@@ -107,9 +163,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Subscription Plans */}
-        <Card>
-          <CardHeader>
+            {/* Subscription Plans */}
+            <Card id="subscription">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-primary" />
               3. Subscription Plans and Billing
@@ -151,9 +207,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Cancellation and Refunds */}
-        <Card>
-          <CardHeader>
+            {/* Cancellation and Refunds */}
+            <Card id="cancellation">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Ban className="h-5 w-5 text-primary" />
               4. Cancellation and Refund Policy
@@ -183,9 +239,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Acceptable Use */}
-        <Card>
-          <CardHeader>
+            {/* Acceptable Use */}
+            <Card id="acceptable-use">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
               5. Acceptable Use Policy
@@ -215,9 +271,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Content Ownership */}
-        <Card>
-          <CardHeader>
+            {/* Content Ownership */}
+            <Card id="intellectual-property">
+              <CardHeader>
             <CardTitle>6. Intellectual Property and Content Ownership</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -247,9 +303,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Termination */}
-        <Card>
-          <CardHeader>
+            {/* Termination */}
+            <Card id="termination">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
               7. Termination
@@ -269,9 +325,9 @@ export default function TermsConditions() {
           </CardContent>
         </Card>
 
-        {/* Limitations of Liability */}
-        <Card>
-          <CardHeader>
+            {/* Limitations of Liability */}
+            <Card id="liability">
+              <CardHeader>
             <CardTitle>8. Limitation of Liability</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -370,7 +426,9 @@ export default function TermsConditions() {
               <p><strong className="text-foreground">Contact Form:</strong> <a href="/contact-us" className="text-primary hover:underline">www.studioflow.studio/contact-us</a></p>
             </div>
           </CardContent>
-        </Card>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

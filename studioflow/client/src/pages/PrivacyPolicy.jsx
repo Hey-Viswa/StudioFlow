@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { ArrowLeft, Shield, Lock, Eye, UserCheck, Database, Globe, FileText, Mail } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -7,32 +8,86 @@ import { Separator } from '../components/ui/separator';
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
+  // Update page title and meta for SEO
+  useEffect(() => {
+    document.title = 'Privacy Policy - StudioFlow';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 'StudioFlow Privacy Policy - Learn how we collect, use, and protect your personal data. GDPR compliant.');
+    }
+  }, []);
+
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate('/')}
-            className="mr-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-semibold">Privacy Policy</h1>
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Privacy Policy</h1>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/terms-conditions')}>
+              Terms
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/contact-us')}>
+              Contact
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="container max-w-4xl py-12 space-y-8">
-        {/* Introduction */}
-        <Card>
-          <CardHeader>
+      <div className="container max-w-7xl py-12">
+        <div className="grid lg:grid-cols-4 gap-8">
+          {/* Sidebar Navigation */}
+          <aside className="lg:col-span-1">
+            <div className="sticky top-24 space-y-1">
+              <h3 className="font-semibold mb-4 text-sm text-muted-foreground uppercase tracking-wider">On This Page</h3>
+              <nav className="space-y-1">
+                {[
+                  { id: 'introduction', label: 'Introduction' },
+                  { id: 'information-collected', label: 'Information We Collect' },
+                  { id: 'how-we-use', label: 'How We Use Data' },
+                  { id: 'data-security', label: 'Data Security' },
+                  { id: 'data-sharing', label: 'Information Sharing' },
+                  { id: 'your-rights', label: 'Your Rights' },
+                  { id: 'data-retention', label: 'Data Retention' },
+                  { id: 'contact', label: 'Contact Us' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollToSection(item.id)}
+                    className="block w-full text-left text-sm py-2 px-3 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3 space-y-8">
+            {/* Introduction */}
+            <Card id="introduction">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
               Introduction
@@ -52,9 +107,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Information We Collect */}
-        <Card>
-          <CardHeader>
+            {/* Information We Collect */}
+            <Card id="information-collected">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-primary" />
               Information We Collect
@@ -107,9 +162,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* How We Use Your Information */}
-        <Card>
-          <CardHeader>
+            {/* How We Use Your Information */}
+            <Card id="how-we-use">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5 text-primary" />
               How We Use Your Information
@@ -145,9 +200,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Data Security */}
-        <Card>
-          <CardHeader>
+            {/* Data Security */}
+            <Card id="data-security">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-primary" />
               Data Security
@@ -186,9 +241,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Data Sharing */}
-        <Card>
-          <CardHeader>
+            {/* Data Sharing */}
+            <Card id="data-sharing">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary" />
               Information Sharing and Disclosure
@@ -219,9 +274,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Your Rights */}
-        <Card>
-          <CardHeader>
+            {/* Your Rights */}
+            <Card id="your-rights">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserCheck className="h-5 w-5 text-primary" />
               Your Rights and Choices
@@ -244,9 +299,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Data Retention */}
-        <Card>
-          <CardHeader>
+            {/* Data Retention */}
+            <Card id="data-retention">
+              <CardHeader>
             <CardTitle>Data Retention</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -263,9 +318,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Contact */}
-        <Card>
-          <CardHeader>
+            {/* Contact */}
+            <Card id="contact">
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-primary" />
               Contact Us
@@ -282,9 +337,9 @@ export default function PrivacyPolicy() {
           </CardContent>
         </Card>
 
-        {/* Changes to Policy */}
-        <Card>
-          <CardHeader>
+            {/* Changes to Policy */}
+            <Card>
+              <CardHeader>
             <CardTitle>Changes to This Policy</CardTitle>
           </CardHeader>
           <CardContent>
@@ -293,7 +348,9 @@ export default function PrivacyPolicy() {
               on this page and updating the "Last updated" date. You are advised to review this policy periodically for any changes.
             </p>
           </CardContent>
-        </Card>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

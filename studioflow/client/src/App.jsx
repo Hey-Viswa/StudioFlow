@@ -47,6 +47,7 @@ function App() {
           <Route path="/cancellation-refund" element={<CancellationRefund />} />
           <Route path="/shipping-delivery" element={<ShippingDelivery />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
           
           {/* Dashboard with nested routes */}
           <Route

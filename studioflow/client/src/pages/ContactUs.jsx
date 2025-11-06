@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, MessageSquare, Send, CheckCircle2, Loader2, Phone, MapPin } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -19,6 +19,15 @@ export default function ContactUs() {
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Update page title and meta for SEO
+  useEffect(() => {
+    document.title = 'Contact Us - StudioFlow';
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 'Get in touch with StudioFlow. Contact our support team for help with your projects, billing, or general inquiries.');
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
