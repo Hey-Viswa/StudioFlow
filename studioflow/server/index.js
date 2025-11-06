@@ -97,20 +97,29 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Enhanced health check endpoint
-app.get('/api/health', async (req, res) => {
+// Simple health check for Railway (liveness probe - just check if server is up)
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        ok: true,
+        status: 'alive',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Readiness check (checks database connectivity)
+app.get('/api/ready', async (req, res) => {
     try {
-        // Check if database is connected
         const mongoose = (await import('mongoose')).default;
         const dbStatus = mongoose.connection.readyState;
         
         // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-        const isHealthy = dbStatus === 1;
+        const isReady = dbStatus === 1;
         
-        if (isHealthy) {
+        if (isReady) {
             res.status(200).json({
                 ok: true,
-                status: 'healthy',
+                status: 'ready',
                 timestamp: new Date().toISOString(),
                 database: 'connected',
                 uptime: process.uptime()
@@ -118,7 +127,7 @@ app.get('/api/health', async (req, res) => {
         } else {
             res.status(503).json({
                 ok: false,
-                status: 'unhealthy',
+                status: 'not_ready',
                 timestamp: new Date().toISOString(),
                 database: dbStatus === 0 ? 'disconnected' : dbStatus === 2 ? 'connecting' : 'disconnecting',
                 uptime: process.uptime()

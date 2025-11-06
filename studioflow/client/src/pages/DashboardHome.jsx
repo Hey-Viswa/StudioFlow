@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   MoreHorizontal,
   AlertCircle,
-  Crown
+  Crown,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -34,10 +35,12 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
+import { useSocket } from '../hooks/useSocket';
 
 export default function DashboardHome() {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const socket = useSocket(); // Connect to Socket.IO
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +52,45 @@ export default function DashboardHome() {
     fetchProjects();
     fetchUsage();
   }, []);
+
+  // Real-time updates via Socket.IO
+  useEffect(() => {
+    if (!socket) return;
+
+    // Listen for project created events
+    socket.on('project-created', (data) => {
+      console.log('🔔 Real-time: Project created', data);
+      fetchProjects(); // Refresh project list
+    });
+
+    // Listen for project updated events
+    socket.on('project-updated', (data) => {
+      console.log('🔔 Real-time: Project updated', data);
+      // Update specific project in state
+      setProjects(prevProjects => 
+        prevProjects.map(p => 
+          p._id === data.projectId 
+            ? { ...p, ...data.updates }
+            : p
+        )
+      );
+    });
+
+    // Listen for project deleted events
+    socket.on('project-deleted', (data) => {
+      console.log('🔔 Real-time: Project deleted', data);
+      setProjects(prevProjects => 
+        prevProjects.filter(p => p._id !== data.projectId)
+      );
+    });
+
+    // Cleanup listeners
+    return () => {
+      socket.off('project-created');
+      socket.off('project-updated');
+      socket.off('project-deleted');
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -355,20 +397,34 @@ export default function DashboardHome() {
           {/* Projects Table */}
           <Card className="bg-card border-slate-800">
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-lg font-semibold text-white">Recent Projects</h3>
-                  <p className="text-sm text-slate-400">You have {filteredProjects.length} projects in total</p>
+                  <p className="text-sm text-slate-400">
+                    {searchQuery ? (
+                      <>Showing {filteredProjects.length} result{filteredProjects.length !== 1 ? 's' : ''} for "{searchQuery}"</>
+                    ) : (
+                      <>You have {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''} in total</>
+                    )}
+                  </p>
                 </div>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <div className="relative w-80">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
                   <Input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search projects by title, description, or status..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                    className="pl-11 pr-10 h-11 bg-slate-900/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
