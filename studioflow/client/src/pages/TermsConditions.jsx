@@ -55,7 +55,7 @@ export default function TermsConditions() {
         </div>
       </header>
 
-      <div className="container max-w-7xl py-12">
+      <div className="container mx-auto max-w-7xl py-12 px-4">
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}
           <aside className="lg:col-span-1">
@@ -107,9 +107,19 @@ export default function TermsConditions() {
               </AlertDescription>
             </Alert>
             <p className="text-muted-foreground leading-relaxed">
-              These Terms and Conditions ("Terms") govern your use of the StudioFlow platform and services operated by StudioFlow ("we", "us", or "our"). 
-              If you do not agree with any part of these terms, you may not access the service.
+              These Terms and Conditions ("Terms") govern your use of the StudioFlow platform and services operated by StudioFlow, 
+              a project management service based in Mumbai, India. If you do not agree with any part of these terms, you may not access the service.
             </p>
+            <div className="bg-muted/50 p-4 rounded-lg border">
+              <p className="text-sm">
+                <strong>Operating Entity:</strong> StudioFlow<br />
+                <strong>Location:</strong> Mumbai, Maharashtra, India<br />
+                <strong>Contact:</strong>{' '}
+                <a href="mailto:support@studioflow.studio" className="text-primary hover:underline">
+                  support@studioflow.studio
+                </a>
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -175,9 +185,9 @@ export default function TermsConditions() {
             <div className="space-y-4">
               <h3 className="font-semibold">Available Plans</h3>
               <ul className="space-y-3 text-muted-foreground ml-4">
-                <li><strong className="text-foreground">Free Plan:</strong> 5 projects, basic features, community support</li>
-                <li><strong className="text-foreground">Pro Plan:</strong> 50 projects, advanced features, priority support</li>
-                <li><strong className="text-foreground">Studio Plan:</strong> Unlimited projects, all features, dedicated support</li>
+                <li><strong className="text-foreground">Starter Plan (Free):</strong> 5 projects, 1 team member per project, email support (48h response)</li>
+                <li><strong className="text-foreground">Pro Plan (₹100/month):</strong> 50 projects, 5 team members per project, real-time updates, priority support (24h response)</li>
+                <li><strong className="text-foreground">Studio Plan (₹499/month):</strong> 100 projects, unlimited team members, all Pro features, advanced analytics, dedicated support (12h response)</li>
               </ul>
             </div>
 

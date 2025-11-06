@@ -96,7 +96,7 @@ export default function ContactUs() {
       </header>
 
       {/* Main Content */}
-      <div className="container max-w-6xl py-12">
+      <div className="container mx-auto max-w-6xl py-12 px-4">
         <div className="grid md:grid-cols-2 gap-8">
           {/* Contact Form */}
           <div>
@@ -218,8 +218,8 @@ export default function ContactUs() {
                     <p className="text-sm text-muted-foreground">
                       For all inquiries and support
                     </p>
-                    <a href="mailto:goodlegiri892@gmail.com" className="text-sm text-primary hover:underline">
-                      goodlegiri892@gmail.com
+                    <a href="mailto:support@studioflow.studio" className="text-sm text-primary hover:underline">
+                      support@studioflow.studio
                     </a>
                   </div>
                 </div>
@@ -231,7 +231,8 @@ export default function ContactUs() {
                   <div className="space-y-1">
                     <h3 className="font-semibold">Office Location</h3>
                     <p className="text-sm text-muted-foreground">
-                      Mumbai, Maharashtra<br />
+                      StudioFlow<br />
+                      Mumbai, Maharashtra 400001<br />
                       India
                     </p>
                   </div>
@@ -284,8 +285,8 @@ export default function ContactUs() {
 
             <Alert>
               <AlertDescription>
-                <strong>Note:</strong> Email service integration with Resend is pending. Messages are currently logged 
-                for testing purposes. Please contact us directly at support@studioflow.studio until this feature is live.
+                <strong>Business Hours:</strong> Monday - Friday, 9:00 AM - 6:00 PM IST. 
+                We aim to respond to all inquiries within 24-48 hours during business days.
               </AlertDescription>
             </Alert>
           </div>

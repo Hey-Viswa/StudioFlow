@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
         </div>
       </header>
 
-      <div className="container max-w-7xl py-12">
+      <div className="container mx-auto max-w-7xl py-12 px-4">
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}
           <aside className="lg:col-span-1">
@@ -98,12 +98,21 @@ export default function PrivacyPolicy() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground leading-relaxed">
-              Welcome to StudioFlow. We respect your privacy and are committed to protecting your personal data. 
-              This privacy policy explains how we collect, use, disclose, and safeguard your information when you use our service.
+              Welcome to StudioFlow ("we," "our," or "us"). We respect your privacy and are committed to protecting your personal data. 
+              This privacy policy explains how we collect, use, disclose, and safeguard your information when you use our project management service.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              By using StudioFlow, you agree to the collection and use of information in accordance with this policy.
+              StudioFlow is operated from India and complies with applicable data protection laws. By using StudioFlow, you agree to the collection 
+              and use of information in accordance with this policy.
             </p>
+            <div className="bg-muted/50 p-4 rounded-lg border">
+              <p className="text-sm">
+                <strong>Contact Information:</strong> For privacy-related inquiries, email us at{' '}
+                <a href="mailto:support@studioflow.studio" className="text-primary hover:underline">
+                  support@studioflow.studio
+                </a>
+              </p>
+            </div>
           </CardContent>
         </Card>
 
