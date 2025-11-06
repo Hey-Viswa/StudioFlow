@@ -16,6 +16,7 @@ import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from './src/config/sentry.js';
+import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -165,6 +166,10 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     try{
         await connectDB();
+        
+        // Start subscription checker for automatic downgrades
+        startSubscriptionChecker();
+        
         httpServer.listen(PORT, () => {
             console.log(`🚀 Server is running on port ${PORT}`);
             console.log(`⚡ Socket.IO is ready for real-time updates`);

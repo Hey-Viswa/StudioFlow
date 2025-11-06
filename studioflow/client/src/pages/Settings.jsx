@@ -26,6 +26,7 @@ export default function Settings() {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [subscription, setSubscription] = useState(null);
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
@@ -55,6 +56,47 @@ export default function Settings() {
       console.error('Error fetching subscription:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel your subscription? You will retain access to premium features until the end of your billing period, after which your account will be downgraded to the free plan.'
+    );
+
+    if (!confirmed) return;
+
+    setIsCancelling(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${apiUrl}/payment/cancel-subscription`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Subscription cancelled successfully', {
+          description: data.message || 'Your subscription has been cancelled.'
+        });
+        // Refresh subscription data
+        await fetchSubscription();
+      } else {
+        throw new Error(data.message || 'Failed to cancel subscription');
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      toast.error('Failed to cancel subscription', {
+        description: error.message || 'Please try again or contact support.'
+      });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -226,13 +268,25 @@ export default function Settings() {
                       </p>
                     </div>
                   </div>
-                  {currentPlan === 'free' && (
-                    <Link to="/dashboard/subscription">
-                      <Button className="bg-primary hover:bg-primary/90">
-                        Upgrade Plan
+                  <div className="flex gap-2">
+                    {currentPlan === 'free' && (
+                      <Link to="/dashboard/subscription">
+                        <Button className="bg-primary hover:bg-primary/90">
+                          Upgrade Plan
+                        </Button>
+                      </Link>
+                    )}
+                    {(currentPlan === 'pro' || currentPlan === 'studio') && 
+                     subscription?.subscription?.status === 'active' && (
+                      <Button 
+                        variant="destructive" 
+                        onClick={handleCancelSubscription}
+                        disabled={isCancelling}
+                      >
+                        {isCancelling ? 'Cancelling...' : 'Cancel Subscription'}
                       </Button>
-                    </Link>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {subscription?.subscription?.status && (
@@ -240,13 +294,19 @@ export default function Settings() {
                     <p>Status: <span className="text-white capitalize">{subscription.subscription.status}</span></p>
                     {subscription.subscription.subscriptionEndDate && (
                       <p className="mt-1">
-                        Renews on: <span className="text-white">
+                        {subscription.subscription.status === 'cancelled' ? 'Access until' : 'Renews on'}: <span className="text-white">
                           {new Date(subscription.subscription.subscriptionEndDate).toLocaleDateString()}
                         </span>
                       </p>
                     )}
                   </div>
                 )}
+                
+                <div className="pt-2 border-t border-slate-800">
+                  <Link to="/cancellation-refund" className="text-sm text-primary hover:underline">
+                    View Cancellation & Refund Policy
+                  </Link>
+                </div>
               </CardContent>
             </Card>
 

@@ -223,12 +223,20 @@ export const cancelSubscription = async (req, res) => {
             });
         }
 
+        // Mark subscription as cancelled but keep active until end date
         user.subscription.status = 'cancelled';
+        user.subscription.autoRenew = false;
+        
         await user.save();
 
         res.json({
             success: true,
-            message: 'Subscription cancelled successfully',
+            message: 'Subscription cancelled successfully. You will retain access until the end of your billing period.',
+            subscription: {
+                plan: user.subscription.plan,
+                status: user.subscription.status,
+                validUntil: user.subscription.subscriptionEndDate,
+            }
         });
     } catch (error) {
         console.error('Cancel subscription error:', error);
@@ -237,5 +245,246 @@ export const cancelSubscription = async (req, res) => {
             message: 'Failed to cancel subscription',
             error: error.message 
         });
+    }
+};
+
+// Downgrade user to free plan after cancellation
+const downgradeToFreePlan = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            console.error(`User ${userId} not found for downgrade`);
+            return;
+        }
+
+        // Import Project model dynamically to avoid circular dependency
+        const Project = (await import('../models/Project.js')).default;
+
+        // Get all active projects owned by user
+        const activeProjects = await Project.find({ 
+            ownerId: userId.toString(), 
+            status: { $ne: 'archived' } 
+        }).sort({ createdAt: -1 });
+
+        // Free plan allows 5 projects - archive extras
+        const FREE_PLAN_LIMIT = 5;
+        if (activeProjects.length > FREE_PLAN_LIMIT) {
+            const projectsToArchive = activeProjects.slice(FREE_PLAN_LIMIT);
+            
+            for (const project of projectsToArchive) {
+                project.status = 'archived';
+                await project.save();
+            }
+
+            console.log(`Archived ${projectsToArchive.length} projects for user ${userId}`);
+        }
+
+        // Downgrade user to free plan
+        user.subscription.plan = 'free';
+        user.subscription.status = 'expired';
+        user.subscription.razorpayOrderId = null;
+        user.subscription.razorpayPaymentId = null;
+        user.subscription.razorpaySubscriptionId = null;
+        user.subscription.subscriptionStartDate = null;
+        user.subscription.subscriptionEndDate = null;
+        user.subscription.autoRenew = false;
+
+        await user.save();
+
+        console.log(`User ${userId} downgraded to free plan successfully`);
+        
+        return {
+            success: true,
+            archivedProjectsCount: activeProjects.length > FREE_PLAN_LIMIT ? activeProjects.length - FREE_PLAN_LIMIT : 0,
+        };
+    } catch (error) {
+        console.error(`Error downgrading user ${userId}:`, error);
+        throw error;
+    }
+};
+
+// Razorpay Webhook Handler
+export const handleRazorpayWebhook = async (req, res) => {
+    try {
+        const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+        const webhookSignature = req.headers['x-razorpay-signature'];
+        
+        if (!webhookSecret) {
+            console.warn('⚠️  Razorpay webhook secret not configured');
+            return res.status(200).json({ status: 'ok' });
+        }
+
+        // Verify webhook signature
+        const expectedSignature = crypto
+            .createHmac('sha256', webhookSecret)
+            .update(JSON.stringify(req.body))
+            .digest('hex');
+
+        if (webhookSignature !== expectedSignature) {
+            console.error('Invalid webhook signature');
+            return res.status(400).json({ error: 'Invalid signature' });
+        }
+
+        const event = req.body.event;
+        const payload = req.body.payload;
+
+        console.log(`Razorpay Webhook Event: ${event}`);
+
+        switch (event) {
+            case 'subscription.charged':
+                // Subscription successfully charged
+                await handleSubscriptionCharged(payload);
+                break;
+
+            case 'subscription.cancelled':
+            case 'subscription.expired':
+                // Subscription cancelled or expired - downgrade to free
+                await handleSubscriptionCancelled(payload);
+                break;
+
+            case 'subscription.paused':
+                // Subscription paused - mark as paused
+                await handleSubscriptionPaused(payload);
+                break;
+
+            case 'subscription.resumed':
+                // Subscription resumed - reactivate
+                await handleSubscriptionResumed(payload);
+                break;
+
+            case 'payment.failed':
+                // Payment failed - notify user
+                await handlePaymentFailed(payload);
+                break;
+
+            default:
+                console.log(`Unhandled webhook event: ${event}`);
+        }
+
+        res.status(200).json({ status: 'ok' });
+    } catch (error) {
+        console.error('Webhook handler error:', error);
+        res.status(500).json({ error: 'Webhook processing failed' });
+    }
+};
+
+// Handle successful subscription charge
+const handleSubscriptionCharged = async (payload) => {
+    try {
+        const subscriptionId = payload.subscription.entity.id;
+        const notes = payload.subscription.entity.notes || {};
+        const userId = notes.userId;
+
+        if (!userId) {
+            console.error('No userId found in subscription notes');
+            return;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            console.error(`User ${userId} not found`);
+            return;
+        }
+
+        // Extend subscription by 30 days
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 30);
+
+        user.subscription.status = 'active';
+        user.subscription.razorpaySubscriptionId = subscriptionId;
+        user.subscription.subscriptionEndDate = endDate;
+        user.subscription.autoRenew = true;
+        
+        await user.save();
+
+        console.log(`Subscription renewed for user ${userId}`);
+    } catch (error) {
+        console.error('Error handling subscription charged:', error);
+    }
+};
+
+// Handle subscription cancellation
+const handleSubscriptionCancelled = async (payload) => {
+    try {
+        const subscriptionId = payload.subscription.entity.id;
+        
+        // Find user by subscription ID
+        const user = await User.findOne({ 
+            'subscription.razorpaySubscriptionId': subscriptionId 
+        });
+
+        if (!user) {
+            console.error(`User not found for subscription ${subscriptionId}`);
+            return;
+        }
+
+        console.log(`Processing cancellation for user ${user._id}`);
+        
+        // Downgrade user to free plan
+        await downgradeToFreePlan(user._id);
+
+        console.log(`User ${user._id} downgraded after subscription cancellation`);
+    } catch (error) {
+        console.error('Error handling subscription cancelled:', error);
+    }
+};
+
+// Handle subscription paused
+const handleSubscriptionPaused = async (payload) => {
+    try {
+        const subscriptionId = payload.subscription.entity.id;
+        
+        const user = await User.findOne({ 
+            'subscription.razorpaySubscriptionId': subscriptionId 
+        });
+
+        if (user) {
+            user.subscription.status = 'paused';
+            await user.save();
+            console.log(`Subscription paused for user ${user._id}`);
+        }
+    } catch (error) {
+        console.error('Error handling subscription paused:', error);
+    }
+};
+
+// Handle subscription resumed
+const handleSubscriptionResumed = async (payload) => {
+    try {
+        const subscriptionId = payload.subscription.entity.id;
+        
+        const user = await User.findOne({ 
+            'subscription.razorpaySubscriptionId': subscriptionId 
+        });
+
+        if (user) {
+            user.subscription.status = 'active';
+            user.subscription.autoRenew = true;
+            await user.save();
+            console.log(`Subscription resumed for user ${user._id}`);
+        }
+    } catch (error) {
+        console.error('Error handling subscription resumed:', error);
+    }
+};
+
+// Handle payment failed
+const handlePaymentFailed = async (payload) => {
+    try {
+        const paymentId = payload.payment.entity.id;
+        const notes = payload.payment.entity.notes || {};
+        const userId = notes.userId;
+
+        if (userId) {
+            const user = await User.findById(userId);
+            if (user) {
+                user.subscription.status = 'payment_failed';
+                await user.save();
+                console.log(`Payment failed for user ${userId}`);
+                // TODO: Send email notification to user
+            }
+        }
+    } catch (error) {
+        console.error('Error handling payment failed:', error);
     }
 };

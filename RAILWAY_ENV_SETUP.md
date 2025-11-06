@@ -35,12 +35,24 @@ RAZORPAY_KEY_ID=rzp_test_Rc79SqocIuhDPp
 RAZORPAY_KEY_SECRET=5AZq9psjrBDF3ZD3EctUOJ4o
 RAZORPAY_PRO_PLAN_ID=plan_RcTPS7sz19ku5N
 RAZORPAY_STUDIO_PLAN_ID=plan_RcTPuLbBYG9E8N
-RAZORPAY_WEBHOOK_SECRET=
+RAZORPAY_WEBHOOK_SECRET=[Get this from Razorpay Dashboard → Settings → Webhooks]
 ```
 
 **Plan Details:**
 - **Pro Plan**: ₹100/month - `plan_RcTPS7sz19ku5N`
 - **Studio Plan**: ₹499/month - `plan_RcTPuLbBYG9E8N`
+
+**Webhook Setup:**
+1. Go to Razorpay Dashboard → Settings → Webhooks
+2. Add webhook URL: `https://your-railway-url.up.railway.app/api/payment/razorpay-webhook`
+3. Select events:
+   - `subscription.charged`
+   - `subscription.cancelled`
+   - `subscription.expired`
+   - `subscription.paused`
+   - `subscription.resumed`
+   - `payment.failed`
+4. Copy the webhook secret and add it to `RAZORPAY_WEBHOOK_SECRET`
 
 ### Frontend URL
 ```
