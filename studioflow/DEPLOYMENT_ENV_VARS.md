@@ -8,8 +8,8 @@
 Add these 4 variables to your **server project**:
 
 ```
-RAZORPAY_KEY_ID=rzp_test_RbHukLhdtq1xlM
-RAZORPAY_KEY_SECRET=O9Y60LcDOc2EO5kMz5rgQcMt
+RAZORPAY_KEY_ID=rzp_test_Rc79SqocIuhDPp
+RAZORPAY_KEY_SECRET=5AZq9psjrBDF3ZD3EctUOJ4o
 RAZORPAY_PRO_PLAN_ID=plan_RcTPS7s2l9ku5N
 RAZORPAY_STUDIO_PLAN_ID=plan_RcTPuLbBYG9E8N
 ```
@@ -30,14 +30,14 @@ RAZORPAY_STUDIO_PLAN_ID=plan_RcTPuLbBYG9E8N
 Add this 1 variable:
 
 ```
-VITE_RAZORPAY_KEY_ID=rzp_test_RbHukLhdtq1xlM
+VITE_RAZORPAY_KEY_ID=rzp_test_Rc79SqocIuhDPp
 ```
 
 **Steps:**
 1. Go to Settings → Environment Variables
 2. Click **Add New**
 3. Name: `VITE_RAZORPAY_KEY_ID`
-4. Value: `rzp_test_RbHukLhdtq1xlM`
+4. Value: `rzp_test_Rc79SqocIuhDPp`
 5. Environment: Check **Production** ✓
 6. Click **Save**
 7. Go to Deployments → Redeploy latest
