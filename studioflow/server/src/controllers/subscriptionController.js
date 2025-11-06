@@ -2,6 +2,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
+import Invoice from '../models/Invoice.js';
 import { createClerkClient } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
@@ -371,6 +372,35 @@ export const verifyPayment = async (req, res) => {
     console.log('  Status:', user.subscription.status);
     console.log('  Start:', user.subscription.subscriptionStartDate);
     console.log('  End:', user.subscription.subscriptionEndDate);
+
+    // Create invoice for successful payment
+    const planConfig = SUBSCRIPTION_PLANS[planId];
+    if (planConfig) {
+      try {
+        const invoice = await Invoice.create({
+          userId: req.userId,
+          subscriptionId: razorpay_subscription_id,
+          planId: planId,
+          planName: planConfig.name,
+          amount: planConfig.price,
+          currency: 'INR',
+          type: 'payment',
+          status: 'paid',
+          razorpayPaymentId: razorpay_payment_id,
+          billingPeriodStart: user.subscription.subscriptionStartDate,
+          billingPeriodEnd: user.subscription.subscriptionEndDate,
+          description: `${planConfig.name} plan subscription payment`,
+          metadata: {
+            prorated: false
+          }
+        });
+        console.log('✓ Invoice created:', invoice.invoiceNumber);
+      } catch (invoiceError) {
+        console.error('⚠️  Failed to create invoice:', invoiceError.message);
+        // Don't fail the payment verification if invoice creation fails
+      }
+    }
+
     console.log('=== PAYMENT VERIFICATION SUCCESS ===');
 
     res.json({
@@ -383,32 +413,150 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-// @desc    Cancel subscription
+// @desc    Cancel subscription with refund
 // @route   POST /api/subscriptions/cancel
 // @access  Protected
 export const cancelSubscription = async (req, res) => {
   try {
     const userId = req.userId;
 
+    console.log('=== CANCEL SUBSCRIPTION REQUEST ===');
+    console.log('User ID:', userId);
+
     const user = await User.findOne({ clerkUserId: userId });
     
     if (!user || !user.subscription.razorpaySubscriptionId) {
+      console.error('❌ No active subscription found');
       return res.status(404).json({ error: 'No active subscription found' });
     }
 
-    // Cancel Razorpay subscription
-    await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
+    if (user.subscription.status === 'cancelled') {
+      console.error('❌ Subscription already cancelled');
+      return res.status(400).json({ error: 'Subscription is already cancelled' });
+    }
 
-    // Update user subscription
+    console.log('✓ Subscription ID:', user.subscription.razorpaySubscriptionId);
+    console.log('✓ Current plan:', user.subscription.plan);
+    console.log('✓ Payment ID:', user.subscription.razorpayPaymentId);
+
+    // Calculate prorated refund
+    const now = new Date();
+    const subscriptionEnd = new Date(user.subscription.subscriptionEndDate);
+    const subscriptionStart = new Date(user.subscription.subscriptionStartDate);
+    
+    const totalDays = Math.ceil((subscriptionEnd - subscriptionStart) / (1000 * 60 * 60 * 24));
+    const unusedDays = Math.max(0, Math.ceil((subscriptionEnd - now) / (1000 * 60 * 60 * 24)));
+    
+    const planPrice = SUBSCRIPTION_PLANS[user.subscription.plan]?.price || 0;
+    const refundAmount = Math.round((planPrice * unusedDays / totalDays) * 100) / 100;
+
+    console.log('📊 Refund Calculation:');
+    console.log('  Total days:', totalDays);
+    console.log('  Unused days:', unusedDays);
+    console.log('  Plan price: ₹', planPrice);
+    console.log('  Refund amount: ₹', refundAmount);
+
+    let refundId = null;
+    let refundStatus = 'pending';
+
+    // Process refund only if there's a valid payment and refund amount
+    if (user.subscription.razorpayPaymentId && refundAmount > 0) {
+      try {
+        console.log('💰 Initiating refund...');
+        
+        // Create refund in Razorpay
+        const refund = await razorpay.payments.refund(
+          user.subscription.razorpayPaymentId,
+          {
+            amount: Math.round(refundAmount * 100), // Convert to paise
+            speed: 'normal', // 'normal' or 'optimum'
+            notes: {
+              reason: 'Subscription cancellation',
+              userId: userId,
+              unusedDays: unusedDays,
+              totalDays: totalDays
+            }
+          }
+        );
+
+        refundId = refund.id;
+        refundStatus = refund.status; // 'processed', 'pending', or 'failed'
+        
+        console.log('✓ Refund created:', refundId);
+        console.log('  Status:', refundStatus);
+        console.log('  Amount: ₹', refundAmount);
+      } catch (refundError) {
+        console.error('❌ Refund failed:', refundError.message);
+        // Continue with cancellation even if refund fails
+        refundStatus = 'failed';
+      }
+    } else {
+      console.log('⚠️  No refund initiated (no payment ID or zero refund amount)');
+    }
+
+    // Cancel Razorpay subscription
+    try {
+      await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
+      console.log('✓ Razorpay subscription cancelled');
+    } catch (cancelError) {
+      console.error('❌ Failed to cancel Razorpay subscription:', cancelError.message);
+      // Continue anyway to update local status
+    }
+
+    // Generate invoice for cancellation
+    const invoice = await Invoice.create({
+      userId: userId,
+      subscriptionId: user.subscription.razorpaySubscriptionId,
+      planId: user.subscription.plan,
+      planName: SUBSCRIPTION_PLANS[user.subscription.plan]?.name || 'Unknown',
+      amount: -refundAmount, // Negative for refund
+      currency: 'INR',
+      type: 'refund',
+      status: refundStatus === 'processed' ? 'refunded' : 'pending',
+      razorpayPaymentId: user.subscription.razorpayPaymentId,
+      razorpayRefundId: refundId,
+      billingPeriodStart: subscriptionStart,
+      billingPeriodEnd: subscriptionEnd,
+      description: `Refund for ${SUBSCRIPTION_PLANS[user.subscription.plan]?.name} plan cancellation`,
+      metadata: {
+        prorated: true,
+        unusedDays: unusedDays,
+        totalDays: totalDays,
+        refundReason: 'User requested cancellation'
+      }
+    });
+
+    console.log('✓ Invoice generated:', invoice.invoiceNumber);
+
+    // Update user subscription status
     user.subscription.status = 'cancelled';
+    user.subscription.autoRenew = false;
+    // Keep the plan active until the end date
     await user.save();
+
+    console.log('✓ User subscription updated to cancelled');
+    console.log('  Access until:', subscriptionEnd.toISOString());
+    console.log('=== CANCELLATION SUCCESS ===');
 
     res.json({
       message: 'Subscription cancelled successfully',
-      subscription: user.subscription
+      subscription: user.subscription,
+      refund: {
+        amount: refundAmount,
+        status: refundStatus,
+        refundId: refundId,
+        unusedDays: unusedDays,
+        totalDays: totalDays
+      },
+      invoice: {
+        invoiceNumber: invoice.invoiceNumber,
+        amount: refundAmount,
+        status: invoice.status
+      },
+      accessUntil: subscriptionEnd
     });
   } catch (error) {
-    console.error('Cancel subscription error:', error);
+    console.error('❌ Cancel subscription error:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 };
@@ -665,6 +813,42 @@ export const reactivateSubscription = async (req, res) => {
   } catch (error) {
     console.error('Reactivate subscription error:', error);
     res.status(500).json({ error: 'Failed to reactivate subscription' });
+  }
+};
+
+// @desc    Get user invoices
+// @route   GET /api/subscriptions/invoices
+// @access  Protected
+export const getInvoices = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    console.log('📄 Fetching invoices for user:', userId);
+
+    const invoices = await Invoice.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    console.log('✓ Found', invoices.length, 'invoices');
+
+    res.json({
+      invoices: invoices.map(inv => ({
+        invoiceNumber: inv.invoiceNumber,
+        planName: inv.planName,
+        amount: inv.amount,
+        currency: inv.currency,
+        type: inv.type,
+        status: inv.status,
+        billingPeriodStart: inv.billingPeriodStart,
+        billingPeriodEnd: inv.billingPeriodEnd,
+        description: inv.description,
+        createdAt: inv.createdAt,
+        metadata: inv.metadata
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Get invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 };
 

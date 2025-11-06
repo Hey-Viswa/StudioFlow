@@ -62,7 +62,7 @@ export default function Settings() {
 
   const handleCancelSubscription = async () => {
     const confirmed = window.confirm(
-      'Are you sure you want to cancel your subscription? You will retain access to premium features until the end of your billing period, after which your account will be downgraded to the free plan.'
+      'Are you sure you want to cancel your subscription? A prorated refund will be issued for any unused days, and you will retain access until the end of your billing period.'
     );
 
     if (!confirmed) return;
@@ -83,10 +83,19 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('Subscription cancelled successfully', {
-          description: data.message || 'Your subscription has been cancelled.'
+        const refundInfo = data.refund;
+        const accessUntil = new Date(data.accessUntil).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
         });
-        // Refresh subscription data
+        
+        toast.success('Subscription cancelled successfully', {
+          description: refundInfo.amount > 0 
+            ? `A refund of ₹${refundInfo.amount} will be processed. You'll have access until ${accessUntil}.`
+            : `You'll continue to have access until ${accessUntil}.`
+        });
+        // Refresh subscription data to show updated status and invoices
         await fetchSubscription();
       } else {
         throw new Error(data.error || 'Failed to cancel subscription');

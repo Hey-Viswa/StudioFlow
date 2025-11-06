@@ -6,6 +6,7 @@ import {
   cancelSubscription,
   upgradeSubscription,
   reactivateSubscription,
+  getInvoices,
   handleWebhook
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
@@ -65,6 +66,7 @@ router.post('/fix/:userId', async (req, res) => {
 
 // Protected routes
 router.get('/current', verifyClerk, getCurrentSubscription);
+router.get('/invoices', verifyClerk, getInvoices);
 router.post('/create', verifyClerk, createSubscription);
 router.post('/verify', verifyClerk, verifyPayment);
 router.post('/cancel', verifyClerk, cancelSubscription);

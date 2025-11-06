@@ -7,10 +7,32 @@ import {
   Download, 
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import api from '../lib/api';
 
 export default function BillingDetails({ subscription, onCancel, onReactivate, loading }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      setLoadingInvoices(true);
+      const response = await api.get('/subscriptions/invoices');
+      setInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error('Failed to fetch invoices:', error);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
   if (!subscription) {
     return (
       <Card className="p-6">
@@ -25,6 +47,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const { subscription: subData, plan, usage } = subscription;
   const isActive = subData.status === 'active';
   const isCancelled = subData.status === 'cancelled';
+  
+  // Fix billing date - use subscriptionEndDate for next billing
   const nextBillingDate = subData.subscriptionEndDate 
     ? new Date(subData.subscriptionEndDate).toLocaleDateString('en-US', { 
         month: 'long', 
@@ -218,15 +242,71 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
         </div>
       </Card>
 
-      {/* Invoice History (Placeholder) */}
+      {/* Invoice History */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Download className="w-5 h-5" />
+          <FileText className="w-5 h-5" />
           Invoice History
         </h3>
-        <p className="text-sm text-muted-foreground">
-          No invoices available yet. Invoices will appear here after your first payment.
-        </p>
+        
+        {loadingInvoices ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="w-4 h-4 animate-spin" />
+            <p className="text-sm">Loading invoices...</p>
+          </div>
+        ) : invoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No invoices available yet. Invoices will appear here after your first payment.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {invoices.map((invoice) => (
+              <div 
+                key={invoice.invoiceNumber}
+                className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary/50 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
+                    <Badge 
+                      variant={
+                        invoice.status === 'paid' || invoice.status === 'refunded' 
+                          ? 'default' 
+                          : invoice.status === 'failed' 
+                          ? 'destructive' 
+                          : 'secondary'
+                      }
+                      className="text-xs"
+                    >
+                      {invoice.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {invoice.type}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{invoice.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(invoice.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <div className="text-right ml-4">
+                  <p className={`font-semibold ${invoice.amount < 0 ? 'text-green-600' : ''}`}>
+                    {invoice.amount < 0 ? '+' : ''}₹{Math.abs(invoice.amount)}
+                  </p>
+                  {invoice.metadata?.prorated && (
+                    <p className="text-xs text-muted-foreground">
+                      {invoice.metadata.unusedDays}/{invoice.metadata.totalDays} days
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
