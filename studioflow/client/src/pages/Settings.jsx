@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { toast } from 'sonner';
+import BillingDetails from '../components/BillingDetails';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -71,7 +72,7 @@ export default function Settings() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
-      const response = await fetch(`${apiUrl}/payment/cancel-subscription`, {
+      const response = await fetch(`${apiUrl}/subscriptions/cancel`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -88,12 +89,78 @@ export default function Settings() {
         // Refresh subscription data
         await fetchSubscription();
       } else {
-        throw new Error(data.message || 'Failed to cancel subscription');
+        throw new Error(data.error || 'Failed to cancel subscription');
       }
     } catch (error) {
-      console.error('Error cancelling subscription:', error);
+      console.error('Cancel subscription error:', error);
       toast.error('Failed to cancel subscription', {
-        description: error.message || 'Please try again or contact support.'
+        description: error.message
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    setIsCancelling(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      // Get current plan to reactivate
+      const currentPlan = subscription?.plan?.id || 'pro';
+      
+      const response = await fetch(`${apiUrl}/subscriptions/reactivate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ plan: currentPlan })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Initialize Razorpay for payment
+        const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+        
+        const options = {
+          key: razorpayKey,
+          subscription_id: data.subscriptionId,
+          name: 'StudioFlow',
+          description: `Reactivate ${currentPlan.toUpperCase()} Plan`,
+          handler: async function (response) {
+            // Verify payment
+            const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_subscription_id: response.razorpay_subscription_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            if (verifyResponse.ok) {
+              toast.success('Subscription reactivated successfully!');
+              await fetchSubscription();
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        throw new Error(data.error || 'Failed to reactivate subscription');
+      }
+    } catch (error) {
+      console.error('Reactivate subscription error:', error);
+      toast.error('Failed to reactivate subscription', {
+        description: error.message
       });
     } finally {
       setIsCancelling(false);
@@ -237,78 +304,19 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            {/* Subscription Status */}
-            <Card className="bg-card border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
-                  Subscription
-                </CardTitle>
-                <CardDescription>Your current plan and billing status</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Crown className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-white capitalize">{currentPlan} Plan</p>
-                        <Badge className={planBadge.color}>
-                          {planBadge.label}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-slate-400">
-                        {currentPlan === 'free' 
-                          ? '5 projects included' 
-                          : currentPlan === 'pro'
-                          ? '50 projects included'
-                          : '100 projects included'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {currentPlan === 'free' && (
-                      <Link to="/dashboard/subscription">
-                        <Button className="bg-primary hover:bg-primary/90">
-                          Upgrade Plan
-                        </Button>
-                      </Link>
-                    )}
-                    {(currentPlan === 'pro' || currentPlan === 'studio') && 
-                     subscription?.subscription?.status === 'active' && (
-                      <Button 
-                        variant="destructive" 
-                        onClick={handleCancelSubscription}
-                        disabled={isCancelling}
-                      >
-                        {isCancelling ? 'Cancelling...' : 'Cancel Subscription'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {subscription?.subscription?.status && (
-                  <div className="text-sm text-slate-400">
-                    <p>Status: <span className="text-white capitalize">{subscription.subscription.status}</span></p>
-                    {subscription.subscription.subscriptionEndDate && (
-                      <p className="mt-1">
-                        {subscription.subscription.status === 'cancelled' ? 'Access until' : 'Renews on'}: <span className="text-white">
-                          {new Date(subscription.subscription.subscriptionEndDate).toLocaleDateString()}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                <div className="pt-2 border-t border-slate-800">
-                  <Link to="/cancellation-refund" className="text-sm text-primary hover:underline">
-                    View Cancellation & Refund Policy
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Billing & Subscription */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Billing & Subscription
+              </h2>
+              <BillingDetails 
+                subscription={subscription}
+                onCancel={handleCancelSubscription}
+                onReactivate={handleReactivateSubscription}
+                loading={isCancelling}
+              />
+            </div>
 
             {/* Notification Preferences */}
             <Card className="bg-card border-slate-800">

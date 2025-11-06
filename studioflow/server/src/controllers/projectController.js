@@ -1,12 +1,20 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import Trash from '../models/Trash.js';
+import User from '../models/User.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
 });
+
+// Subscription plan limits
+const PLAN_LIMITS = {
+  free: { maxProjects: 5 },
+  pro: { maxProjects: 50 },
+  studio: { maxProjects: 100 }
+};
 
 // @desc    Create a new project
 // @route   POST /api/projects
@@ -26,6 +34,24 @@ export const createProject = async (req, res) => {
 
     if (brief && brief.length > 100) {
       return res.status(400).json({ error: 'Brief must be 100 characters or less' });
+    }
+
+    // Check subscription limits
+    const user = await User.findOne({ clerkUserId: ownerId });
+    const currentPlan = user?.subscription?.plan || 'free';
+    const maxProjects = PLAN_LIMITS[currentPlan]?.maxProjects || 5;
+    
+    // Count user's active projects
+    const projectCount = await Project.countDocuments({ ownerId });
+    
+    if (projectCount >= maxProjects) {
+      return res.status(403).json({ 
+        error: 'Project limit reached', 
+        message: `You've reached the maximum of ${maxProjects} projects for your ${currentPlan} plan. Please upgrade to create more projects.`,
+        currentPlan,
+        maxProjects,
+        currentCount: projectCount
+      });
     }
 
     // Fetch user details from Clerk

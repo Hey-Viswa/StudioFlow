@@ -4,6 +4,8 @@ import {
   createSubscription,
   verifyPayment,
   cancelSubscription,
+  upgradeSubscription,
+  reactivateSubscription,
   handleWebhook
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
@@ -15,6 +17,8 @@ router.get('/current', verifyClerk, getCurrentSubscription);
 router.post('/create', verifyClerk, createSubscription);
 router.post('/verify', verifyClerk, verifyPayment);
 router.post('/cancel', verifyClerk, cancelSubscription);
+router.post('/upgrade', verifyClerk, upgradeSubscription);
+router.post('/reactivate', verifyClerk, reactivateSubscription);
 
 // Webhook route (no auth required, but signature verified)
 router.post('/webhook', express.json({ verify: (req, res, buf) => { req.rawBody = buf } }), handleWebhook);

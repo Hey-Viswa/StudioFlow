@@ -52,31 +52,49 @@ export default function Projects() {
   const [clientFilter, setClientFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'board'
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'my', 'shared'
+  const [subscription, setSubscription] = useState(null);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-      });
+      
+      // Fetch projects and subscription in parallel
+      const [projectsResponse, subscriptionResponse] = await Promise.all([
+        fetch(`${apiUrl}/projects`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+        }),
+        fetch(`${apiUrl}/subscriptions/current`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+        })
+      ]);
 
-      if (!response.ok) {
+      if (!projectsResponse.ok) {
         throw new Error('Failed to fetch projects');
       }
 
-      const data = await response.json();
-      console.log('📊 Projects data received:', data);
-      console.log('📊 First project progress:', data.projects?.[0]?.progress);
-      setProjects(data.projects || []);
-      setMyProjects(data.myProjects || []);
-      setSharedProjects(data.sharedProjects || []);
+      const projectsData = await projectsResponse.json();
+      console.log('📊 Projects data received:', projectsData);
+      setProjects(projectsData.projects || []);
+      setMyProjects(projectsData.myProjects || []);
+      setSharedProjects(projectsData.sharedProjects || []);
+      
+      if (subscriptionResponse.ok) {
+        const subscriptionData = await subscriptionResponse.json();
+        console.log('💳 Subscription data:', subscriptionData);
+        setSubscription(subscriptionData);
+      }
     } catch (err) {
       console.error('Fetch projects error:', err);
       toast.error('Failed to load projects');
@@ -183,13 +201,38 @@ export default function Projects() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold mb-1">Projects</h1>
-          <p className="text-muted-foreground">
-            <span className="font-medium text-foreground">{activeProjects}</span> active projects
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">{activeProjects}</span> active projects
+            </p>
+            {subscription?.usage && (
+              <p className="text-sm text-muted-foreground">
+                <span className={`font-medium ${
+                  subscription.usage.projectCount >= subscription.usage.maxProjects 
+                    ? 'text-destructive' 
+                    : 'text-primary'
+                }`}>
+                  {subscription.usage.projectCount}/{subscription.usage.maxProjects}
+                </span>
+                {' '}projects used
+                {subscription.usage.projectCount >= subscription.usage.maxProjects && (
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="ml-2 h-auto p-0"
+                    onClick={() => navigate('/dashboard/subscription')}
+                  >
+                    Upgrade →
+                  </Button>
+                )}
+              </p>
+            )}
+          </div>
         </div>
         <Button 
           onClick={() => navigate('/dashboard/projects/new')} 
           className="gap-2"
+          disabled={subscription?.usage && subscription.usage.projectCount >= subscription.usage.maxProjects}
         >
           <Plus className="w-4 h-4" />
           New Project

@@ -1,6 +1,7 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Project from '../models/Project.js';
 import { createClerkClient } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
@@ -106,11 +107,18 @@ export const getCurrentSubscription = async (req, res) => {
     }
 
     const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
+    
+    // Get project count
+    const projectCount = await Project.countDocuments({ ownerId: userId });
 
     res.json({
       subscription: user.subscription,
       plan: currentPlan,
-      features: currentPlan.features
+      features: currentPlan.features,
+      usage: {
+        projectCount,
+        maxProjects: currentPlan.features.maxProjects
+      }
     });
   } catch (error) {
     console.error('Get subscription error:', error);
@@ -471,6 +479,136 @@ async function handleSubscriptionPaused(subscription) {
     console.log('⏸️ Subscription paused for:', user.email);
   }
 }
+
+// @desc    Upgrade subscription plan
+// @route   POST /api/subscriptions/upgrade
+// @access  Protected
+export const upgradeSubscription = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { targetPlan } = req.body; // 'pro' or 'studio'
+
+    if (!['pro', 'studio'].includes(targetPlan)) {
+      return res.status(400).json({ error: 'Invalid target plan' });
+    }
+
+    const user = await User.findOne({ clerkUserId: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentPlan = user.subscription.plan;
+    
+    // Check if it's actually an upgrade
+    const planHierarchy = { free: 0, pro: 1, studio: 2 };
+    if (planHierarchy[targetPlan] <= planHierarchy[currentPlan]) {
+      return res.status(400).json({ error: 'Can only upgrade to a higher plan' });
+    }
+
+    // If user is on Free, create a new subscription
+    if (currentPlan === 'free') {
+      // Just create the subscription (payment will be handled by frontend)
+      const planConfig = SUBSCRIPTION_PLANS[targetPlan];
+      const subscriptionData = {
+        plan_id: planConfig.razorpayPlanId,
+        total_count: 12, // Annual
+        customer_notify: 1
+      };
+
+      const subscription = await razorpay.subscriptions.create(subscriptionData);
+
+      res.json({
+        subscriptionId: subscription.id,
+        amount: planConfig.price,
+        currency: planConfig.currency
+      });
+      return;
+    }
+
+    // If upgrading from Pro to Studio, calculate prorated amount
+    if (currentPlan === 'pro' && targetPlan === 'studio') {
+      const currentPlanPrice = SUBSCRIPTION_PLANS.pro.price;
+      const targetPlanPrice = SUBSCRIPTION_PLANS.studio.price;
+      
+      // Get current subscription details from Razorpay
+      const currentSubscription = await razorpay.subscriptions.fetch(
+        user.subscription.razorpaySubscriptionId
+      );
+
+      // Calculate days remaining in current billing cycle
+      const currentPeriodEnd = new Date(currentSubscription.current_end * 1000);
+      const now = new Date();
+      const daysRemaining = Math.max(0, Math.ceil((currentPeriodEnd - now) / (1000 * 60 * 60 * 24)));
+      const daysInMonth = 30;
+      
+      // Calculate prorated credit
+      const proratedCredit = (currentPlanPrice / daysInMonth) * daysRemaining;
+      const upgradeAmount = targetPlanPrice - proratedCredit;
+
+      // Cancel current subscription
+      await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
+
+      // Create new subscription
+      const newSubscription = await razorpay.subscriptions.create({
+        plan_id: SUBSCRIPTION_PLANS.studio.razorpayPlanId,
+        total_count: 12,
+        customer_notify: 1
+      });
+
+      res.json({
+        subscriptionId: newSubscription.id,
+        amount: Math.max(1, Math.round(upgradeAmount)), // Minimum ₹1
+        currency: 'INR',
+        prorated: true,
+        proratedCredit: Math.round(proratedCredit),
+        daysRemaining
+      });
+    }
+  } catch (error) {
+    console.error('Upgrade subscription error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upgrade subscription',
+      details: error.message 
+    });
+  }
+};
+
+// @desc    Reactivate cancelled subscription
+// @route   POST /api/subscriptions/reactivate
+// @access  Protected
+export const reactivateSubscription = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { plan } = req.body; // 'pro' or 'studio'
+
+    if (!['pro', 'studio'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan' });
+    }
+
+    const user = await User.findOne({ clerkUserId: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const planConfig = SUBSCRIPTION_PLANS[plan];
+    const subscriptionData = {
+      plan_id: planConfig.razorpayPlanId,
+      total_count: 12,
+      customer_notify: 1
+    };
+
+    const subscription = await razorpay.subscriptions.create(subscriptionData);
+
+    res.json({
+      subscriptionId: subscription.id,
+      amount: planConfig.price,
+      currency: planConfig.currency
+    });
+  } catch (error) {
+    console.error('Reactivate subscription error:', error);
+    res.status(500).json({ error: 'Failed to reactivate subscription' });
+  }
+};
 
 // Export plans for use in other controllers
 export { SUBSCRIPTION_PLANS };
