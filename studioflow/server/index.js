@@ -25,14 +25,27 @@ const allowedOrigins = (process.env.CLERK_ALLOWED_ORIGINS || 'http://localhost:5
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+// Add Vercel domain to allowed origins
+if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin && process.env.NODE_ENV === 'production') {
-            return callback(new Error('Origin header required'));
+        // Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin) {
+            return callback(null, true);
         }
+        
         if (allowedOrigins.includes(origin)) return callback(null, true);
+        
+        // Allow Vercel preview deployments
+        if (origin.includes('.vercel.app')) {
+            return callback(null, true);
+        }
+        
         if (process.env.NODE_ENV !== 'production') {
-            if (!origin || origin.includes('localhost') || origin.includes('github.dev') || origin.includes('app.github.dev')) {
+            if (origin.includes('localhost') || origin.includes('github.dev') || origin.includes('app.github.dev')) {
                 return callback(null, true);
             }
         }
