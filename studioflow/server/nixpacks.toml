@@ -1,11 +1,10 @@
-[providers]
-node = "20"
+providers = ["node"]
 
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd studioflow/server && npm ci"]
+cmds = ["npm ci"]
 
 [start]
-cmd = "cd studioflow/server && npm start"
+cmd = "npm start"
