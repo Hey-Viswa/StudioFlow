@@ -152,23 +152,59 @@ export default function Subscription() {
       }
 
       const { subscriptionId, amount, currency } = await response.json();
-      console.log('Subscription created:', subscriptionId);
+      console.log('✅ Subscription created successfully:', subscriptionId);
 
       // Check if Razorpay key is configured
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      console.log('🔑 Razorpay Key check:', razorpayKey ? 'Found' : 'Missing');
+      console.log('🔑 Full env check:', import.meta.env);
+      
       if (!razorpayKey) {
+        console.error('❌ VITE_RAZORPAY_KEY_ID is missing');
         toast.error('Payment gateway not configured');
         setProcessingPlan(null);
         return;
       }
 
-      // Initialize Razorpay
+      console.log('💳 Initializing Razorpay with subscription:', subscriptionId);
+      
+      // Initialize Razorpay with all payment methods
       const options = {
         key: razorpayKey,
         subscription_id: subscriptionId,
         name: 'StudioFlow',
         description: `${planId.toUpperCase()} Plan Subscription`,
         currency: currency,
+        
+        // Enable all payment methods
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: 'All payment methods',
+                instruments: [
+                  {
+                    method: 'upi'
+                  },
+                  {
+                    method: 'card'
+                  },
+                  {
+                    method: 'netbanking'
+                  },
+                  {
+                    method: 'wallet'
+                  }
+                ]
+              }
+            },
+            sequence: ['block.banks'],
+            preferences: {
+              show_default_blocks: true
+            }
+          }
+        },
+        
         handler: async function (response) {
           try {
             console.log('Payment successful, verifying...');
