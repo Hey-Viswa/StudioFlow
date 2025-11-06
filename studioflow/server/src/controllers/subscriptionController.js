@@ -505,46 +505,55 @@ export const cancelSubscription = async (req, res) => {
     }
 
     // Cancel Razorpay subscription
+    let razorpayCancelSuccess = false;
     try {
       await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
       console.log('✓ Razorpay subscription cancelled');
+      razorpayCancelSuccess = true;
     } catch (cancelError) {
       console.error('❌ Failed to cancel Razorpay subscription:', cancelError.message);
       // Continue anyway to update local status
     }
 
     // Generate invoice for cancellation
-    const invoice = await Invoice.create({
-      userId: userId,
-      subscriptionId: user.subscription.razorpaySubscriptionId,
-      planId: user.subscription.plan,
-      planName: SUBSCRIPTION_PLANS[user.subscription.plan]?.name || 'Unknown',
-      amount: -refundAmount, // Negative for refund
-      currency: 'INR',
-      type: 'refund',
-      status: refundStatus === 'processed' ? 'refunded' : 'pending',
-      razorpayPaymentId: user.subscription.razorpayPaymentId,
-      razorpayRefundId: refundId,
-      billingPeriodStart: subscriptionStart,
-      billingPeriodEnd: subscriptionEnd,
-      description: `Refund for ${SUBSCRIPTION_PLANS[user.subscription.plan]?.name} plan cancellation`,
-      metadata: {
-        prorated: true,
-        unusedDays: unusedDays,
-        totalDays: totalDays,
-        refundReason: 'User requested cancellation'
-      }
-    });
-
-    console.log('✓ Invoice generated:', invoice.invoiceNumber);
+    let invoice = null;
+    try {
+      invoice = await Invoice.create({
+        userId: userId,
+        subscriptionId: user.subscription.razorpaySubscriptionId,
+        planId: user.subscription.plan,
+        planName: SUBSCRIPTION_PLANS[user.subscription.plan]?.name || 'Unknown',
+        amount: -refundAmount, // Negative for refund
+        currency: 'INR',
+        type: 'refund',
+        status: refundStatus === 'processed' ? 'refunded' : 'pending',
+        razorpayPaymentId: user.subscription.razorpayPaymentId,
+        razorpayRefundId: refundId,
+        billingPeriodStart: subscriptionStart,
+        billingPeriodEnd: subscriptionEnd,
+        description: `Refund for ${SUBSCRIPTION_PLANS[user.subscription.plan]?.name} plan cancellation`,
+        metadata: {
+          prorated: true,
+          unusedDays: unusedDays,
+          totalDays: totalDays,
+          refundReason: 'User requested cancellation'
+        }
+      });
+      console.log('✓ Invoice generated:', invoice.invoiceNumber);
+    } catch (invoiceError) {
+      console.error('⚠️  Failed to create invoice:', invoiceError.message);
+      // Continue even if invoice creation fails
+    }
 
     // Update user subscription status
     user.subscription.status = 'cancelled';
     user.subscription.autoRenew = false;
-    // Keep the plan active until the end date
+    // Keep the current plan active until the end date
+    // The subscription checker will downgrade to free when subscriptionEndDate passes
     await user.save();
 
     console.log('✓ User subscription updated to cancelled');
+    console.log('  Current plan:', user.subscription.plan, '(will remain until end date)');
     console.log('  Access until:', subscriptionEnd.toISOString());
     console.log('=== CANCELLATION SUCCESS ===');
 
@@ -558,16 +567,19 @@ export const cancelSubscription = async (req, res) => {
         unusedDays: unusedDays,
         totalDays: totalDays
       },
-      invoice: {
+      invoice: invoice ? {
         invoiceNumber: invoice.invoiceNumber,
         amount: refundAmount,
         status: invoice.status
-      },
+      } : null,
       accessUntil: subscriptionEnd
     });
   } catch (error) {
     console.error('❌ Cancel subscription error:', error);
-    res.status(500).json({ error: 'Failed to cancel subscription' });
+    res.status(500).json({ 
+      error: 'Failed to cancel subscription',
+      details: error.message 
+    });
   }
 };
 
@@ -664,10 +676,12 @@ async function handleSubscriptionCancelled(subscription) {
 
   if (user) {
     user.subscription.status = 'cancelled';
-    // Downgrade to free plan after current period ends
-    user.subscription.plan = 'free';
+    user.subscription.autoRenew = false;
+    // DON'T downgrade to free immediately - let them use until end date
+    // The subscription checker job will downgrade when subscriptionEndDate passes
     await user.save();
     console.log('❌ Subscription cancelled for:', user.email);
+    console.log('   Will retain access until:', user.subscription.subscriptionEndDate);
   }
 }
 
