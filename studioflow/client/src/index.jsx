@@ -9,6 +9,7 @@ import reportWebVitals from './reportWebVitals';
 // Initialize Sentry FIRST (before React renders)
 initSentry();
 
+// Production Clerk Configuration
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 if (!PUBLISHABLE_KEY) {
