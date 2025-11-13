@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Loader2, Send, Trash2 } from 'lucide-react';
+import { useProjectSocket } from '../hooks/useSocket';
 
 export default function CommentsTab({ projectId, project }) {
   const { getToken } = useAuth();
@@ -14,27 +15,25 @@ export default function CommentsTab({ projectId, project }) {
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Socket.IO callbacks for real-time updates
+  const handleCommentAdded = useCallback((data) => {
+    console.log('🔔 Real-time comment received:', data);
+    setComments(prev => [...prev, data.comment]);
+  }, []);
+
+  const handleCommentDeleted = useCallback((data) => {
+    console.log('🗑️  Real-time comment deleted:', data);
+    setComments(prev => prev.filter(c => c._id !== data.commentId));
+  }, []);
+
+  // Connect to Socket.IO for real-time updates
+  useProjectSocket(projectId, {
+    onCommentAdded: handleCommentAdded,
+    onCommentDeleted: handleCommentDeleted
+  });
+
   useEffect(() => {
     fetchComments();
-    // Poll for new comments every 30 seconds (only when tab is visible)
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchComments();
-      }
-    }, 30000); // Changed from 5s to 30s
-    
-    // Fetch when tab becomes visible
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchComments();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, [projectId]);
 
   const fetchComments = async () => {
@@ -67,6 +66,20 @@ export default function CommentsTab({ projectId, project }) {
       return;
     }
 
+    // Optimistic UI update
+    const optimisticComment = {
+      _id: `temp-${Date.now()}`,
+      text: newComment.trim(),
+      userId: user?.id,
+      userName: user?.fullName || user?.firstName || 'You',
+      userEmail: user?.primaryEmailAddress?.emailAddress,
+      createdAt: new Date().toISOString(),
+      isOptimistic: true
+    };
+
+    setComments(prev => [...prev, optimisticComment]);
+    setNewComment('');
+
     setSubmitting(true);
     try {
       const token = await getToken();
@@ -78,17 +91,24 @@ export default function CommentsTab({ projectId, project }) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ text: newComment.trim() })
+        body: JSON.stringify({ text: optimisticComment.text })
       });
 
       if (!response.ok) throw new Error('Failed to create comment');
       
       const data = await response.json();
-      setComments([...comments, data.comment]);
-      setNewComment('');
+      
+      // Replace optimistic comment with real one
+      setComments(prev => prev.map(c => 
+        c._id === optimisticComment._id ? data.comment : c
+      ));
+      
       toast.success('Comment added!');
     } catch (error) {
       console.error('Create comment error:', error);
+      // Remove optimistic comment on error
+      setComments(prev => prev.filter(c => c._id !== optimisticComment._id));
+      setNewComment(optimisticComment.text); // Restore text
       toast.error('Failed to add comment');
     } finally {
       setSubmitting(false);

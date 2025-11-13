@@ -53,13 +53,24 @@ export default function ContactUs() {
     setLoading(true);
 
     try {
-      // TODO: Integrate with Resend or your email service
-      // For now, simulate submission
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message');
+      }
       
-      console.log('Contact form submitted:', formData);
+      console.log('Contact form submitted successfully');
       setSubmitted(true);
-      toast.success('Message sent successfully!');
+      toast.success(data.message || 'Message sent successfully!');
       
       // Reset form after 3 seconds
       setTimeout(() => {
@@ -68,7 +79,7 @@ export default function ContactUs() {
       }, 3000);
     } catch (error) {
       console.error('Error submitting form:', error);
-      toast.error('Failed to send message. Please try again.');
+      toast.error(error.message || 'Failed to send message. Please try again.');
     } finally {
       setLoading(false);
     }

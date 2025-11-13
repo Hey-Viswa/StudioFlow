@@ -147,6 +147,16 @@ export const createTask = async (req, res) => {
 
     const createdTask = project.tasks[project.tasks.length - 1];
 
+    // Emit Socket.IO event for real-time updates
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('task-added', {
+        task: createdTask,
+        projectId,
+        progress: project.progress
+      });
+    }
+
     res.status(201).json({ 
       message: 'Task created successfully',
       task: createdTask,
@@ -204,6 +214,16 @@ export const updateTask = async (req, res) => {
     // Clear cache for all members
     clearProjectMembersCache(project);
 
+    // Emit Socket.IO event for real-time updates
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('task-updated', {
+        task,
+        projectId,
+        progress: project.progress
+      });
+    }
+
     res.json({ 
       message: 'Task updated successfully',
       task,
@@ -240,6 +260,16 @@ export const deleteTask = async (req, res) => {
 
     // Clear cache for all members
     clearProjectMembersCache(project);
+
+    // Emit Socket.IO event for real-time updates
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('task-deleted', {
+        taskId,
+        projectId,
+        progress: project.progress
+      });
+    }
 
     res.json({ 
       message: 'Task deleted successfully',
@@ -457,6 +487,16 @@ export const deleteComment = async (req, res) => {
 
     // Clear cache for all members
     clearProjectMembersCache(project);
+
+    // Emit Socket.IO event for real-time updates
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('comment-deleted', {
+        commentId,
+        projectId,
+        deletedBy: userId
+      });
+    }
 
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {

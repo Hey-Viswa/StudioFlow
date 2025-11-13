@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -22,6 +22,7 @@ import {
   Trash2,
   Calendar as CalendarIcon
 } from 'lucide-react';
+import { useProjectSocket } from '../hooks/useSocket';
 
 export default function TasksTab({ projectId, project }) {
   const { getToken } = useAuth();
@@ -41,6 +42,35 @@ export default function TasksTab({ projectId, project }) {
     assignedTo: null,
     dueDate: '',
     status: 'pending'
+  });
+
+  // Socket.IO callbacks for real-time task updates
+  const handleTaskAdded = useCallback((data) => {
+    console.log('🔔 Real-time task added:', data);
+    setTasks(prev => [...prev, data.task]);
+    // Recalculate stats
+    fetchTasks();
+  }, []);
+
+  const handleTaskUpdated = useCallback((data) => {
+    console.log('🔄 Real-time task updated:', data);
+    setTasks(prev => prev.map(t => t._id === data.task._id ? data.task : t));
+    // Recalculate stats
+    fetchTasks();
+  }, []);
+
+  const handleTaskDeleted = useCallback((data) => {
+    console.log('🗑️  Real-time task deleted:', data);
+    setTasks(prev => prev.filter(t => t._id !== data.taskId));
+    // Recalculate stats
+    fetchTasks();
+  }, []);
+
+  // Connect to Socket.IO
+  useProjectSocket(projectId, {
+    onTaskAdded: handleTaskAdded,
+    onTaskUpdated: handleTaskUpdated,
+    onTaskDeleted: handleTaskDeleted
   });
 
   useEffect(() => {

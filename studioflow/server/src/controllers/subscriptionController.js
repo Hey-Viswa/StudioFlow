@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import Project from '../models/Project.js';
 import Invoice from '../models/Invoice.js';
 import { createClerkClient } from '@clerk/backend';
+import { generateInvoicePDF, getInvoicePDFPath } from '../utils/pdfGenerator.js';
+import { sendInvoiceEmail } from '../utils/emailService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -383,7 +385,7 @@ export const verifyPayment = async (req, res) => {
     console.log('  Start:', user.subscription.subscriptionStartDate);
     console.log('  End:', user.subscription.subscriptionEndDate);
 
-    // Create invoice for successful payment
+    // Create invoice for successful payment with PDF generation
     const planConfig = SUBSCRIPTION_PLANS[planId];
     if (planConfig) {
       try {
@@ -401,10 +403,18 @@ export const verifyPayment = async (req, res) => {
           billingPeriodEnd: user.subscription.subscriptionEndDate,
           description: `${planConfig.name} plan subscription payment`,
           metadata: {
-            prorated: false
+            prorated: false,
+            userEmail: user.email,
+            userName: user.name
           }
         });
         console.log('✓ Invoice created:', invoice.invoiceNumber);
+
+        // Generate PDF and send email asynchronously
+        generateInvoiceWithPDF(invoice, user).catch(err => {
+          console.error('⚠️  Background invoice PDF generation failed:', err.message);
+        });
+
       } catch (invoiceError) {
         console.error('⚠️  Failed to create invoice:', invoiceError.message);
         // Don't fail the payment verification if invoice creation fails
@@ -422,6 +432,48 @@ export const verifyPayment = async (req, res) => {
     res.status(500).json({ error: 'Failed to verify payment' });
   }
 };
+
+// Helper function to generate invoice PDF and send email
+async function generateInvoiceWithPDF(invoice, user) {
+  try {
+    console.log(`📄 Generating PDF for invoice ${invoice.invoiceNumber}...`);
+    
+    // Generate PDF
+    const pdfPath = await generateInvoicePDF(invoice, user);
+    
+    // Update invoice with PDF path
+    invoice.pdfUrl = `/api/invoices/${invoice.invoiceNumber}/download`;
+    invoice.pdfGenerated = true;
+    await invoice.save();
+    
+    console.log(`✅ PDF generated and saved for ${invoice.invoiceNumber}`);
+    
+    // Send email with PDF attachment if user has email
+    if (user.email) {
+      console.log(`📧 Sending invoice email to ${user.email}...`);
+      const emailResult = await sendInvoiceEmail({
+        to: user.email,
+        userName: user.name || 'Customer',
+        invoice: invoice,
+        pdfPath: pdfPath
+      });
+      
+      if (emailResult.success) {
+        invoice.emailSent = true;
+        invoice.emailSentAt = new Date();
+        await invoice.save();
+        console.log(`✅ Invoice email sent successfully`);
+      } else {
+        console.error(`⚠️  Failed to send invoice email:`, emailResult.error);
+      }
+    } else {
+      console.log(`⚠️  No email address for user, skipping email`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ Error in generateInvoiceWithPDF:`, error);
+  }
+}
 
 // @desc    Cancel subscription with refund
 // @route   POST /api/subscriptions/cancel
@@ -464,133 +516,84 @@ export const cancelSubscription = async (req, res) => {
     const planPrice = SUBSCRIPTION_PLANS[user.subscription.plan]?.price || 0;
     const refundAmount = Math.round((planPrice * unusedDays / totalDays) * 100) / 100;
 
-    console.log(`[${timestamp}] 📊 Refund Calculation:`);
+    console.log(`[${timestamp}] 📊 Cancellation Details:`);
     console.log(`[${timestamp}]   Total days:`, totalDays);
     console.log(`[${timestamp}]   Unused days:`, unusedDays);
     console.log(`[${timestamp}]   Plan price: ₹`, planPrice);
-    console.log(`[${timestamp}]   Refund amount: ₹`, refundAmount);
+    console.log(`[${timestamp}]   Access until:`, subscriptionEnd.toISOString());
 
-    let refundId = null;
-    let refundStatus = 'pending';
-
-    // Process refund only if there's a valid payment and refund amount
-    if (user.subscription.razorpayPaymentId && refundAmount > 0) {
-      try {
-        console.log(`[${timestamp}] 💰 Initiating refund...`);
-        
-        // Create refund in Razorpay
-        const refund = await razorpay.payments.refund(
-          user.subscription.razorpayPaymentId,
-          {
-            amount: Math.round(refundAmount * 100), // Convert to paise
-            speed: 'normal', // 'normal' or 'optimum'
-            notes: {
-              reason: reason || 'Subscription cancellation',
-              userId: userId,
-              unusedDays: unusedDays,
-              totalDays: totalDays
-            }
-          }
-        );
-
-        refundId = refund.id;
-        refundStatus = refund.status; // 'processed', 'pending', or 'failed'
-        
-        console.log(`[${timestamp}] ✓ Refund created:`, refundId);
-        console.log(`[${timestamp}]   Status:`, refundStatus);
-        console.log(`[${timestamp}]   Amount: ₹`, refundAmount);
-      } catch (refundError) {
-        console.error(`[${timestamp}] ❌ Refund failed:`, refundError.message);
-        // Continue with cancellation even if refund fails
-        refundStatus = 'failed';
-      }
-    } else {
-      console.log(`[${timestamp}] ⚠️  No refund initiated (no payment ID or zero refund amount)`);
-    }
-
-    // Cancel Razorpay subscription
+    // Cancel Razorpay subscription at period end (no immediate refund)
     let razorpayCancelSuccess = false;
     try {
-      const cancelledSub = await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
-      console.log(`[${timestamp}] ✓ Razorpay subscription cancelled`);
+      const cancelledSub = await razorpay.subscriptions.cancel(
+        user.subscription.razorpaySubscriptionId,
+        { cancel_at_cycle_end: 1 } // Cancel at end of billing cycle, not immediately
+      );
+      console.log(`[${timestamp}] ✓ Razorpay subscription set to cancel at period end`);
       console.log(`[${timestamp}]   Razorpay status:`, cancelledSub.status);
+      console.log(`[${timestamp}]   Ends at:`, new Date(cancelledSub.current_end * 1000).toISOString());
       razorpayCancelSuccess = true;
     } catch (cancelError) {
       console.error(`[${timestamp}] ❌ Failed to cancel Razorpay subscription:`, cancelError.message);
       // Continue anyway to update local status
     }
 
-    // Generate invoice for cancellation
-    let invoice = null;
-    try {
-      invoice = await Invoice.create({
-        userId: userId,
-        subscriptionId: user.subscription.razorpaySubscriptionId,
-        planId: user.subscription.plan,
-        planName: SUBSCRIPTION_PLANS[user.subscription.plan]?.name || 'Unknown',
-        amount: -refundAmount, // Negative for refund
-        currency: 'INR',
-        type: 'refund',
-        status: refundStatus === 'processed' ? 'refunded' : 'pending',
-        razorpayPaymentId: user.subscription.razorpayPaymentId,
-        razorpayRefundId: refundId,
-        billingPeriodStart: subscriptionStart,
-        billingPeriodEnd: subscriptionEnd,
-        description: `Refund for ${SUBSCRIPTION_PLANS[user.subscription.plan]?.name} plan cancellation`,
-        metadata: {
-          prorated: true,
-          unusedDays: unusedDays,
-          totalDays: totalDays,
-          refundReason: reason || 'User requested cancellation',
-          razorpayCancelSuccess: razorpayCancelSuccess
-        }
-      });
-      console.log(`[${timestamp}] ✓ Invoice generated:`, invoice.invoiceNumber);
-    } catch (invoiceError) {
-      console.error(`[${timestamp}] ⚠️  Failed to create invoice:`, invoiceError.message);
-      // Continue even if invoice creation fails
-    }
-
-    // Update user subscription status with all new fields
+    // Update user subscription status - keep active until end of period
     const previousStatus = user.subscription.status;
-    user.subscription.status = 'cancelled';
+    const previousPlan = user.subscription.plan;
+    
+    // Mark as cancelled but keep plan active until end date
+    user.subscription.status = 'cancelled'; // Status is cancelled
+    // DO NOT change plan yet - keep current plan until subscriptionEndDate
     user.subscription.lastStatusChange = now;
     user.subscription.cancelledAt = now;
     user.subscription.cancelReason = reason || 'User requested cancellation';
-    user.subscription.autoRenew = false;
-    // Keep the current plan active until the end date
-    // The subscription checker will downgrade to free when subscriptionEndDate passes
+    user.subscription.autoRenew = false; // Turn off auto-renewal
+    // subscriptionEndDate remains the same - user keeps access until then
+    
     await user.save();
 
-    console.log(`[${timestamp}] ✓ User subscription updated:`);
-    console.log(`[${timestamp}]   Status: ${previousStatus} → cancelled`);
-    console.log(`[${timestamp}]   Cancelled at:`, now.toISOString());
-    console.log(`[${timestamp}]   Current plan: ${user.subscription.plan} (will remain until end date)`);
-    console.log(`[${timestamp}]   Access until:`, subscriptionEnd.toISOString());
+    console.log(`[${timestamp}] ✓ Subscription marked as cancelled`);
+    console.log(`[${timestamp}]   Plan remains: ${user.subscription.plan} (until ${subscriptionEnd.toLocaleDateString()})`);
+    console.log(`[${timestamp}]   Status: ${user.subscription.status}`);
+    console.log(`[${timestamp}]   Auto-renew: ${user.subscription.autoRenew}`);
+
+    // Send cancellation confirmation email (optional)
+    try {
+      // You can add email notification here if needed
+      console.log(`[${timestamp}] 📧 Cancellation confirmation would be sent to ${user.email}`);
+    } catch (emailError) {
+      console.error(`[${timestamp}] ⚠️  Failed to send cancellation email:`, emailError.message);
+    }
+
     console.log(`[${timestamp}] === CANCELLATION SUCCESS ===`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → cancelled`);
+    console.log(`[${timestamp}]   Plan: ${previousPlan} (REMAINS ACTIVE until ${subscriptionEnd.toLocaleDateString()})`);
+    console.log(`[${timestamp}]   Cancelled at:`, now.toISOString());
+    console.log(`[${timestamp}]   Access until:`, subscriptionEnd.toISOString());
+    console.log(`[${timestamp}]   Auto-renew: disabled`);
+    console.log(`[${timestamp}] === NO REFUND - USER KEEPS ACCESS UNTIL PERIOD END ===`);
 
     res.json({
-      message: 'Subscription cancelled successfully',
+      message: 'Subscription cancelled successfully. You will retain access to your current plan until the end of your billing period.',
       subscription: {
-        plan: user.subscription.plan,
-        status: user.subscription.status,
+        plan: user.subscription.plan, // Remains current plan
+        status: user.subscription.status, // cancelled
         cancelledAt: user.subscription.cancelledAt,
-        subscriptionEndDate: user.subscription.subscriptionEndDate,
-        autoRenew: user.subscription.autoRenew
+        accessUntil: user.subscription.subscriptionEndDate,
+        autoRenew: user.subscription.autoRenew, // false
+        willDowngradeTo: 'free',
+        downgradeDate: user.subscription.subscriptionEndDate
       },
-      refund: {
-        amount: refundAmount,
-        status: refundStatus,
-        refundId: refundId,
-        unusedDays: unusedDays,
-        totalDays: totalDays
+      accessInfo: {
+        keepsAccess: true,
+        accessUntil: user.subscription.subscriptionEndDate,
+        message: `You can continue using ${SUBSCRIPTION_PLANS[user.subscription.plan]?.name} plan features until ${subscriptionEnd.toLocaleDateString()}`
       },
-      invoice: invoice ? {
-        invoiceNumber: invoice.invoiceNumber,
-        amount: refundAmount,
-        status: invoice.status
-      } : null,
-      accessUntil: subscriptionEnd
+      refundInfo: {
+        refundIssued: false,
+        reason: 'You will have access to your subscription until the end of the billing period'
+      }
     });
   } catch (error) {
     const timestamp = new Date().toISOString();
@@ -745,22 +748,50 @@ async function handleSubscriptionCancelled(subscription, timestamp) {
 
   if (user) {
     const previousStatus = user.subscription.status;
+    const previousPlan = user.subscription.plan;
     
+    // IMMEDIATELY downgrade to free plan
+    user.subscription.plan = 'free';
     user.subscription.status = 'cancelled';
     user.subscription.lastStatusChange = new Date();
     user.subscription.cancelledAt = new Date();
     user.subscription.autoRenew = false;
     user.subscription.cancelReason = user.subscription.cancelReason || 'Cancelled via Razorpay webhook';
     
-    // DON'T downgrade to free immediately - let them use until end date
-    // The subscription checker job will downgrade when subscriptionEndDate passes
+    // Clear Razorpay IDs
+    user.subscription.razorpaySubscriptionId = null;
+    user.subscription.razorpayPaymentId = null;
+    user.subscription.razorpayOrderId = null;
+    
     await user.save();
+    
+    // Archive projects beyond free limit
+    try {
+      const FREE_PLAN_LIMIT = 5;
+      const activeProjects = await Project.find({ 
+        ownerId: user.clerkUserId, 
+        status: { $ne: 'archived' } 
+      }).sort({ createdAt: -1 });
+
+      if (activeProjects.length > FREE_PLAN_LIMIT) {
+        const projectsToArchive = activeProjects.slice(FREE_PLAN_LIMIT);
+        
+        for (const project of projectsToArchive) {
+          project.status = 'archived';
+          await project.save();
+        }
+        
+        console.log(`[${timestamp}]   → Archived ${projectsToArchive.length} project(s)`);
+      }
+    } catch (error) {
+      console.error(`[${timestamp}]   ⚠️  Failed to archive projects:`, error.message);
+    }
     
     console.log(`[${timestamp}] ✅ Subscription cancelled`);
     console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
     console.log(`[${timestamp}]   Status: ${previousStatus} → cancelled`);
-    console.log(`[${timestamp}]   Plan: ${user.subscription.plan} (retained until end date)`);
-    console.log(`[${timestamp}]   Access until: ${user.subscription.subscriptionEndDate?.toISOString()}`);
+    console.log(`[${timestamp}]   Plan: ${previousPlan} → free (immediate downgrade)`);
+    console.log(`[${timestamp}]   Pro features: REVOKED`);
   } else {
     console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
   }
@@ -1283,6 +1314,244 @@ export const verifySubscriptionStatus = async (req, res) => {
     console.error(`[${timestamp}] ❌ Verify subscription error:`, error);
     res.status(500).json({ 
       error: 'Failed to verify subscription',
+      details: error.message 
+    });
+  }
+};
+
+// @desc    Upgrade or downgrade subscription
+// @route   POST /api/subscriptions/change-plan
+// @access  Protected
+export const changePlan = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { newPlan } = req.body; // 'pro' or 'studio'
+
+    console.log(`🔄 Processing plan change to ${newPlan} for user: ${userId}`);
+
+    if (!['pro', 'studio'].includes(newPlan)) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+
+    const user = await User.findOne({ clerkUserId: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
+    const targetPlan = SUBSCRIPTION_PLANS[newPlan];
+
+    // Check if user already has this plan
+    if (user.subscription.plan === newPlan) {
+      return res.status(400).json({ error: 'You are already on this plan' });
+    }
+
+    const isUpgrade = targetPlan.price > currentPlan.price;
+    const isDowngrade = targetPlan.price < currentPlan.price;
+
+    // Get Clerk user for invoice
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+    const userName = `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'User';
+
+    // CASE 1: Upgrade from free (no active Razorpay subscription)
+    if (currentPlan.id === 'free') {
+      const options = {
+        plan_id: targetPlan.razorpayPlanId,
+        total_count: 12, // 12 monthly cycles
+        customer_notify: 1,
+        notes: {
+          userId: user._id.toString(),
+          clerkUserId: userId,
+          email: userEmail,
+          plan: newPlan
+        }
+      };
+
+      const subscription = await razorpay.subscriptions.create(options);
+
+      user.subscription.plan = newPlan;
+      user.subscription.status = 'created';
+      user.subscription.razorpaySubscriptionId = subscription.id;
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: 'Please complete payment to activate your subscription',
+        subscription: {
+          id: subscription.id,
+          shortUrl: subscription.short_url,
+          status: subscription.status
+        },
+        redirectUrl: subscription.short_url
+      });
+    }
+
+    // CASE 2: Upgrade/Downgrade with existing subscription
+    if (!user.subscription.razorpaySubscriptionId) {
+      return res.status(400).json({ error: 'No active subscription found' });
+    }
+
+    // Fetch current subscription from Razorpay
+    const currentSubscription = await razorpay.subscriptions.fetch(
+      user.subscription.razorpaySubscriptionId
+    );
+
+    if (currentSubscription.status !== 'active') {
+      return res.status(400).json({ 
+        error: 'Can only change plans for active subscriptions' 
+      });
+    }
+
+    // Calculate proration
+    const now = Date.now();
+    const periodStart = currentSubscription.current_start * 1000;
+    const periodEnd = currentSubscription.current_end * 1000;
+    const totalDays = Math.ceil((periodEnd - periodStart) / (1000 * 60 * 60 * 24));
+    const usedDays = Math.ceil((now - periodStart) / (1000 * 60 * 60 * 24));
+    const remainingDays = Math.max(0, totalDays - usedDays);
+
+    const proratedRefund = (currentPlan.price / totalDays) * remainingDays;
+    const proratedCharge = (targetPlan.price / totalDays) * remainingDays;
+    const amountDifference = proratedCharge - proratedRefund;
+
+    console.log(`💰 Proration calculation:`);
+    console.log(`   Total days: ${totalDays}, Used: ${usedDays}, Remaining: ${remainingDays}`);
+    console.log(`   Current plan refund: ₹${proratedRefund.toFixed(2)}`);
+    console.log(`   New plan charge: ₹${proratedCharge.toFixed(2)}`);
+    console.log(`   Amount difference: ₹${amountDifference.toFixed(2)}`);
+
+    if (isUpgrade) {
+      // UPGRADE: Cancel current, create new subscription, charge difference
+      
+      // Cancel current subscription
+      await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
+
+      // Create new subscription
+      const newSubscription = await razorpay.subscriptions.create({
+        plan_id: targetPlan.razorpayPlanId,
+        total_count: 12,
+        customer_notify: 1,
+        start_at: Math.floor(Date.now() / 1000), // Start immediately
+        notes: {
+          userId: user._id.toString(),
+          clerkUserId: userId,
+          email: userEmail,
+          plan: newPlan,
+          upgradeFrom: currentPlan.id,
+          prorated: true
+        }
+      });
+
+      // Create upgrade invoice
+      const upgradeInvoice = new Invoice({
+        invoiceNumber: `INV-${Date.now()}-UPGRADE`,
+        userId: user._id,
+        userEmail,
+        userName,
+        type: 'upgrade',
+        amount: Math.max(0, amountDifference),
+        status: 'paid',
+        description: `Upgrade from ${currentPlan.name} to ${targetPlan.name}`,
+        items: [
+          {
+            description: `${currentPlan.name} Plan - Prorated refund (${remainingDays}/${totalDays} days)`,
+            amount: -proratedRefund
+          },
+          {
+            description: `${targetPlan.name} Plan - Prorated charge (${remainingDays}/${totalDays} days)`,
+            amount: proratedCharge
+          }
+        ],
+        metadata: {
+          oldPlan: currentPlan.id,
+          newPlan: newPlan,
+          prorated: true,
+          usedDays,
+          remainingDays,
+          totalDays,
+          razorpaySubscriptionId: newSubscription.id
+        }
+      });
+
+      await upgradeInvoice.save();
+
+      // Generate PDF and send email asynchronously
+      setImmediate(async () => {
+        try {
+          await generateInvoicePDF(upgradeInvoice, { email: userEmail, name: userName });
+          upgradeInvoice.pdfGenerated = true;
+          upgradeInvoice.pdfUrl = getInvoicePDFPath(upgradeInvoice.invoiceNumber);
+          await upgradeInvoice.save();
+
+          await sendInvoiceEmail({
+            to: userEmail,
+            userName,
+            invoice: upgradeInvoice,
+            pdfPath: upgradeInvoice.pdfUrl
+          });
+          upgradeInvoice.emailSent = true;
+          upgradeInvoice.emailSentAt = new Date();
+          await upgradeInvoice.save();
+        } catch (err) {
+          console.error('Error generating upgrade invoice PDF/email:', err);
+        }
+      });
+
+      user.subscription.plan = newPlan;
+      user.subscription.razorpaySubscriptionId = newSubscription.id;
+      user.subscription.status = newSubscription.status;
+      user.subscription.lastStatusChange = new Date();
+      await user.save();
+
+      console.log(`✅ Upgraded from ${currentPlan.name} to ${targetPlan.name}`);
+
+      return res.json({
+        success: true,
+        message: `Successfully upgraded to ${targetPlan.name}`,
+        subscription: {
+          plan: newPlan,
+          status: newSubscription.status,
+          prorated: {
+            amountCharged: Math.max(0, amountDifference),
+            usedDays,
+            remainingDays,
+            totalDays
+          }
+        },
+        invoice: {
+          invoiceNumber: upgradeInvoice.invoiceNumber,
+          amount: upgradeInvoice.amount
+        }
+      });
+
+    } else if (isDowngrade) {
+      // DOWNGRADE: Schedule change for end of current period
+      
+      user.subscription.plan = newPlan;
+      user.subscription.status = 'scheduled_downgrade';
+      user.subscription.nextBillingDate = new Date(periodEnd);
+      user.subscription.lastStatusChange = new Date();
+      await user.save();
+
+      console.log(`✅ Downgrade to ${targetPlan.name} scheduled for ${new Date(periodEnd).toLocaleDateString()}`);
+
+      return res.json({
+        success: true,
+        message: `Downgrade to ${targetPlan.name} scheduled`,
+        subscription: {
+          plan: newPlan,
+          effectiveDate: new Date(periodEnd),
+          currentPlanExpiresOn: new Date(periodEnd),
+          refund: proratedRefund
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Change plan error:', error);
+    res.status(500).json({ 
+      error: 'Failed to change plan', 
       details: error.message 
     });
   }

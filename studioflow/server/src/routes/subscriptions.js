@@ -9,7 +9,8 @@ import {
   getInvoices,
   getBillingHistory,
   handleWebhook,
-  verifySubscriptionStatus
+  verifySubscriptionStatus,
+  changePlan
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import User from '../models/User.js';
@@ -75,6 +76,7 @@ router.post('/verify', verifyClerk, verifyPayment);
 router.post('/cancel', verifyClerk, cancelSubscription);
 router.post('/upgrade', verifyClerk, upgradeSubscription);
 router.post('/reactivate', verifyClerk, reactivateSubscription);
+router.post('/change-plan', verifyClerk, changePlan);
 router.post('/verify-status', verifyClerk, verifySubscriptionStatus);
 
 // Webhook route (no auth required, but signature verified)

@@ -47,11 +47,26 @@ const invoiceSchema = new mongoose.Schema({
   billingPeriodStart: Date,
   billingPeriodEnd: Date,
   description: String,
+  pdfUrl: {
+    type: String,
+    default: null
+  },
+  pdfGenerated: {
+    type: Boolean,
+    default: false
+  },
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
+  emailSentAt: Date,
   metadata: {
     prorated: Boolean,
     unusedDays: Number,
     totalDays: Number,
-    refundReason: String
+    refundReason: String,
+    userEmail: String,
+    userName: String
   }
 }, {
   timestamps: true

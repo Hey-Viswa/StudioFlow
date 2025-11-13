@@ -28,9 +28,10 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
     try {
       setLoadingInvoices(true);
       const response = await api.get('/invoices', { getToken });
-      setInvoices(response || []);
+      setInvoices(Array.isArray(response) ? response : response.invoices || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
+      setInvoices([]);
     } finally {
       setLoadingInvoices(false);
     }
@@ -224,6 +225,41 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Subscription Actions</h3>
         <div className="space-y-3">
+          {/* Upgrade/Downgrade Options */}
+          {isActive && plan.id === 'pro' && (
+            <>
+              <Button 
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => handleChangePlan('studio')}
+                disabled={changingPlan || loading}
+              >
+                <CheckCircle className="w-4 h-4" />
+                {changingPlan ? 'Processing...' : 'Upgrade to Studio Plan'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                100 projects, unlimited team members, custom workflows
+              </p>
+            </>
+          )}
+
+          {isActive && plan.id === 'studio' && (
+            <>
+              <Button 
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => handleChangePlan('pro')}
+                disabled={changingPlan || loading}
+              >
+                <CheckCircle className="w-4 h-4" />
+                {changingPlan ? 'Processing...' : 'Downgrade to Pro Plan'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Change will take effect at end of current billing period
+              </p>
+            </>
+          )}
+
           {/* Active Subscription - Show Cancel */}
           {isActive && plan.price > 0 && (
             <>
@@ -231,7 +267,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                 variant="destructive" 
                 className="w-full justify-start gap-2"
                 onClick={onCancel}
-                disabled={loading}
+                disabled={loading || changingPlan}
               >
                 {loading ? (
                   <>
@@ -257,7 +293,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
               <Button 
                 className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
                 onClick={onReactivate}
-                disabled={loading}
+                disabled={loading || changingPlan}
               >
                 {loading ? (
                   <>

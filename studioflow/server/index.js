@@ -14,6 +14,8 @@ import paymentRoutes from './src/routes/payment.js';
 import taskCommentRoutes from './src/routes/taskComment.js';
 import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
+import invoiceRoutes from './src/routes/invoices.js';
+import contactRoutes from './src/routes/contact.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 
@@ -165,6 +167,8 @@ app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/contact', contactRoutes);
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 
 // Socket.IO connection handling

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { ArrowLeft, FileText, Scale, CreditCard, Ban, AlertTriangle, Shield, Users, Clock } from 'lucide-react';
+import { ArrowLeft, FileText, Scale, CreditCard, Ban, AlertTriangle, Shield, Users, Clock, Download } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
@@ -25,6 +25,10 @@ export default function TermsConditions() {
     }
   };
 
+  const downloadAsPDF = () => {
+    window.print();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -45,6 +49,10 @@ export default function TermsConditions() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadAsPDF}>
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/privacy-policy')}>
               Privacy
             </Button>
