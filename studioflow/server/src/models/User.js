@@ -51,7 +51,7 @@ const UserSchema = new mongoose.Schema({
         },
         status: {
             type: String,
-            enum: ['active', 'inactive', 'cancelled', 'expired', 'created', 'paused', 'payment_failed'],
+            enum: ['active', 'inactive', 'cancelled', 'expired', 'created', 'paused', 'payment_failed', 'pending'],
             default: 'active'
         },
         razorpayCustomerId: {
@@ -78,9 +78,25 @@ const UserSchema = new mongoose.Schema({
             type: Date,
             default: null
         },
+        nextBillingDate: {
+            type: Date,
+            default: null
+        },
         autoRenew: {
             type: Boolean,
             default: false
+        },
+        lastStatusChange: {
+            type: Date,
+            default: Date.now
+        },
+        cancelledAt: {
+            type: Date,
+            default: null
+        },
+        cancelReason: {
+            type: String,
+            default: null
         }
     }
 }, { 

@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import BillingDetails from '../components/BillingDetails';
 import BillingHistory from '../components/BillingHistory';
+import SubscriptionAlert from '../components/SubscriptionAlert';
+import { getSubscriptionStatusMessage, getStatusBadgeVariant } from '../lib/subscriptionUtils';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -258,6 +260,9 @@ export default function Settings() {
           Manage your account settings and preferences
         </p>
       </div>
+
+      {/* Subscription Alert */}
+      {subscription && <SubscriptionAlert subscription={subscription} />}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">

@@ -429,25 +429,29 @@ export const verifyPayment = async (req, res) => {
 export const cancelSubscription = async (req, res) => {
   try {
     const userId = req.userId;
+    const { reason } = req.body; // Optional cancellation reason
 
-    console.log('=== CANCEL SUBSCRIPTION REQUEST ===');
-    console.log('User ID:', userId);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] === CANCEL SUBSCRIPTION REQUEST ===`);
+    console.log(`[${timestamp}] User ID:`, userId);
+    console.log(`[${timestamp}] Reason:`, reason || 'Not provided');
 
     const user = await User.findOne({ clerkUserId: userId });
     
     if (!user || !user.subscription.razorpaySubscriptionId) {
-      console.error('❌ No active subscription found');
+      console.error(`[${timestamp}] ❌ No active subscription found`);
       return res.status(404).json({ error: 'No active subscription found' });
     }
 
     if (user.subscription.status === 'cancelled') {
-      console.error('❌ Subscription already cancelled');
+      console.error(`[${timestamp}] ❌ Subscription already cancelled`);
       return res.status(400).json({ error: 'Subscription is already cancelled' });
     }
 
-    console.log('✓ Subscription ID:', user.subscription.razorpaySubscriptionId);
-    console.log('✓ Current plan:', user.subscription.plan);
-    console.log('✓ Payment ID:', user.subscription.razorpayPaymentId);
+    console.log(`[${timestamp}] ✓ Subscription ID:`, user.subscription.razorpaySubscriptionId);
+    console.log(`[${timestamp}] ✓ Current plan:`, user.subscription.plan);
+    console.log(`[${timestamp}] ✓ Current status:`, user.subscription.status);
+    console.log(`[${timestamp}] ✓ Payment ID:`, user.subscription.razorpayPaymentId);
 
     // Calculate prorated refund
     const now = new Date();
@@ -460,11 +464,11 @@ export const cancelSubscription = async (req, res) => {
     const planPrice = SUBSCRIPTION_PLANS[user.subscription.plan]?.price || 0;
     const refundAmount = Math.round((planPrice * unusedDays / totalDays) * 100) / 100;
 
-    console.log('📊 Refund Calculation:');
-    console.log('  Total days:', totalDays);
-    console.log('  Unused days:', unusedDays);
-    console.log('  Plan price: ₹', planPrice);
-    console.log('  Refund amount: ₹', refundAmount);
+    console.log(`[${timestamp}] 📊 Refund Calculation:`);
+    console.log(`[${timestamp}]   Total days:`, totalDays);
+    console.log(`[${timestamp}]   Unused days:`, unusedDays);
+    console.log(`[${timestamp}]   Plan price: ₹`, planPrice);
+    console.log(`[${timestamp}]   Refund amount: ₹`, refundAmount);
 
     let refundId = null;
     let refundStatus = 'pending';
@@ -472,7 +476,7 @@ export const cancelSubscription = async (req, res) => {
     // Process refund only if there's a valid payment and refund amount
     if (user.subscription.razorpayPaymentId && refundAmount > 0) {
       try {
-        console.log('💰 Initiating refund...');
+        console.log(`[${timestamp}] 💰 Initiating refund...`);
         
         // Create refund in Razorpay
         const refund = await razorpay.payments.refund(
@@ -481,7 +485,7 @@ export const cancelSubscription = async (req, res) => {
             amount: Math.round(refundAmount * 100), // Convert to paise
             speed: 'normal', // 'normal' or 'optimum'
             notes: {
-              reason: 'Subscription cancellation',
+              reason: reason || 'Subscription cancellation',
               userId: userId,
               unusedDays: unusedDays,
               totalDays: totalDays
@@ -492,26 +496,27 @@ export const cancelSubscription = async (req, res) => {
         refundId = refund.id;
         refundStatus = refund.status; // 'processed', 'pending', or 'failed'
         
-        console.log('✓ Refund created:', refundId);
-        console.log('  Status:', refundStatus);
-        console.log('  Amount: ₹', refundAmount);
+        console.log(`[${timestamp}] ✓ Refund created:`, refundId);
+        console.log(`[${timestamp}]   Status:`, refundStatus);
+        console.log(`[${timestamp}]   Amount: ₹`, refundAmount);
       } catch (refundError) {
-        console.error('❌ Refund failed:', refundError.message);
+        console.error(`[${timestamp}] ❌ Refund failed:`, refundError.message);
         // Continue with cancellation even if refund fails
         refundStatus = 'failed';
       }
     } else {
-      console.log('⚠️  No refund initiated (no payment ID or zero refund amount)');
+      console.log(`[${timestamp}] ⚠️  No refund initiated (no payment ID or zero refund amount)`);
     }
 
     // Cancel Razorpay subscription
     let razorpayCancelSuccess = false;
     try {
-      await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
-      console.log('✓ Razorpay subscription cancelled');
+      const cancelledSub = await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
+      console.log(`[${timestamp}] ✓ Razorpay subscription cancelled`);
+      console.log(`[${timestamp}]   Razorpay status:`, cancelledSub.status);
       razorpayCancelSuccess = true;
     } catch (cancelError) {
-      console.error('❌ Failed to cancel Razorpay subscription:', cancelError.message);
+      console.error(`[${timestamp}] ❌ Failed to cancel Razorpay subscription:`, cancelError.message);
       // Continue anyway to update local status
     }
 
@@ -536,30 +541,43 @@ export const cancelSubscription = async (req, res) => {
           prorated: true,
           unusedDays: unusedDays,
           totalDays: totalDays,
-          refundReason: 'User requested cancellation'
+          refundReason: reason || 'User requested cancellation',
+          razorpayCancelSuccess: razorpayCancelSuccess
         }
       });
-      console.log('✓ Invoice generated:', invoice.invoiceNumber);
+      console.log(`[${timestamp}] ✓ Invoice generated:`, invoice.invoiceNumber);
     } catch (invoiceError) {
-      console.error('⚠️  Failed to create invoice:', invoiceError.message);
+      console.error(`[${timestamp}] ⚠️  Failed to create invoice:`, invoiceError.message);
       // Continue even if invoice creation fails
     }
 
-    // Update user subscription status
+    // Update user subscription status with all new fields
+    const previousStatus = user.subscription.status;
     user.subscription.status = 'cancelled';
+    user.subscription.lastStatusChange = now;
+    user.subscription.cancelledAt = now;
+    user.subscription.cancelReason = reason || 'User requested cancellation';
     user.subscription.autoRenew = false;
     // Keep the current plan active until the end date
     // The subscription checker will downgrade to free when subscriptionEndDate passes
     await user.save();
 
-    console.log('✓ User subscription updated to cancelled');
-    console.log('  Current plan:', user.subscription.plan, '(will remain until end date)');
-    console.log('  Access until:', subscriptionEnd.toISOString());
-    console.log('=== CANCELLATION SUCCESS ===');
+    console.log(`[${timestamp}] ✓ User subscription updated:`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → cancelled`);
+    console.log(`[${timestamp}]   Cancelled at:`, now.toISOString());
+    console.log(`[${timestamp}]   Current plan: ${user.subscription.plan} (will remain until end date)`);
+    console.log(`[${timestamp}]   Access until:`, subscriptionEnd.toISOString());
+    console.log(`[${timestamp}] === CANCELLATION SUCCESS ===`);
 
     res.json({
       message: 'Subscription cancelled successfully',
-      subscription: user.subscription,
+      subscription: {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        cancelledAt: user.subscription.cancelledAt,
+        subscriptionEndDate: user.subscription.subscriptionEndDate,
+        autoRenew: user.subscription.autoRenew
+      },
       refund: {
         amount: refundAmount,
         status: refundStatus,
@@ -575,7 +593,8 @@ export const cancelSubscription = async (req, res) => {
       accessUntil: subscriptionEnd
     });
   } catch (error) {
-    console.error('❌ Cancel subscription error:', error);
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ❌ Cancel subscription error:`, error);
     res.status(500).json({ 
       error: 'Failed to cancel subscription',
       details: error.message 
@@ -587,6 +606,8 @@ export const cancelSubscription = async (req, res) => {
 // @route   POST /api/subscriptions/webhook
 // @access  Public (but verified)
 export const handleWebhook = async (req, res) => {
+  const timestamp = new Date().toISOString();
+  
   try {
     // Verify webhook signature
     const signature = req.headers['x-razorpay-signature'];
@@ -598,115 +619,248 @@ export const handleWebhook = async (req, res) => {
       .digest('hex');
 
     if (signature !== expectedSignature) {
-      console.error('Invalid webhook signature');
+      console.error(`[${timestamp}] ❌ Invalid webhook signature`);
       return res.status(400).json({ error: 'Invalid signature' });
     }
 
     const event = req.body.event;
     const payload = req.body.payload;
 
-    console.log('📨 Webhook received:', event);
+    console.log(`[${timestamp}] 📨 WEBHOOK RECEIVED: ${event}`);
+    console.log(`[${timestamp}] Payload:`, JSON.stringify(payload, null, 2));
 
     switch (event) {
       case 'subscription.activated':
-        await handleSubscriptionActivated(payload.subscription.entity);
+        await handleSubscriptionActivated(payload.subscription.entity, timestamp);
         break;
       
       case 'subscription.charged':
-        await handleSubscriptionCharged(payload.subscription.entity, payload.payment.entity);
+        await handleSubscriptionCharged(payload.subscription.entity, payload.payment.entity, timestamp);
         break;
       
       case 'subscription.cancelled':
-        await handleSubscriptionCancelled(payload.subscription.entity);
+        await handleSubscriptionCancelled(payload.subscription.entity, timestamp);
         break;
       
       case 'subscription.completed':
-        await handleSubscriptionCompleted(payload.subscription.entity);
+        await handleSubscriptionCompleted(payload.subscription.entity, timestamp);
         break;
 
       case 'subscription.paused':
       case 'subscription.halted':
-        await handleSubscriptionPaused(payload.subscription.entity);
+        await handleSubscriptionPaused(payload.subscription.entity, timestamp);
+        break;
+      
+      case 'payment.failed':
+        await handlePaymentFailed(payload.payment.entity, timestamp);
+        break;
+      
+      case 'refund.created':
+      case 'refund.processed':
+        await handleRefund(payload.refund.entity, timestamp);
         break;
 
       default:
-        console.log('Unhandled webhook event:', event);
+        console.log(`[${timestamp}] ⚠️  Unhandled webhook event: ${event}`);
     }
 
-    res.json({ status: 'ok' });
+    console.log(`[${timestamp}] ✅ Webhook processed successfully`);
+    res.json({ status: 'ok', event, timestamp });
   } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    console.error(`[${timestamp}] ❌ Webhook error:`, error);
+    res.status(500).json({ error: 'Webhook processing failed', details: error.message });
   }
 };
 
-// Helper functions for webhook events
-async function handleSubscriptionActivated(subscription) {
+// Helper functions for webhook events with enhanced logging
+async function handleSubscriptionActivated(subscription, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing subscription.activated...`);
+  
   const user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
 
   if (user) {
+    const previousStatus = user.subscription.status;
+    const previousPlan = user.subscription.plan;
+    
     user.subscription.status = 'active';
     user.subscription.plan = subscription.notes?.plan || 'pro';
     user.subscription.subscriptionStartDate = new Date(subscription.start_at * 1000);
     user.subscription.subscriptionEndDate = new Date(subscription.end_at * 1000);
+    user.subscription.nextBillingDate = subscription.current_end ? new Date(subscription.current_end * 1000) : null;
+    user.subscription.lastStatusChange = new Date();
+    
     await user.save();
-    console.log('✅ Subscription activated for:', user.email);
+    
+    console.log(`[${timestamp}] ✅ Subscription activated`);
+    console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → active`);
+    console.log(`[${timestamp}]   Plan: ${previousPlan} → ${user.subscription.plan}`);
+    console.log(`[${timestamp}]   Start: ${user.subscription.subscriptionStartDate.toISOString()}`);
+    console.log(`[${timestamp}]   End: ${user.subscription.subscriptionEndDate.toISOString()}`);
+  } else {
+    console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
   }
 }
 
-async function handleSubscriptionCharged(subscription, payment) {
+async function handleSubscriptionCharged(subscription, payment, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing subscription.charged...`);
+  
   const user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
 
   if (user) {
+    const previousPaymentId = user.subscription.razorpayPaymentId;
+    
     user.subscription.razorpayPaymentId = payment.id;
     user.subscription.status = 'active';
+    user.subscription.lastStatusChange = new Date();
+    
+    // Update billing dates
+    if (subscription.current_end) {
+      user.subscription.nextBillingDate = new Date(subscription.current_end * 1000);
+    }
+    
     await user.save();
-    console.log('💳 Payment successful for:', user.email);
+    
+    console.log(`[${timestamp}] ✅ Payment charged successfully`);
+    console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+    console.log(`[${timestamp}]   Payment ID: ${payment.id}`);
+    console.log(`[${timestamp}]   Amount: ₹${payment.amount / 100}`);
+    console.log(`[${timestamp}]   Method: ${payment.method}`);
+    console.log(`[${timestamp}]   Status: ${payment.status}`);
+  } else {
+    console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
   }
 }
 
-async function handleSubscriptionCancelled(subscription) {
+async function handleSubscriptionCancelled(subscription, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing subscription.cancelled...`);
+  
   const user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
 
   if (user) {
+    const previousStatus = user.subscription.status;
+    
     user.subscription.status = 'cancelled';
+    user.subscription.lastStatusChange = new Date();
+    user.subscription.cancelledAt = new Date();
     user.subscription.autoRenew = false;
+    user.subscription.cancelReason = user.subscription.cancelReason || 'Cancelled via Razorpay webhook';
+    
     // DON'T downgrade to free immediately - let them use until end date
     // The subscription checker job will downgrade when subscriptionEndDate passes
     await user.save();
-    console.log('❌ Subscription cancelled for:', user.email);
-    console.log('   Will retain access until:', user.subscription.subscriptionEndDate);
+    
+    console.log(`[${timestamp}] ✅ Subscription cancelled`);
+    console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → cancelled`);
+    console.log(`[${timestamp}]   Plan: ${user.subscription.plan} (retained until end date)`);
+    console.log(`[${timestamp}]   Access until: ${user.subscription.subscriptionEndDate?.toISOString()}`);
+  } else {
+    console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
   }
 }
 
-async function handleSubscriptionCompleted(subscription) {
+async function handleSubscriptionCompleted(subscription, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing subscription.completed...`);
+  
   const user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
 
   if (user) {
+    const previousPlan = user.subscription.plan;
+    const previousStatus = user.subscription.status;
+    
     user.subscription.status = 'expired';
     user.subscription.plan = 'free';
+    user.subscription.lastStatusChange = new Date();
+    
     await user.save();
-    console.log('⏰ Subscription expired for:', user.email);
+    
+    console.log(`[${timestamp}] ✅ Subscription completed/expired`);
+    console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → expired`);
+    console.log(`[${timestamp}]   Plan: ${previousPlan} → free`);
+  } else {
+    console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
   }
 }
 
-async function handleSubscriptionPaused(subscription) {
+async function handleSubscriptionPaused(subscription, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing subscription.paused/halted...`);
+  
   const user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
 
   if (user) {
-    user.subscription.status = 'inactive';
+    const previousStatus = user.subscription.status;
+    
+    user.subscription.status = 'paused';
+    user.subscription.lastStatusChange = new Date();
+    
     await user.save();
-    console.log('⏸️ Subscription paused for:', user.email);
+    
+    console.log(`[${timestamp}] ✅ Subscription paused`);
+    console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+    console.log(`[${timestamp}]   Status: ${previousStatus} → paused`);
+    console.log(`[${timestamp}]   Plan: ${user.subscription.plan}`);
+  } else {
+    console.log(`[${timestamp}] ⚠️  User not found for subscription: ${subscription.id}`);
+  }
+}
+
+async function handlePaymentFailed(payment, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing payment.failed...`);
+  
+  if (payment.subscription_id) {
+    const user = await User.findOne({
+      'subscription.razorpaySubscriptionId': payment.subscription_id
+    });
+
+    if (user) {
+      const previousStatus = user.subscription.status;
+      
+      user.subscription.status = 'payment_failed';
+      user.subscription.lastStatusChange = new Date();
+      
+      await user.save();
+      
+      console.log(`[${timestamp}] ❌ Payment failed`);
+      console.log(`[${timestamp}]   User: ${user.email || user.clerkUserId}`);
+      console.log(`[${timestamp}]   Status: ${previousStatus} → payment_failed`);
+      console.log(`[${timestamp}]   Payment ID: ${payment.id}`);
+      console.log(`[${timestamp}]   Error: ${payment.error_description || 'Unknown error'}`);
+    } else {
+      console.log(`[${timestamp}] ⚠️  User not found for subscription: ${payment.subscription_id}`);
+    }
+  }
+}
+
+async function handleRefund(refund, timestamp) {
+  console.log(`[${timestamp}] 🔄 Processing refund.created/processed...`);
+  console.log(`[${timestamp}]   Refund ID: ${refund.id}`);
+  console.log(`[${timestamp}]   Payment ID: ${refund.payment_id}`);
+  console.log(`[${timestamp}]   Amount: ₹${refund.amount / 100}`);
+  console.log(`[${timestamp}]   Status: ${refund.status}`);
+  
+  // Update invoice if exists
+  try {
+    const invoice = await Invoice.findOne({ razorpayPaymentId: refund.payment_id, type: 'refund' });
+    if (invoice) {
+      invoice.status = refund.status === 'processed' ? 'refunded' : 'pending';
+      invoice.razorpayRefundId = refund.id;
+      await invoice.save();
+      console.log(`[${timestamp}]   ✓ Updated invoice: ${invoice.invoiceNumber}`);
+    }
+  } catch (error) {
+    console.error(`[${timestamp}]   ⚠️  Failed to update invoice:`, error.message);
   }
 }
 
@@ -997,6 +1151,138 @@ export const getBillingHistory = async (req, res) => {
     console.error('❌ Get billing history error:', error);
     res.status(500).json({ 
       error: 'Failed to fetch billing history',
+      details: error.message 
+    });
+  }
+};
+
+// @desc    Verify subscription status with Razorpay and sync DB
+// @route   POST /api/subscriptions/verify-status
+// @access  Protected (Admin or user themselves)
+export const verifySubscriptionStatus = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const timestamp = new Date().toISOString();
+
+    console.log(`[${timestamp}] 🔍 Manual subscription verification requested`);
+    console.log(`[${timestamp}]   User ID:`, userId);
+
+    const user = await User.findOne({ clerkUserId: userId });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.subscription.razorpaySubscriptionId) {
+      return res.status(404).json({ 
+        error: 'No Razorpay subscription found',
+        currentStatus: {
+          plan: user.subscription.plan,
+          status: user.subscription.status
+        }
+      });
+    }
+
+    if (!razorpay) {
+      return res.status(500).json({ error: 'Razorpay not configured' });
+    }
+
+    // Fetch subscription from Razorpay
+    const subscription = await razorpay.subscriptions.fetch(
+      user.subscription.razorpaySubscriptionId
+    );
+
+    console.log(`[${timestamp}] ✓ Fetched subscription from Razorpay`);
+    console.log(`[${timestamp}]   Razorpay status:`, subscription.status);
+    console.log(`[${timestamp}]   DB status:`, user.subscription.status);
+
+    // Map Razorpay status to our status
+    const statusMap = {
+      'active': 'active',
+      'created': 'created',
+      'authenticated': 'pending',
+      'cancelled': 'cancelled',
+      'completed': 'expired',
+      'expired': 'expired',
+      'paused': 'paused',
+      'halted': 'inactive'
+    };
+
+    const razorpayStatus = subscription.status;
+    const expectedStatus = statusMap[razorpayStatus] || user.subscription.status;
+    const dbStatus = user.subscription.status;
+
+    const changes = [];
+    let updated = false;
+
+    // Check and update status
+    if (dbStatus !== expectedStatus) {
+      user.subscription.status = expectedStatus;
+      user.subscription.lastStatusChange = new Date();
+      changes.push(`status: ${dbStatus} → ${expectedStatus}`);
+      updated = true;
+    }
+
+    // Update dates if available
+    if (subscription.current_end) {
+      const newBillingDate = new Date(subscription.current_end * 1000);
+      if (!user.subscription.nextBillingDate || 
+          user.subscription.nextBillingDate.getTime() !== newBillingDate.getTime()) {
+        user.subscription.nextBillingDate = newBillingDate;
+        changes.push(`nextBillingDate updated to ${newBillingDate.toISOString()}`);
+        updated = true;
+      }
+    }
+
+    if (subscription.ended_at && subscription.ended_at > 0) {
+      const newEndDate = new Date(subscription.ended_at * 1000);
+      if (!user.subscription.subscriptionEndDate ||
+          user.subscription.subscriptionEndDate.getTime() !== newEndDate.getTime()) {
+        user.subscription.subscriptionEndDate = newEndDate;
+        changes.push(`subscriptionEndDate updated to ${newEndDate.toISOString()}`);
+        updated = true;
+      }
+    }
+
+    // Save if changes were made
+    if (updated) {
+      await user.save();
+      console.log(`[${timestamp}] ✅ Database updated with ${changes.length} change(s)`);
+      changes.forEach(change => console.log(`[${timestamp}]   - ${change}`));
+    } else {
+      console.log(`[${timestamp}] ✓ No changes needed - DB already in sync`);
+    }
+
+    res.json({
+      message: updated ? 'Subscription synced successfully' : 'Already in sync',
+      updated,
+      changes,
+      razorpayData: {
+        id: subscription.id,
+        status: subscription.status,
+        plan_id: subscription.plan_id,
+        customer_id: subscription.customer_id,
+        start_at: subscription.start_at ? new Date(subscription.start_at * 1000) : null,
+        end_at: subscription.end_at ? new Date(subscription.end_at * 1000) : null,
+        current_end: subscription.current_end ? new Date(subscription.current_end * 1000) : null,
+        total_count: subscription.total_count,
+        paid_count: subscription.paid_count,
+        remaining_count: subscription.remaining_count
+      },
+      currentDbData: {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        subscriptionStartDate: user.subscription.subscriptionStartDate,
+        subscriptionEndDate: user.subscription.subscriptionEndDate,
+        nextBillingDate: user.subscription.nextBillingDate,
+        lastStatusChange: user.subscription.lastStatusChange
+      }
+    });
+  } catch (error) {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ❌ Verify subscription error:`, error);
+    res.status(500).json({ 
+      error: 'Failed to verify subscription',
       details: error.message 
     });
   }

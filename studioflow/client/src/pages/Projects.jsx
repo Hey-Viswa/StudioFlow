@@ -7,6 +7,8 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
+import SubscriptionAlert from '../components/SubscriptionAlert';
+import { canCreateProject, hasActivePaidAccess } from '../lib/subscriptionUtils';
 import {
   Table,
   TableBody,
@@ -232,12 +234,16 @@ export default function Projects() {
         <Button 
           onClick={() => navigate('/dashboard/projects/new')} 
           className="gap-2"
-          disabled={subscription?.usage && subscription.usage.projectCount >= subscription.usage.maxProjects}
+          disabled={!canCreateProject(subscription)}
+          title={!canCreateProject(subscription) ? 'Project limit reached or subscription inactive' : 'Create new project'}
         >
           <Plus className="w-4 h-4" />
           New Project
         </Button>
       </div>
+
+      {/* Subscription Alert */}
+      <SubscriptionAlert subscription={subscription} />
 
       {/* Category Tabs */}
       <div className="flex gap-4 mb-6 border-b">
