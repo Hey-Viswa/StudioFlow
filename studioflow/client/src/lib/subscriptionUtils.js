@@ -15,10 +15,12 @@ export const hasActivePaidAccess = (subscription) => {
   // Free plan never has paid access
   if (plan === 'free') return false;
   
+  // If cancelled or expired, user loses access immediately
+  if (status === 'cancelled' || status === 'expired') return false;
+  
   // Check if status allows access
   // Active statuses: 'active', 'pending', 'created'
-  // Cancelled still has access until end date expires
-  const accessStatuses = ['active', 'pending', 'created', 'cancelled'];
+  const accessStatuses = ['active', 'pending', 'created'];
   
   return accessStatuses.includes(status);
 };
@@ -54,22 +56,14 @@ export const canCreateProject = (subscription) => {
 export const getSubscriptionStatusMessage = (subscription) => {
   if (!subscription) return 'Loading...';
   
-  const { status, plan, subscriptionEndDate } = subscription;
+  const { status, plan } = subscription;
   
   switch (status) {
     case 'active':
       return plan === 'free' ? 'Free Plan' : `${capitalize(plan)} Plan - Active`;
     
     case 'cancelled':
-      if (subscriptionEndDate) {
-        const endDate = new Date(subscriptionEndDate);
-        const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLeft > 0) {
-          return `${capitalize(plan)} Plan - Cancelled (${daysLeft} days remaining)`;
-        }
-      }
-      return 'Subscription Cancelled';
+      return 'Subscription Cancelled - Downgraded to Free Plan';
     
     case 'expired':
       return 'Subscription Expired';
@@ -178,7 +172,7 @@ export const getDaysRemaining = (subscription) => {
 };
 
 /**
- * Check if subscription needs attention (payment failed, expiring soon, etc.)
+ * Check if subscription needs attention (payment failed, cancelled, etc.)
  * @param {Object} subscription - Subscription object from API
  * @returns {Object} - { needsAttention: boolean, reason: string }
  */
@@ -198,16 +192,13 @@ export const checkSubscriptionHealth = (subscription) => {
     };
   }
   
-  // Expiring soon (cancelled but still has access)
-  if (status === 'cancelled' && plan !== 'free') {
-    const daysLeft = getDaysRemaining(subscription);
-    if (daysLeft !== null && daysLeft <= 7 && daysLeft > 0) {
-      return { 
-        needsAttention: true, 
-        reason: `Your ${plan} plan expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Reactivate to keep access.`,
-        severity: 'warning'
-      };
-    }
+  // Cancelled - show message about downgrade
+  if (status === 'cancelled' && plan === 'free') {
+    return { 
+      needsAttention: true, 
+      reason: 'Your subscription has been cancelled and you have been downgraded to the Free plan. Upgrade to regain Pro features.',
+      severity: 'warning'
+    };
   }
   
   // Expired

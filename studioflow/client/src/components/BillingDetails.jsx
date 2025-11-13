@@ -18,6 +18,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const { getToken } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [changingPlan, setChangingPlan] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -26,13 +27,72 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const fetchInvoices = async () => {
     try {
       setLoadingInvoices(true);
-      const response = await api.get('/subscriptions/invoices', { getToken });
-      setInvoices(response.invoices || []);
+      const response = await api.get('/invoices', { getToken });
+      setInvoices(response || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
     } finally {
       setLoadingInvoices(false);
     }
+  };
+
+  const handleChangePlan = async (newPlan) => {
+    if (!confirm(`Are you sure you want to ${plan.id === 'free' || plan.price < SUBSCRIPTION_PLANS[newPlan].price ? 'upgrade' : 'downgrade'} to ${newPlan === 'pro' ? 'Pro' : 'Studio'} plan?`)) {
+      return;
+    }
+
+    setChangingPlan(true);
+    try {
+      const response = await api.post('/subscriptions/change-plan', { newPlan }, { getToken });
+      
+      if (response.redirectUrl) {
+        // Redirect to Razorpay payment page for new subscription
+        window.location.href = response.redirectUrl;
+      } else {
+        alert(response.message || 'Plan change successful!');
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to change plan:', error);
+      alert(error.response?.data?.error || 'Failed to change plan. Please try again.');
+    } finally {
+      setChangingPlan(false);
+    }
+  };
+
+  const downloadInvoice = async (invoiceNumber) => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${apiUrl}/invoices/${invoiceNumber}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to download invoice');
+
+      // Get the blob and create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to download invoice:', error);
+      alert('Failed to download invoice. Please try again.');
+    }
+  };
+
+  const SUBSCRIPTION_PLANS = {
+    free: { id: 'free', name: 'Starter', price: 0 },
+    pro: { id: 'pro', name: 'Pro', price: 100 },
+    studio: { id: 'studio', name: 'Studio', price: 499 }
   };
 
   if (!subscription) {
@@ -303,15 +363,25 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                     })}
                   </p>
                 </div>
-                <div className="text-right ml-4">
-                  <p className={`font-semibold ${invoice.amount < 0 ? 'text-green-600' : ''}`}>
-                    {invoice.amount < 0 ? '+' : ''}₹{Math.abs(invoice.amount)}
-                  </p>
-                  {invoice.metadata?.prorated && (
-                    <p className="text-xs text-muted-foreground">
-                      {invoice.metadata.unusedDays}/{invoice.metadata.totalDays} days
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className={`font-semibold ${invoice.amount < 0 ? 'text-green-600' : ''}`}>
+                      {invoice.amount < 0 ? '+' : ''}₹{Math.abs(invoice.amount)}
                     </p>
-                  )}
+                    {invoice.metadata?.prorated && (
+                      <p className="text-xs text-muted-foreground">
+                        {invoice.metadata.unusedDays}/{invoice.metadata.totalDays} days
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => downloadInvoice(invoice.invoiceNumber)}
+                    className="shrink-0"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}

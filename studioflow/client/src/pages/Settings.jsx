@@ -34,6 +34,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [subscription, setSubscription] = useState(null);
+  const [activeSection, setActiveSection] = useState('account');
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
     projectUpdates: true,
@@ -67,7 +68,7 @@ export default function Settings() {
 
   const handleCancelSubscription = async () => {
     const confirmed = window.confirm(
-      'Are you sure you want to cancel your subscription? A prorated refund will be issued for any unused days, and you will retain access until the end of your billing period.'
+      'Are you sure you want to cancel your subscription? A prorated refund will be issued, and Pro features will be revoked immediately. You will be downgraded to the Free plan.'
     );
 
     if (!confirmed) return;
@@ -89,19 +90,20 @@ export default function Settings() {
 
       if (response.ok) {
         const refundInfo = data.refund;
-        const accessUntil = new Date(data.accessUntil).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        });
         
         toast.success('Subscription cancelled successfully', {
           description: refundInfo.amount > 0 
-            ? `A refund of ₹${refundInfo.amount} will be processed. You'll have access until ${accessUntil}.`
-            : `You'll continue to have access until ${accessUntil}.`
+            ? `A refund of ₹${refundInfo.amount} will be processed. You have been downgraded to the Free plan.`
+            : 'You have been downgraded to the Free plan.'
         });
-        // Refresh subscription data to show updated status and invoices
+        
+        // Refresh subscription data to show updated status
         await fetchSubscription();
+        
+        // Optionally reload the page to refresh all data
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         throw new Error(data.error || 'Failed to cancel subscription');
       }
@@ -275,19 +277,47 @@ export default function Settings() {
             <Card className="bg-card border-slate-800 sticky top-6">
               <CardContent className="p-4">
                 <nav className="space-y-1">
-                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+                  <button 
+                    onClick={() => setActiveSection('account')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                      activeSection === 'account' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
                     <User className="w-4 h-4" />
                     <span className="font-medium">Account</span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                  <button 
+                    onClick={() => setActiveSection('notifications')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                      activeSection === 'notifications' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
                     <Bell className="w-4 h-4" />
                     <span className="font-medium">Notifications</span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                  <button 
+                    onClick={() => setActiveSection('billing')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                      activeSection === 'billing' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
                     <CreditCard className="w-4 h-4" />
                     <span className="font-medium">Billing</span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                  <button 
+                    onClick={() => setActiveSection('security')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                      activeSection === 'security' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
                     <Shield className="w-4 h-4" />
                     <span className="font-medium">Security</span>
                   </button>
@@ -299,6 +329,7 @@ export default function Settings() {
           {/* Main Content */}
           <div className="md:col-span-2 space-y-6">
             {/* Account Information */}
+            {activeSection === 'account' && (
             <Card className="bg-card border-slate-800">
               <CardHeader>
                 <CardTitle className="text-white">Account Information</CardTitle>
@@ -361,8 +392,10 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Billing & Subscription */}
+            {activeSection === 'billing' && (
             <div>
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5" />
@@ -395,8 +428,10 @@ export default function Settings() {
                 </TabsContent>
               </Tabs>
             </div>
+            )}
 
             {/* Notification Preferences */}
+            {activeSection === 'notifications' && (
             <Card className="bg-card border-slate-800">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
@@ -487,6 +522,51 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            )}
+
+            {/* Security Section */}
+            {activeSection === 'security' && (
+            <Card className="bg-card border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Security
+                </CardTitle>
+                <CardDescription>Manage your account security settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-white">Password</Label>
+                    <p className="text-sm text-slate-400 mb-3">Your password is managed by Clerk authentication</p>
+                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
+                      Change Password
+                    </Button>
+                  </div>
+
+                  <Separator className="bg-slate-800" />
+
+                  <div>
+                    <Label className="text-white">Two-Factor Authentication</Label>
+                    <p className="text-sm text-slate-400 mb-3">Add an extra layer of security to your account</p>
+                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
+                      Enable 2FA
+                    </Button>
+                  </div>
+
+                  <Separator className="bg-slate-800" />
+
+                  <div>
+                    <Label className="text-white">Active Sessions</Label>
+                    <p className="text-sm text-slate-400 mb-3">Manage devices where you're currently logged in</p>
+                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
+                      View Sessions
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            )}
 
             {/* Security Section */}
             <Card className="bg-card border-slate-800">
