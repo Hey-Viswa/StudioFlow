@@ -96,15 +96,24 @@ const Landing = () => {
               </button>
             </div>
             
-            {/* Auth Buttons - Show different content based on auth status */}
+            {/* Auth Buttons - Always show with fallback */}
             <div className="flex items-center gap-3">
               <SignedOut>
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" fallback={
+                  <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
+                    Sign in
+                  </Button>
+                }>
                   <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
                     Sign in
                   </Button>
                 </SignInButton>
-                <SignUpButton mode="modal">
+                <SignUpButton mode="modal" fallback={
+                  <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
+                    Get Started
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                }>
                   <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
                     Get Started
                     <ArrowRight className="w-4 h-4 ml-2" />
