@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clerk Debug Info</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 40px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .info { margin: 20px 0; }
+        .key { color: #ff0; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 StudioFlow Clerk Configuration Debug</h1>
+    <div class="info">
+        <strong>Environment Variables Available:</strong><br>
+        <script>
+            // This will show what env vars are available at build time
+            const clerkKey = import.meta.env?.VITE_CLERK_PUBLISHABLE_KEY || 'NOT SET';
+            const apiUrl = import.meta.env?.VITE_API_URL || 'NOT SET';
+            
+            document.write('<br><span class="key">VITE_CLERK_PUBLISHABLE_KEY:</span> ');
+            if (clerkKey !== 'NOT SET') {
+                document.write('<span class="success">' + clerkKey.substring(0, 20) + '...</span>');
+                document.write('<br><span class="key">Key Type:</span> ');
+                document.write(clerkKey.startsWith('pk_live_') ? 
+                    '<span class="success">PRODUCTION ✓</span>' : 
+                    '<span class="error">DEVELOPMENT ✗</span>');
+            } else {
+                document.write('<span class="error">NOT SET ✗</span>');
+            }
+            
+            document.write('<br><br><span class="key">VITE_API_URL:</span> ');
+            document.write(apiUrl !== 'NOT SET' ? 
+                '<span class="success">' + apiUrl + ' ✓</span>' : 
+                '<span class="error">NOT SET ✗</span>');
+        </script>
+    </div>
+    <br><br>
+    <a href="/" style="color: #0ff;">← Back to Home</a>
+</body>
+</html>
