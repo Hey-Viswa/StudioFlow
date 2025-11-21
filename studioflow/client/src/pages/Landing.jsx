@@ -1,4 +1,4 @@
-import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/clerk-react';
+import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight } from 'lucide-react';
