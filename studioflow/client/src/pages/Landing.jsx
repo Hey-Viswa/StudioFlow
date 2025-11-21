@@ -1,4 +1,4 @@
-import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/clerk-react';
+import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 const Landing = () => {
   const [activeSection, setActiveSection] = useState('');
   const navigate = useNavigate();
+  const { isSignedIn, isLoaded } = useAuth();
 
   useEffect(() => {
     const observerOptions = {
@@ -96,48 +97,41 @@ const Landing = () => {
               </button>
             </div>
             
-            {/* Auth Buttons - Always show with fallback */}
+            {/* Auth Buttons - Always visible */}
             <div className="flex items-center gap-3">
-              <SignedOut>
-                <SignInButton mode="modal" fallback={
-                  <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
-                    Sign in
+              {!isSignedIn ? (
+                <>
+                  <SignInButton mode="modal">
+                    <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
+                      Sign in
+                    </Button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
+                      Get Started
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </SignUpButton>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    onClick={() => navigate('/dashboard')}
+                    variant="ghost" 
+                    className="hover:scale-105 transition-transform duration-200"
+                  >
+                    Dashboard
                   </Button>
-                }>
-                  <Button variant="ghost" className="hover:scale-105 transition-transform duration-200">
-                    Sign in
-                  </Button>
-                </SignInButton>
-                <SignUpButton mode="modal" fallback={
-                  <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
-                    Get Started
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                }>
-                  <Button className="bg-white text-[#020817] hover:bg-gray-100 hover:scale-105 transition-all duration-200 shadow-lg font-semibold">
-                    Get Started
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </SignUpButton>
-              </SignedOut>
-              
-              <SignedIn>
-                <Button 
-                  onClick={() => navigate('/dashboard')}
-                  variant="ghost" 
-                  className="hover:scale-105 transition-transform duration-200"
-                >
-                  Dashboard
-                </Button>
-                <UserButton 
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-10 h-10 hover:scale-105 transition-transform duration-200"
-                    }
-                  }}
-                />
-              </SignedIn>
+                  <UserButton 
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        avatarBox: "w-10 h-10 hover:scale-105 transition-transform duration-200"
+                      }
+                    }}
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>
