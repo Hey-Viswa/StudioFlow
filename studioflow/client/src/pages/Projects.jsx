@@ -243,7 +243,7 @@ export default function Projects() {
       </div>
 
       {/* Subscription Alert */}
-      <SubscriptionAlert subscription={subscription} />
+      <SubscriptionAlert subscription={subscription?.subscription} />
 
       {/* Category Tabs */}
       <div className="flex gap-4 mb-6 border-b">

@@ -17,6 +17,7 @@ import subscriptionRoutes from './src/routes/subscriptions.js';
 import invoiceRoutes from './src/routes/invoices.js';
 import contactRoutes from './src/routes/contact.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
+import projectInvoiceRoutes from './src/routes/projectInvoices.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -170,6 +171,8 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
+app.use('/api', projectInvoiceRoutes); // Project invoice routes
+app.use('/api', projectInvoiceRoutes); // Project invoice routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

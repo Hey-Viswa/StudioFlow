@@ -122,6 +122,42 @@ const UserSchema = new mongoose.Schema({
         cancelReason: {
             type: String,
             default: null
+        },
+        scheduledPlan: {
+            type: String,
+            enum: ['free', 'pro', 'studio', null],
+            default: null
+        },
+        scheduledChangeDate: {
+            type: Date,
+            default: null
+        },
+        pendingUpgrade: {
+            targetPlan: {
+                type: String,
+                enum: ['pro', 'studio', null],
+                default: null
+            },
+            orderId: {
+                type: String,
+                default: null
+            },
+            amount: {
+                type: Number,
+                default: 0
+            },
+            remainingDays: {
+                type: Number,
+                default: 0
+            },
+            totalDays: {
+                type: Number,
+                default: 0
+            },
+            createdAt: {
+                type: Date,
+                default: null
+            }
         }
     }
 }, { 

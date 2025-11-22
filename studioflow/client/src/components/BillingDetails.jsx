@@ -4,14 +4,15 @@ import { Badge } from './ui/badge';
 import { 
   CreditCard, 
   Calendar, 
-  Download, 
   AlertCircle,
   CheckCircle,
   Clock,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export default function BillingDetails({ subscription, onCancel, onReactivate, loading }) {
@@ -61,33 +62,20 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
     }
   };
 
-  const downloadInvoice = async (invoiceNumber) => {
-    try {
-      const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
-      const response = await fetch(`${apiUrl}/invoices/${invoiceNumber}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to download invoice');
-
-      // Get the blob and create download link
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${invoiceNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Failed to download invoice:', error);
-      alert('Failed to download invoice. Please try again.');
+  const formatDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()) || date.getFullYear() < 2000) {
+      return null;
     }
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  // Invoice download temporarily disabled - viewing only
+  const viewInvoiceDetails = (invoice) => {
+    toast.info('Invoice details', {
+      description: `Invoice ${invoice.invoiceNumber} - ₹${Math.abs(invoice.amount)} - ${invoice.status}`
+    });
   };
 
   const SUBSCRIPTION_PLANS = {
@@ -109,23 +97,20 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
 
   const { subscription: subData, plan, usage } = subscription;
   const isActive = subData.status === 'active';
-  const isCancelled = subData.status === 'cancelled';
+  const isCancelled = ['cancelled', 'expired'].includes(subData.status);
+  const autoRenewEnabled = subData.autoRenew ?? true;
   
   // For active subscriptions, this is the next billing/renewal date
   // For cancelled subscriptions, this is when access ends
-  const nextBillingDate = subData.subscriptionEndDate 
-    ? new Date(subData.subscriptionEndDate).toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
-      })
-    : 'N/A';
+  const nextBillingDate = formatDate(
+    subData.subscriptionEndDate
+  );
   
   // Determine the label based on subscription status
-  const billingDateLabel = isActive 
-    ? 'Next Billing Date' 
-    : isCancelled 
-    ? 'Access Until' 
+  const billingDateLabel = isActive
+    ? 'Next Billing Date'
+    : isCancelled
+    ? 'Access Until'
     : 'Subscription End Date';
 
   const getStatusBadge = (status) => {
@@ -133,13 +118,16 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
       active: { variant: 'default', icon: CheckCircle, text: 'Active' },
       cancelled: { variant: 'destructive', icon: AlertCircle, text: 'Cancelled' },
       expired: { variant: 'secondary', icon: Clock, text: 'Expired' },
+      pending: { variant: 'outline', icon: Clock, text: 'Pending' },
+      created: { variant: 'outline', icon: Clock, text: 'Awaiting Payment' },
+      scheduled_downgrade: { variant: 'secondary', icon: Clock, text: 'Downgrade Scheduled' }
     };
 
-    const config = variants[status] || variants.expired;
+    const config = variants[status] || { variant: 'secondary', icon: Clock, text: status };
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="gap-1.5">
+      <Badge variant={config.variant} className="gap-1.5 capitalize">
         <Icon className="w-3 h-3" />
         {config.text}
       </Badge>
@@ -196,7 +184,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                 <Calendar className="w-4 h-4" />
                 <span className="text-sm">{billingDateLabel}</span>
               </div>
-              <span className="text-sm font-medium">{nextBillingDate}</span>
+              <span className="text-sm font-medium">{nextBillingDate || 'Not available yet'}</span>
             </div>
 
             <div className="flex items-center justify-between">
@@ -207,6 +195,13 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
               <span className="text-sm font-medium">
                 {subData.razorpaySubscriptionId ? 'Razorpay' : 'Not Set'}
               </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Renewal Status</span>
+              <Badge variant={autoRenewEnabled ? 'default' : 'outline'}>
+                {autoRenewEnabled ? 'Auto-renew ON' : 'Auto-renew OFF'}
+              </Badge>
             </div>
 
             {subData.razorpaySubscriptionId && (
@@ -265,7 +260,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
             <>
               <Button 
                 variant="destructive" 
-                className="w-full justify-start gap-2"
+                className="w-full justify-start gap-2 font-bold text-base py-6 bg-red-600 hover:bg-red-700 shadow-xl"
                 onClick={onCancel}
                 disabled={loading || changingPlan}
               >
@@ -291,7 +286,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           {isCancelled && plan.price > 0 && (
             <>
               <Button 
-                className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
+                className="w-full justify-start gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base py-6 shadow-2xl shadow-green-500/50 border-2 border-green-400"
                 onClick={onReactivate}
                 disabled={loading || changingPlan}
               >
@@ -317,7 +312,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           {plan.id === 'free' && (
             <>
               <Button 
-                className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
+                className="w-full justify-start gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base py-6 shadow-2xl shadow-purple-500/50 border-2 border-purple-400"
                 onClick={() => window.location.href = '/dashboard/subscription'}
               >
                 <CheckCircle className="w-4 h-4" />
@@ -329,19 +324,37 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
             </>
           )}
 
-          {/* Pro Plan - Show Studio Upgrade Option */}
-          {isActive && plan.id === 'pro' && (
+          {/* Expired Subscription - Show Reactivate */}
+          {!isActive && !isCancelled && plan.price > 0 && (
             <>
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
+                  <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                    <p className="font-medium mb-1">Subscription {subData.status}</p>
+                    <p>Your subscription has expired. Click below to reactivate and restore features.</p>
+                  </div>
+                </div>
+              </div>
               <Button 
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => window.location.href = '/dashboard/subscription'}
+                className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
+                onClick={onReactivate}
+                disabled={loading || changingPlan}
               >
-                <CheckCircle className="w-4 h-4" />
-                Upgrade to Studio Plan
+                {loading ? (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Reactivate {plan.name} Plan
+                  </>
+                )}
               </Button>
               <p className="text-xs text-muted-foreground">
-                100 projects, unlimited team members, custom workflows
+                Opens payment gateway to resume your subscription
               </p>
             </>
           )}
@@ -410,14 +423,11 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                       </p>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => downloadInvoice(invoice.invoiceNumber)}
-                    className="shrink-0"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
+                  <div className="shrink-0 text-xs text-muted-foreground">
+                    {invoice.razorpayPaymentId && (
+                      <p>Pay ID: {invoice.razorpayPaymentId.substring(0, 12)}...</p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

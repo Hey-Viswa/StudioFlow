@@ -7,8 +7,7 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  TrendingUp,
-  Download
+  TrendingUp
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
@@ -57,7 +56,7 @@ export default function BillingHistory() {
     );
   }
 
-  const { currentSubscription, nextPayment, paymentHistory, subscriptionCount, totalSpent } = billingData;
+  const { currentSubscription, nextPayment, paymentHistory, subscriptionCount, totalSpent, successfulPayments } = billingData;
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -81,7 +80,10 @@ export default function BillingHistory() {
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) return 'N/A';
+    return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
@@ -177,7 +179,7 @@ export default function BillingHistory() {
             <div>
               <p className="text-xs text-muted-foreground">Successful</p>
               <p className="text-xl font-bold">
-                {paymentHistory.filter(p => p.status === 'captured').length}
+                {successfulPayments || paymentHistory.filter(p => p.status === 'captured').length}
               </p>
             </div>
           </div>
@@ -215,19 +217,17 @@ export default function BillingHistory() {
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span>{formatDate(payment.createdAt)}</span>
-                    <span className="capitalize">{payment.method}</span>
-                    <span className="font-mono text-xs">ID: {payment.id.substring(0, 20)}...</span>
+                    <span className="capitalize">{payment.method || 'Card'}</span>
+                    <span className="font-mono text-xs">ID: {payment.id ? payment.id.substring(0, 20) : 'N/A'}...</span>
                   </div>
                 </div>
                 <div className="text-right ml-4">
                   <p className={`text-lg font-semibold ${payment.refunded ? 'text-red-600' : ''}`}>
-                    {payment.refunded ? '-' : ''}₹{payment.amount.toFixed(2)}
-                  </p>
+                    {payment.refunded ? '-' : ''}₹{payment.amount ? payment.amount.toFixed(2) : '0.00'}</p>
                   {payment.invoiceId && (
-                    <button className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
-                      <Download className="w-3 h-3" />
-                      Invoice
-                    </button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Invoice: {payment.invoiceId.substring(0, 15)}...
+                    </p>
                   )}
                 </div>
               </div>

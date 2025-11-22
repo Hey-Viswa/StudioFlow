@@ -10,7 +10,8 @@ import {
   getBillingHistory,
   handleWebhook,
   verifySubscriptionStatus,
-  changePlan
+  changePlan,
+  verifyUpgradePayment
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import User from '../models/User.js';
@@ -73,6 +74,7 @@ router.get('/invoices', verifyClerk, getInvoices);
 router.get('/billing-history', verifyClerk, getBillingHistory);
 router.post('/create', verifyClerk, createSubscription);
 router.post('/verify', verifyClerk, verifyPayment);
+router.post('/verify-upgrade', verifyClerk, verifyUpgradePayment);
 router.post('/cancel', verifyClerk, cancelSubscription);
 router.post('/upgrade', verifyClerk, upgradeSubscription);
 router.post('/reactivate', verifyClerk, reactivateSubscription);

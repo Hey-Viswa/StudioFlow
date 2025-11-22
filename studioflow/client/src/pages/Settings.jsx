@@ -57,6 +57,12 @@ export default function Settings() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Settings - Subscription Data:', {
+          plan: data.subscription?.plan,
+          status: data.subscription?.status,
+          autoRenew: data.subscription?.autoRenew,
+          subscriptionEndDate: data.subscription?.subscriptionEndDate
+        });
         setSubscription(data);
       }
     } catch (error) {
@@ -123,22 +129,6 @@ export default function Settings() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
-      // Load Razorpay script first
-      const loadScript = () => {
-        return new Promise((resolve) => {
-          const script = document.createElement('script');
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-          script.onload = () => resolve(true);
-          script.onerror = () => resolve(false);
-          document.body.appendChild(script);
-        });
-      };
-
-      const scriptLoaded = await loadScript();
-      if (!scriptLoaded) {
-        throw new Error('Failed to load payment gateway');
-      }
-      
       // Get current plan to reactivate
       const currentPlan = subscription?.plan?.id || 'pro';
       
@@ -156,7 +146,59 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
-        console.log('Subscription created:', data.subscriptionId);
+        // Check if immediate payment is required
+        if (data.noImmediateCharge || data.alreadyPaid) {
+          // Subscription reactivated without payment - auto-renew enabled or already paid
+          console.log('Subscription reactivated without immediate charge');
+          
+          const messageDetails = data.alreadyPaid 
+            ? `You already paid for this period. Access restored until ${new Date(data.subscription.subscriptionEndDate).toLocaleDateString()}`
+            : `Auto-renew enabled. Next billing: ${new Date(data.subscription.nextBillingDate).toLocaleDateString()}`;
+          
+          toast.success(data.message || 'Subscription reactivated successfully!', {
+            description: messageDetails
+          });
+          await fetchSubscription();
+          setIsCancelling(false);
+          return;
+        }
+        
+        // Check if trial was started
+        if (data.trial) {
+          console.log('Trial started, no payment required');
+          const trialEndDate = new Date(data.subscription.trialEnd).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
+          toast.success('🎉 7-day free trial activated!', {
+            description: `Full access to ${currentPlan.toUpperCase()} features until ${trialEndDate}. No charge until then.`
+          });
+          await fetchSubscription();
+          setIsCancelling(false);
+          return;
+        }
+        
+        // Payment required - load Razorpay
+        console.log('Payment required for reactivation, loading Razorpay...');
+        
+        const loadScript = () => {
+          return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+          });
+        };
+
+        const scriptLoaded = await loadScript();
+        if (!scriptLoaded) {
+          throw new Error('Failed to load payment gateway');
+        }
+        
+        console.log('Razorpay script loaded, opening payment modal');
+        console.log('Subscription ID:', data.subscriptionId);
         
         // Initialize Razorpay for payment
         const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
@@ -197,6 +239,8 @@ export default function Settings() {
             } catch (verifyError) {
               console.error('Verification error:', verifyError);
               toast.error('Payment verification failed');
+            } finally {
+              setIsCancelling(false);
             }
           },
           modal: {
@@ -264,7 +308,7 @@ export default function Settings() {
       </div>
 
       {/* Subscription Alert */}
-      {subscription && <SubscriptionAlert subscription={subscription} />}
+      {subscription && <SubscriptionAlert subscription={subscription.subscription} />}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">

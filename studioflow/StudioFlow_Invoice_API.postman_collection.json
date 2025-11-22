@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "StudioFlow Invoice & Payment API",
+    "_postman_id": "studioflow-invoice-api",
+    "description": "Complete API collection for StudioFlow Invoice and Payment system with Razorpay integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "clerk_token",
+      "value": "",
+      "type": "string",
+      "description": "Get this from Clerk session: await clerk.session.getToken()"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string",
+      "description": "Your project ID from the database"
+    },
+    {
+      "key": "invoice_id",
+      "value": "",
+      "type": "string",
+      "description": "Invoice ID returned from generate invoice endpoint"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string",
+      "description": "Razorpay order ID from create payment order"
+    }
+  ],
+  "item": [
+    {
+      "name": "Project Invoices",
+      "item": [
+        {
+          "name": "Generate Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientUserId\": \"\",\n  \"items\": [\n    {\n      \"title\": \"Video Editing - Product Demo\",\n      \"description\": \"Professional editing with color grading and transitions\",\n      \"quantity\": 1,\n      \"rate\": 5000\n    },\n    {\n      \"title\": \"Motion Graphics\",\n      \"description\": \"Custom animated graphics and titles\",\n      \"quantity\": 2,\n      \"rate\": 1500\n    }\n  ],\n  \"dueDate\": \"2025-12-31\",\n  \"notes\": \"Payment terms: Net 30 days. Bank transfer or Razorpay accepted.\",\n  \"tax\": {\n    \"percentage\": 18\n  },\n  \"discount\": {\n    \"percentage\": 5\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_id}}/invoices/generate",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_id}}", "invoices", "generate"]
+            },
+            "description": "Create a new invoice for a project with line items, tax, and discount"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [{\"title\": \"Video Editing\", \"quantity\": 1, \"rate\": 5000}],\n  \"dueDate\": \"2025-12-31\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/projects/{{project_id}}/invoices/generate"
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"success\": true,\n  \"invoice\": {\n    \"id\": \"67410e8f9c1234567890abcd\",\n    \"invoiceNumber\": \"INV-251122-00001\",\n    \"total\": 8858,\n    \"currency\": \"INR\",\n    \"status\": \"draft\",\n    \"dueDate\": \"2025-12-31T00:00:00.000Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Project Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_id}}/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["projects", "{{project_id}}", "invoices"]
+            },
+            "description": "Get all invoices for a specific project"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/project/{{invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "project", "{{invoice_id}}"]
+            },
+            "description": "Get full details of a specific invoice including all line items"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Payment Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract order_id from response and save to collection variable",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.orderId) {",
+                  "        pm.collectionVariables.set('order_id', jsonData.orderId);",
+                  "        console.log('Order ID saved:', jsonData.orderId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/project/{{invoice_id}}/pay",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "project", "{{invoice_id}}", "pay"]
+            },
+            "description": "Create a Razorpay order for invoice payment. Returns order_id to use in frontend checkout."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razorpay_order_id\": \"{{order_id}}\",\n  \"razorpay_payment_id\": \"pay_xxxxxxxxxxxxx\",\n  \"razorpay_signature\": \"abc123def456...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoices/project/{{invoice_id}}/verify",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "project", "{{invoice_id}}", "verify"]
+            },
+            "description": "Verify Razorpay payment signature and mark invoice as paid. Usually called automatically by frontend after successful payment."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/project/{{invoice_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", "project", "{{invoice_id}}", "cancel"]
+            },
+            "description": "Cancel an unpaid invoice. Only invoice owner can cancel. Cannot cancel already paid invoices."
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints for managing project-based invoices"
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Razorpay Webhook - Payment Captured",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-razorpay-signature",
+                "value": "",
+                "type": "text",
+                "description": "HMAC SHA256 signature of the payload using webhook secret"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entity\": \"event\",\n  \"account_id\": \"acc_xxxxx\",\n  \"event\": \"payment.captured\",\n  \"contains\": [\"payment\"],\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_test12345\",\n        \"entity\": \"payment\",\n        \"amount\": 590000,\n        \"currency\": \"INR\",\n        \"status\": \"captured\",\n        \"order_id\": \"order_test12345\",\n        \"invoice_id\": null,\n        \"international\": false,\n        \"method\": \"card\",\n        \"amount_refunded\": 0,\n        \"refund_status\": null,\n        \"captured\": true,\n        \"description\": \"Payment for INV-251122-00001\",\n        \"card_id\": \"card_test12345\",\n        \"bank\": null,\n        \"wallet\": null,\n        \"vpa\": null,\n        \"email\": \"customer@example.com\",\n        \"contact\": \"+919876543210\",\n        \"notes\": {\n          \"invoiceId\": \"67410e8f9c1234567890abcd\",\n          \"invoiceNumber\": \"INV-251122-00001\",\n          \"projectId\": \"proj123\",\n          \"userId\": \"user_xxxxx\"\n        },\n        \"fee\": 11800,\n        \"tax\": 1800,\n        \"error_code\": null,\n        \"error_description\": null,\n        \"error_source\": null,\n        \"error_step\": null,\n        \"error_reason\": null,\n        \"acquirer_data\": {\n          \"auth_code\": \"123456\"\n        },\n        \"created_at\": 1732276800\n      }\n    }\n  },\n  \"created_at\": 1732276800\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/project-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "project-webhook"]
+            },
+            "description": "Razorpay webhook endpoint for payment.captured event. This endpoint is public but protected by signature verification."
+          },
+          "response": []
+        },
+        {
+          "name": "Razorpay Webhook - Payment Failed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-razorpay-signature",
+                "value": "",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entity\": \"event\",\n  \"account_id\": \"acc_xxxxx\",\n  \"event\": \"payment.failed\",\n  \"contains\": [\"payment\"],\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_test12345\",\n        \"entity\": \"payment\",\n        \"amount\": 590000,\n        \"currency\": \"INR\",\n        \"status\": \"failed\",\n        \"order_id\": \"order_test12345\",\n        \"method\": \"card\",\n        \"description\": \"Payment for INV-251122-00001\",\n        \"notes\": {\n          \"invoiceId\": \"67410e8f9c1234567890abcd\",\n          \"invoiceNumber\": \"INV-251122-00001\"\n        },\n        \"error_code\": \"BAD_REQUEST_ERROR\",\n        \"error_description\": \"Payment failed due to insufficient funds\",\n        \"created_at\": 1732276800\n      }\n    }\n  },\n  \"created_at\": 1732276800\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/project-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "project-webhook"]
+            },
+            "description": "Webhook for failed payment events"
+          },
+          "response": []
+        }
+      ],
+      "description": "Razorpay webhook endpoints for payment events"
+    },
+    {
+      "name": "Subscription Payments",
+      "item": [
+        {
+          "name": "Create Subscription Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"pro\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payment/create-order",
+              "host": ["{{base_url}}"],
+              "path": ["payment", "create-order"]
+            },
+            "description": "Create subscription payment order for Pro or Studio plan"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Subscription Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razorpay_order_id\": \"order_xxxxxxxxxxxxx\",\n  \"razorpay_payment_id\": \"pay_xxxxxxxxxxxxx\",\n  \"razorpay_signature\": \"abc123...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/payment/verify-payment",
+              "host": ["{{base_url}}"],
+              "path": ["payment", "verify-payment"]
+            },
+            "description": "Verify subscription payment and activate user subscription"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Subscription Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{clerk_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payment/subscription-status",
+              "host": ["{{base_url}}"],
+              "path": ["payment", "subscription-status"]
+            },
+            "description": "Get current user's subscription status"
+          },
+          "response": []
+        }
+      ],
+      "description": "Subscription-based payment endpoints for Pro and Studio plans"
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Simple health check endpoint"
+          },
+          "response": []
+        },
+        {
+          "name": "Ready Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ready",
+              "host": ["{{base_url}}"],
+              "path": ["ready"]
+            },
+            "description": "Readiness check including database connectivity"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Pre-request script to log requests",
+          "console.log('Request:', pm.request.method, pm.request.url);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Status code is successful', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+          "});",
+          "",
+          "pm.test('Response time is acceptable', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+          "});"
+        ]
+      }
+    }
+  ]
+}

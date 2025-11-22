@@ -51,7 +51,7 @@ const SUBSCRIPTION_PLANS = {
     name: 'Pro',
     price: 100, // ₹100/month
     currency: 'INR',
-    trialDays: 7, // 7-day free trial
+    trialDays: 0, // No trial
     razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
     features: {
       maxProjects: 50,
@@ -70,7 +70,7 @@ const SUBSCRIPTION_PLANS = {
     name: 'Studio',
     price: 499, // ₹499/month
     currency: 'INR',
-    trialDays: 7, // 7-day free trial
+    trialDays: 0, // No trial
     razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',
     features: {
       maxProjects: 100,
@@ -119,6 +119,14 @@ export const getCurrentSubscription = async (req, res) => {
       console.log('  Current plan:', user.subscription.plan);
       console.log('  Status:', user.subscription.status);
       console.log('  Subscription ID:', user.subscription.razorpaySubscriptionId || 'None');
+      
+      // CRITICAL: If status is 'created' or 'pending', user hasn't completed payment
+      // They should be treated as FREE user, not paid subscriber
+      if (['created', 'pending'].includes(user.subscription.status)) {
+        console.log('⚠️  Subscription payment not completed - treating as FREE user');
+        user.subscription.plan = 'free';
+        user.subscription.status = 'active';
+      }
     }
 
     const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
@@ -127,7 +135,7 @@ export const getCurrentSubscription = async (req, res) => {
     const projectCount = await Project.countDocuments({ ownerId: userId });
     console.log('  Project count:', projectCount, '/', currentPlan.features.maxProjects);
 
-    res.json({
+    const responseData = {
       subscription: user.subscription,
       plan: currentPlan,
       features: currentPlan.features,
@@ -135,7 +143,17 @@ export const getCurrentSubscription = async (req, res) => {
         projectCount,
         maxProjects: currentPlan.features.maxProjects
       }
-    });
+    };
+
+    console.log('📤 Returning subscription data:');
+    console.log('  Plan:', responseData.subscription.plan);
+    console.log('  Status:', responseData.subscription.status);
+    console.log('  Trial End:', responseData.subscription.trialEnd);
+    console.log('  Subscription End:', responseData.subscription.subscriptionEndDate);
+    console.log('  Auto-Renew:', responseData.subscription.autoRenew);
+    console.log('  Updated At:', responseData.subscription.updatedAt);
+
+    res.json(responseData);
   } catch (error) {
     console.error('❌ Get subscription error:', error);
     res.status(500).json({ error: 'Failed to fetch subscription' });
@@ -261,6 +279,7 @@ export const createSubscription = async (req, res) => {
     console.log('Creating Razorpay subscription...');
     console.log('  Plan ID:', plan.razorpayPlanId);
     console.log('  Customer ID:', customerId);
+    
     try {
       const subscription = await razorpay.subscriptions.create({
         plan_id: plan.razorpayPlanId,
@@ -1052,6 +1071,11 @@ export const reactivateSubscription = async (req, res) => {
     const userId = req.userId;
     const { plan } = req.body; // 'pro' or 'studio'
 
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] === REACTIVATE SUBSCRIPTION REQUEST ===`);
+    console.log(`[${timestamp}] User ID:`, userId);
+    console.log(`[${timestamp}] Requested plan:`, plan);
+
     if (!['pro', 'studio'].includes(plan)) {
       return res.status(400).json({ error: 'Invalid plan' });
     }
@@ -1061,19 +1085,116 @@ export const reactivateSubscription = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Check if subscription is cancelled/expired but user already paid for current period
+    const now = new Date();
+    const endDate = user.subscription.subscriptionEndDate ? new Date(user.subscription.subscriptionEndDate) : null;
+    
+    // CRITICAL: If user has paid and end date is in future, just reactivate - don't charge again!
+    if (endDate && endDate > now && user.subscription.razorpayPaymentId) {
+      const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+      
+      console.log(`[${timestamp}] ✅ USER ALREADY PAID - ${daysRemaining} days remaining until ${endDate.toLocaleDateString()}`);
+      console.log(`[${timestamp}] 🔄 Reactivating WITHOUT PAYMENT - just enabling auto-renew`);
+      console.log(`[${timestamp}]   Current status: ${user.subscription.status}`);
+      console.log(`[${timestamp}]   Last payment ID: ${user.subscription.razorpayPaymentId}`);
+      
+      // Update local subscription status - NO RAZORPAY CALL NEEDED
+      user.subscription.status = 'active';
+      user.subscription.autoRenew = true;
+      user.subscription.cancelledAt = null;
+      user.subscription.cancelReason = null;
+      user.subscription.lastStatusChange = now;
+      
+      await user.save();
+      
+      console.log(`[${timestamp}] === REACTIVATION SUCCESS (NO CHARGE) ===`);
+      console.log(`[${timestamp}]   Plan: ${user.subscription.plan}`);
+      console.log(`[${timestamp}]   Status: active`);
+      console.log(`[${timestamp}]   Access until: ${endDate.toLocaleDateString()}`);
+      console.log(`[${timestamp}]   Next billing: ${endDate.toLocaleDateString()}`);
+      console.log(`[${timestamp}]   Auto-renew: enabled`);
+      
+      return res.json({
+        success: true,
+        message: `Subscription reactivated! Auto-renew enabled. Next billing: ${endDate.toLocaleDateString()}`,
+        subscription: {
+          plan: user.subscription.plan,
+          status: user.subscription.status,
+          nextBillingDate: user.subscription.subscriptionEndDate,
+          subscriptionEndDate: user.subscription.subscriptionEndDate,
+          amount: SUBSCRIPTION_PLANS[plan].price,
+          autoRenew: true,
+          daysRemaining: daysRemaining
+        },
+        noImmediateCharge: true,
+        alreadyPaid: true
+      });
+    }
+    
+    // Check if has Razorpay subscription ID that can be resumed
+    if (user.subscription.razorpaySubscriptionId && 
+        ['cancelled', 'scheduled_downgrade'].includes(user.subscription.status)) {
+      
+      console.log(`[${timestamp}] ℹ️  User has existing cancelled/scheduled Razorpay subscription`);
+      console.log(`[${timestamp}]   Razorpay ID: ${user.subscription.razorpaySubscriptionId}`);
+      
+      // Try to resume the subscription on Razorpay
+      try {
+        const razorpaySub = await razorpay.subscriptions.fetch(user.subscription.razorpaySubscriptionId);
+        
+        if (razorpaySub.status === 'active' || razorpaySub.status === 'authenticated') {
+          console.log(`[${timestamp}] ✅ Razorpay subscription is still active - just updating local status`);
+          
+          user.subscription.status = 'active';
+          user.subscription.autoRenew = true;
+          user.subscription.cancelledAt = null;
+          user.subscription.cancelReason = null;
+          user.subscription.lastStatusChange = now;
+          
+          await user.save();
+          
+          return res.json({
+            success: true,
+            message: 'Subscription reactivated! Auto-renew enabled.',
+            subscription: {
+              plan: user.subscription.plan,
+              status: user.subscription.status,
+              nextBillingDate: user.subscription.subscriptionEndDate,
+              autoRenew: true
+            },
+            noImmediateCharge: true
+          });
+        }
+      } catch (razorpayError) {
+        console.error(`[${timestamp}] ⚠️  Could not check Razorpay subscription:`, razorpayError.message);
+      }
+    }
+    
+    // If no existing subscription or expired long ago, create new one
+    console.log(`[${timestamp}] 💳 Creating new subscription (REQUIRES PAYMENT)`);
+    
     const planConfig = SUBSCRIPTION_PLANS[plan];
     const subscriptionData = {
       plan_id: planConfig.razorpayPlanId,
       total_count: 12,
-      customer_notify: 1
+      customer_notify: 1,
+      notes: {
+        userId: userId,
+        plan: plan,
+        email: user.email
+      }
     };
 
     const subscription = await razorpay.subscriptions.create(subscriptionData);
+    
+    console.log(`[${timestamp}] ✅ Razorpay subscription created:`, subscription.id);
+    console.log(`[${timestamp}]   Requires immediate payment`);
 
     res.json({
       subscriptionId: subscription.id,
       amount: planConfig.price,
-      currency: planConfig.currency
+      currency: planConfig.currency,
+      requiresPayment: true
     });
   } catch (error) {
     console.error('Reactivate subscription error:', error);
@@ -1218,20 +1339,28 @@ export const getBillingHistory = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50);
 
+    // Calculate successful payments count
+    const successfulPayments = billingHistory.paymentHistory.filter(
+      p => p.status === 'captured' || p.status === 'authorized'
+    ).length;
+    
     console.log('✓ Billing history compiled');
     console.log('  Subscription count:', billingHistory.subscriptionCount);
     console.log('  Payment history items:', billingHistory.paymentHistory.length);
+    console.log('  Successful payments:', successfulPayments);
     console.log('  Total spent: ₹', billingHistory.totalSpent);
 
     res.json({
       ...billingHistory,
+      successfulPayments,
       localInvoices: localInvoices.map(inv => ({
         invoiceNumber: inv.invoiceNumber,
         type: inv.type,
         amount: inv.amount,
         status: inv.status,
         createdAt: inv.createdAt,
-        description: inv.description
+        description: inv.description,
+        razorpayPaymentId: inv.razorpayPaymentId
       }))
     });
   } catch (error) {
@@ -1375,6 +1504,143 @@ export const verifySubscriptionStatus = async (req, res) => {
   }
 };
 
+// @desc    Verify upgrade payment
+// @route   POST /api/subscriptions/verify-upgrade
+// @access  Protected
+export const verifyUpgradePayment = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    } = req.body;
+
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] === VERIFYING UPGRADE PAYMENT ===`);
+    console.log(`[${timestamp}] Order ID:`, razorpay_order_id);
+    console.log(`[${timestamp}] Payment ID:`, razorpay_payment_id);
+
+    // Verify signature
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+      console.error(`[${timestamp}] ❌ Invalid signature`);
+      return res.status(400).json({ error: 'Invalid payment signature' });
+    }
+
+    console.log(`[${timestamp}] ✓ Signature verified`);
+
+    const user = await User.findOne({ clerkUserId: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if there's a pending upgrade
+    if (!user.subscription.pendingUpgrade || !user.subscription.pendingUpgrade.orderId) {
+      return res.status(400).json({ error: 'No pending upgrade found' });
+    }
+
+    if (user.subscription.pendingUpgrade.orderId !== razorpay_order_id) {
+      return res.status(400).json({ error: 'Order ID mismatch' });
+    }
+
+    const targetPlan = user.subscription.pendingUpgrade.targetPlan;
+    const currentPlan = user.subscription.plan;
+    const amount = user.subscription.pendingUpgrade.amount;
+
+    console.log(`[${timestamp}] ✓ Upgrading from ${currentPlan} to ${targetPlan}`);
+
+    // Update subscription
+    user.subscription.plan = targetPlan;
+    user.subscription.status = 'active';
+    user.subscription.razorpayPaymentId = razorpay_payment_id;
+    user.subscription.lastStatusChange = new Date();
+    
+    // Clear pending upgrade
+    user.subscription.pendingUpgrade = {
+      targetPlan: null,
+      orderId: null,
+      amount: 0,
+      remainingDays: 0,
+      totalDays: 0,
+      createdAt: null
+    };
+    
+    await user.save();
+
+    // Get Clerk user for invoice
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const userEmail = clerkUser.emailAddresses[0]?.emailAddress;
+    const userName = `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'User';
+
+    // Create upgrade invoice
+    const upgradeInvoice = new Invoice({
+      invoiceNumber: `INV-${Date.now()}-UPGRADE`,
+      userId: user._id,
+      userEmail,
+      userName,
+      type: 'upgrade',
+      amount: amount,
+      status: 'paid',
+      description: `Upgrade from ${SUBSCRIPTION_PLANS[currentPlan].name} to ${SUBSCRIPTION_PLANS[targetPlan].name}`,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpayOrderId: razorpay_order_id,
+      metadata: {
+        oldPlan: currentPlan,
+        newPlan: targetPlan,
+        prorated: true
+      }
+    });
+
+    await upgradeInvoice.save();
+
+    console.log(`[${timestamp}] ✅ Upgrade complete: ${currentPlan} → ${targetPlan}`);
+
+    // Generate PDF and send email asynchronously
+    setImmediate(async () => {
+      try {
+        await generateInvoicePDF(upgradeInvoice, { email: userEmail, name: userName });
+        upgradeInvoice.pdfGenerated = true;
+        upgradeInvoice.pdfUrl = getInvoicePDFPath(upgradeInvoice.invoiceNumber);
+        await upgradeInvoice.save();
+
+        await sendInvoiceEmail({
+          to: userEmail,
+          userName,
+          invoice: upgradeInvoice,
+          pdfPath: upgradeInvoice.pdfUrl
+        });
+      } catch (err) {
+        console.error('Error generating upgrade invoice PDF/email:', err);
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully upgraded to ${SUBSCRIPTION_PLANS[targetPlan].name}`,
+      subscription: {
+        plan: targetPlan,
+        status: 'active'
+      },
+      invoice: {
+        invoiceNumber: upgradeInvoice.invoiceNumber,
+        amount: upgradeInvoice.amount
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify upgrade payment error:', error);
+    res.status(500).json({ 
+      error: 'Failed to verify upgrade payment',
+      details: error.message 
+    });
+  }
+};
+
 // @desc    Upgrade or downgrade subscription
 // @route   POST /api/subscriptions/change-plan
 // @access  Protected
@@ -1478,165 +1744,130 @@ export const changePlan = async (req, res) => {
     console.log(`   Amount difference: ₹${amountDifference.toFixed(2)}`);
 
     if (isUpgrade) {
-      // UPGRADE: Cancel current, create new subscription, charge difference
+      // UPGRADE: Charge prorated difference immediately, upgrade plan now
+      // Calculate: (Studio price - Pro price) * (remaining days / total days)
       
-      // Cancel current subscription
-      await razorpay.subscriptions.cancel(user.subscription.razorpaySubscriptionId);
-
-      // Create new subscription
-      const newSubscription = await razorpay.subscriptions.create({
-        plan_id: targetPlan.razorpayPlanId,
-        total_count: 12,
-        customer_notify: 1,
-        start_at: Math.floor(Date.now() / 1000), // Start immediately
-        notes: {
-          userId: user._id.toString(),
-          clerkUserId: userId,
-          email: userEmail,
-          plan: newPlan,
-          upgradeFrom: currentPlan.id,
-          prorated: true
-        }
-      });
-
-      // Create upgrade invoice
-      const upgradeInvoice = new Invoice({
-        invoiceNumber: `INV-${Date.now()}-UPGRADE`,
-        userId: user._id,
-        userEmail,
-        userName,
-        type: 'upgrade',
-        amount: Math.max(0, amountDifference),
-        status: 'paid',
-        description: `Upgrade from ${currentPlan.name} to ${targetPlan.name}`,
-        items: [
-          {
-            description: `${currentPlan.name} Plan - Prorated refund (${remainingDays}/${totalDays} days)`,
-            amount: -proratedRefund
-          },
-          {
-            description: `${targetPlan.name} Plan - Prorated charge (${remainingDays}/${totalDays} days)`,
-            amount: proratedCharge
+      console.log(`⬆️ UPGRADE: ${currentPlan.name} → ${targetPlan.name}`);
+      console.log(`   Prorated charge for ${remainingDays} remaining days: ₹${amountDifference.toFixed(2)}`);
+      
+      // Create payment order for the difference amount
+      if (amountDifference > 0) {
+        // Create Razorpay order for immediate payment
+        const proratedAmount = Math.round(amountDifference * 100); // Convert to paise
+        
+        const order = await razorpay.orders.create({
+          amount: proratedAmount,
+          currency: targetPlan.currency,
+          receipt: `upgrade_${userId}_${Date.now()}`,
+          notes: {
+            userId: user._id.toString(),
+            clerkUserId: userId,
+            email: userEmail,
+            type: 'upgrade',
+            fromPlan: currentPlan.id,
+            toPlan: newPlan,
+            remainingDays,
+            totalDays
           }
-        ],
-        metadata: {
-          oldPlan: currentPlan.id,
-          newPlan: newPlan,
-          prorated: true,
-          usedDays,
+        });
+        
+        console.log(`💳 Created payment order: ${order.id} for ₹${amountDifference.toFixed(2)}`);
+        
+        // Store pending upgrade info
+        user.subscription.pendingUpgrade = {
+          targetPlan: newPlan,
+          orderId: order.id,
+          amount: amountDifference,
           remainingDays,
           totalDays,
-          razorpaySubscriptionId: newSubscription.id
-        }
-      });
-
-      await upgradeInvoice.save();
-
-      // Generate PDF and send email asynchronously
-      setImmediate(async () => {
-        try {
-          await generateInvoicePDF(upgradeInvoice, { email: userEmail, name: userName });
-          upgradeInvoice.pdfGenerated = true;
-          upgradeInvoice.pdfUrl = getInvoicePDFPath(upgradeInvoice.invoiceNumber);
-          await upgradeInvoice.save();
-
-          await sendInvoiceEmail({
-            to: userEmail,
-            userName,
-            invoice: upgradeInvoice,
-            pdfPath: upgradeInvoice.pdfUrl
-          });
-          upgradeInvoice.emailSent = true;
-          upgradeInvoice.emailSentAt = new Date();
-          await upgradeInvoice.save();
-        } catch (err) {
-          console.error('Error generating upgrade invoice PDF/email:', err);
-        }
-      });
-
+          createdAt: new Date()
+        };
+        await user.save();
+        
+        // Return order details for frontend to process payment
+        return res.json({
+          success: true,
+          requiresPayment: true,
+          orderId: order.id,
+          amount: amountDifference,
+          currency: targetPlan.currency,
+          description: `Upgrade to ${targetPlan.name} - Prorated charge for ${remainingDays} days`,
+          message: `Please complete payment of ₹${amountDifference.toFixed(2)} to upgrade immediately to ${targetPlan.name}`
+        });
+      }
+      
+      // If no charge needed (shouldn't happen in upgrade, but handle it)
       user.subscription.plan = newPlan;
-      user.subscription.razorpaySubscriptionId = newSubscription.id;
-      user.subscription.status = newSubscription.status;
+      user.subscription.status = 'active';
       user.subscription.lastStatusChange = new Date();
       await user.save();
-
-      console.log(`✅ Upgraded from ${currentPlan.name} to ${targetPlan.name}`);
-
+      
       return res.json({
         success: true,
         message: `Successfully upgraded to ${targetPlan.name}`,
         subscription: {
           plan: newPlan,
-          status: newSubscription.status,
-          prorated: {
-            amountCharged: Math.max(0, amountDifference),
-            usedDays,
-            remainingDays,
-            totalDays
-          }
-        },
-        invoice: {
-          invoiceNumber: upgradeInvoice.invoiceNumber,
-          amount: upgradeInvoice.amount
+          status: 'active'
         }
       });
 
     } else if (isDowngrade) {
-      // DOWNGRADE: Process immediately with refund
-      const { calculateRefund, issueRefund } = await import('../utils/subscriptionHelpers.js');
+      // DOWNGRADE: Schedule for end of billing period, NO immediate charge
+      // User keeps current plan until subscription ends, then charged lower price
       
-      // Check if refund already issued in this billing cycle
-      if (user.subscription.refundIssued) {
-        return res.status(400).json({
-          error: 'Refund already issued',
-          message: 'You can only receive one refund per billing cycle. Downgrade will be processed at period end.'
-        });
-      }
+      console.log(`⬇️ DOWNGRADE: ${currentPlan.name} → ${targetPlan.name}`);
+      console.log(`   Will take effect at end of billing period: ${new Date(periodEnd).toLocaleDateString()}`);
+      console.log(`   No immediate refund - user keeps access to ${currentPlan.name} until then`);
+      console.log(`   Next billing: ₹${targetPlan.price} (${targetPlan.name} plan rate)`);
       
-      // Calculate refund amount
-      const refundAmount = calculateRefund(currentPlan.id, newPlan);
-      console.log(`💰 Refund calculation: ${currentPlan.name}(₹${currentPlan.price}) → ${targetPlan.name}(₹${targetPlan.price}) = ₹${refundAmount} refund`);
-      
-      let refundResult = null;
-      
-      // Issue refund if amount > 0
-      if (refundAmount > 0 && user.subscription.razorpayPaymentId) {
-        refundResult = await issueRefund(user, refundAmount, razorpay, {
-          reason: `Plan downgrade from ${currentPlan.name} to ${targetPlan.name}`,
-          oldPlan: currentPlan.id,
-          newPlan: newPlan
-        });
-        
-        if (!refundResult.success) {
-          console.error('❌ Refund failed:', refundResult.error);
-          // Continue with downgrade even if refund fails
-        }
-      }
-      
-      // Update subscription immediately
-      user.subscription.previousPlan = currentPlan.id;
-      user.subscription.plan = newPlan;
-      user.subscription.status = 'active';
-      user.subscription.refundIssued = refundAmount > 0;
+      // Mark subscription as scheduled for downgrade
+      user.subscription.status = 'scheduled_downgrade';
+      user.subscription.scheduledPlan = newPlan;
+      user.subscription.scheduledChangeDate = new Date(periodEnd);
       user.subscription.lastStatusChange = new Date();
+      
       await user.save();
-
-      console.log(`✅ Downgraded from ${currentPlan.name} to ${targetPlan.name}`);
-
+      
+      console.log(`✅ Downgrade scheduled for ${new Date(periodEnd).toLocaleDateString()}`);
+      
+      // Create invoice record for the scheduled downgrade
+      const downgradeInvoice = new Invoice({
+        invoiceNumber: `INV-${Date.now()}-DOWNGRADE`,
+        userId: user._id,
+        userEmail,
+        userName,
+        type: 'downgrade_scheduled',
+        amount: 0, // No charge now
+        status: 'pending',
+        description: `Scheduled downgrade from ${currentPlan.name} to ${targetPlan.name}`,
+        metadata: {
+          oldPlan: currentPlan.id,
+          newPlan: newPlan,
+          scheduledFor: new Date(periodEnd),
+          remainingDays,
+          totalDays,
+          nextBillingAmount: targetPlan.price
+        }
+      });
+      
+      await downgradeInvoice.save();
+      
       return res.json({
         success: true,
-        message: `Successfully downgraded to ${targetPlan.name}`,
+        message: `Downgrade scheduled successfully`,
         subscription: {
-          plan: newPlan,
-          previousPlan: currentPlan.id,
-          status: 'active'
+          currentPlan: currentPlan.id,
+          scheduledPlan: newPlan,
+          status: 'scheduled_downgrade',
+          effectiveDate: new Date(periodEnd),
+          daysRemaining: remainingDays
         },
-        refund: refundAmount > 0 ? {
-          amount: refundAmount,
-          status: refundResult?.status || 'pending',
-          refundId: refundResult?.refundId || null,
-          message: `Refund of ₹${refundAmount} will be processed to your original payment method`
-        } : null
+        accessInfo: {
+          message: `You will keep access to ${currentPlan.name} plan until ${new Date(periodEnd).toLocaleDateString()}`,
+          nextBillingDate: new Date(periodEnd),
+          nextBillingAmount: targetPlan.price,
+          nextBillingPlan: targetPlan.name
+        }
       });
     }
 

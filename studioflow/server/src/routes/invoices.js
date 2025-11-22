@@ -1,7 +1,8 @@
 import express from 'express';
 import Invoice from '../models/Invoice.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
-import { getInvoicePDFPath, invoicePDFExists } from '../utils/pdfGenerator.js';
+import { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } from '../utils/pdfGenerator.js';
+import User from '../models/User.js';
 import fs from 'fs';
 
 const router = express.Router();
@@ -104,6 +105,43 @@ router.get('/:invoiceNumber/download', verifyClerk, async (req, res) => {
   } catch (error) {
     console.error('Error downloading invoice:', error);
     res.status(500).json({ error: 'Failed to download invoice' });
+  }
+});
+
+// @desc    Regenerate invoice PDF when missing/corrupted
+// @route   POST /api/invoices/:invoiceNumber/regenerate
+// @access  Protected
+router.post('/:invoiceNumber/regenerate', verifyClerk, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { invoiceNumber } = req.params;
+
+    console.log(`♻️  Regenerating PDF for invoice: ${invoiceNumber}`);
+
+    const invoice = await Invoice.findOne({ invoiceNumber, userId });
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const user = await User.findOne({ clerkUserId: userId });
+
+    const pdfPath = await generateInvoicePDF(invoice, {
+      email: invoice.metadata?.userEmail || user?.email,
+      name: invoice.metadata?.userName || user?.name || 'User'
+    });
+
+    invoice.pdfGenerated = true;
+    invoice.pdfUrl = pdfPath;
+    await invoice.save();
+
+    return res.json({
+      success: true,
+      message: 'Invoice regenerated successfully',
+      pdfPath
+    });
+  } catch (error) {
+    console.error('Error regenerating invoice:', error);
+    res.status(500).json({ error: 'Failed to regenerate invoice' });
   }
 });
 
