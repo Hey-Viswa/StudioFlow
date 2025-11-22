@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { initSentry } from './config/sentry';
 import './index.css';
+// Force rebuild - v2
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
