@@ -49,7 +49,7 @@ const SUBSCRIPTION_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 499, // ₹499/month (CORRECTED)
+    price: 100, // ₹100/month
     currency: 'INR',
     trialDays: 7, // 7-day free trial
     razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
@@ -68,7 +68,7 @@ const SUBSCRIPTION_PLANS = {
   studio: {
     id: 'studio',
     name: 'Studio',
-    price: 999, // ₹999/month (CORRECTED)
+    price: 499, // ₹499/month
     currency: 'INR',
     trialDays: 7, // 7-day free trial
     razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',

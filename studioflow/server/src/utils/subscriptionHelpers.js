@@ -19,20 +19,26 @@ export function isTrialActive(user) {
 /**
  * Calculate refund amount for downgrade
  * @param {string} oldPlan - Current plan (e.g., 'studio')
- * @param {string} newPlan - Target plan (e.g., 'pro')
+ * @param {string} newPlan - Target plan (e.g., 'pro', 'free')
  * @returns {number} - Refund amount in INR
  */
 export function calculateRefund(oldPlan, newPlan) {
   const PLANS = {
     free: 0,
-    pro: 499,
-    studio: 999
+    pro: 100,
+    studio: 499
   };
   
   const oldPrice = PLANS[oldPlan] || 0;
   const newPrice = PLANS[newPlan] || 0;
   
-  // Only refund if downgrading (old price > new price)
+  // Special case: Downgrade to free = full refund
+  if (newPlan === 'free' && oldPrice > 0) {
+    return oldPrice;
+  }
+  
+  // Regular downgrade: refund the difference
+  // Studio (499) → Pro (100) = 399 refund
   if (oldPrice > newPrice) {
     return oldPrice - newPrice;
   }
