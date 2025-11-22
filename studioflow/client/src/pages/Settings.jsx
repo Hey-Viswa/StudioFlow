@@ -539,7 +539,11 @@ export default function Settings() {
                   <div>
                     <Label className="text-white">Password</Label>
                     <p className="text-sm text-slate-400 mb-3">Your password is managed by Clerk authentication</p>
-                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
+                    <Button 
+                      variant="outline" 
+                      className="border-slate-700 text-white hover:bg-slate-800"
+                      onClick={() => user?.openManageAccount()}
+                    >
                       Change Password
                     </Button>
                   </div>
@@ -549,8 +553,12 @@ export default function Settings() {
                   <div>
                     <Label className="text-white">Two-Factor Authentication</Label>
                     <p className="text-sm text-slate-400 mb-3">Add an extra layer of security to your account</p>
-                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
-                      Enable 2FA
+                    <Button 
+                      variant="outline" 
+                      className="border-slate-700 text-white hover:bg-slate-800"
+                      onClick={() => user?.openManageAccount({ section: 'mfa' })}
+                    >
+                      Manage 2FA
                     </Button>
                   </div>
 
@@ -559,7 +567,11 @@ export default function Settings() {
                   <div>
                     <Label className="text-white">Active Sessions</Label>
                     <p className="text-sm text-slate-400 mb-3">Manage devices where you're currently logged in</p>
-                    <Button variant="outline" className="border-slate-700 text-white hover:bg-slate-800">
+                    <Button 
+                      variant="outline" 
+                      className="border-slate-700 text-white hover:bg-slate-800"
+                      onClick={() => user?.openManageAccount({ section: 'sessions' })}
+                    >
                       View Sessions
                     </Button>
                   </div>
@@ -568,31 +580,7 @@ export default function Settings() {
             </Card>
             )}
 
-            {/* Security Section */}
-            <Card className="bg-card border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  Security
-                </CardTitle>
-                <CardDescription>Manage your account security</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-slate-400">
-                  Your account is secured with Clerk authentication. To manage your password, 
-                  two-factor authentication, or other security settings, please visit your 
-                  account settings.
-                </p>
-                <Button 
-                  variant="outline" 
-                  className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
-                  onClick={() => window.open('https://accounts.clerk.dev', '_blank')}
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Manage Security Settings
-                </Button>
-              </CardContent>
-            </Card>
+
           </div>
         </div>
       )}

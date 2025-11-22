@@ -144,41 +144,63 @@ export const listProjects = async (req, res) => {
     .lean() // Return plain objects for better performance
     .sort({ createdAt: -1 }); // Most recent first
 
-    // Enhance projects with user names from Clerk and categorize them
-    const enhancedProjects = await Promise.all(projects.map(async (project) => {
+    // OPTIMIZATION: Collect all unique user IDs first to batch fetch from Clerk
+    const allUserIds = new Set();
+    projects.forEach(project => {
+      allUserIds.add(project.ownerId);
+      project.members.forEach(member => {
+        if (!member.name || member.name === '') {
+          allUserIds.add(member.userId);
+        }
+      });
+    });
+
+    // BATCH FETCH: Get all users at once instead of one by one
+    const userCache = new Map();
+    const userIds = Array.from(allUserIds);
+    
+    // Fetch users in parallel with rate limiting (max 10 concurrent)
+    const chunkSize = 10;
+    for (let i = 0; i < userIds.length; i += chunkSize) {
+      const chunk = userIds.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(async (id) => {
+        try {
+          const user = await clerkClient.users.getUser(id);
+          const displayName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
+          userCache.set(id, {
+            name: displayName,
+            email: user.emailAddresses?.[0]?.emailAddress
+          });
+        } catch (err) {
+          console.error(`Error fetching user ${id} from Clerk:`, err.message);
+          userCache.set(id, { name: 'Unknown', email: '' });
+        }
+      }));
+    }
+
+    // Enhance projects with cached user data (NO MORE API CALLS)
+    const enhancedProjects = projects.map((project) => {
       // Determine if this is user's own project or shared project
       const isOwner = String(project.ownerId) === String(userId);
       
-      // Get owner name from Clerk
-      let ownerName = 'Unknown';
-      try {
-        const ownerUser = await clerkClient.users.getUser(project.ownerId);
-        ownerName = ownerUser.firstName && ownerUser.lastName 
-          ? `${ownerUser.firstName} ${ownerUser.lastName}` 
-          : ownerUser.username || ownerUser.emailAddresses?.[0]?.emailAddress || 'Unknown';
-      } catch (err) {
-        console.error('Error fetching owner from Clerk:', err);
-      }
+      // Get owner name from cache
+      const ownerData = userCache.get(project.ownerId) || { name: 'Unknown' };
+      const ownerName = ownerData.name;
 
-      // Enhance members with actual names from Clerk if missing
-      const enhancedMembers = await Promise.all(project.members.map(async (member) => {
+      // Enhance members with cached data
+      const enhancedMembers = project.members.map((member) => {
         if (!member.name || member.name === '') {
-          try {
-            const memberUser = await clerkClient.users.getUser(member.userId);
-            return {
-              ...member,
-              name: memberUser.firstName && memberUser.lastName 
-                ? `${memberUser.firstName} ${memberUser.lastName}` 
-                : memberUser.username || memberUser.emailAddresses?.[0]?.emailAddress || member.userId,
-              email: memberUser.emailAddresses?.[0]?.emailAddress || member.email
-            };
-          } catch (err) {
-            console.error('Error fetching member from Clerk:', err);
-            return member;
-          }
+          const memberData = userCache.get(member.userId) || { name: member.userId, email: member.email };
+          return {
+            ...member,
+            name: memberData.name,
+            email: memberData.email || member.email
+          };
         }
         return member;
-      }));
+      });
 
       // Calculate user's role
       let userRole = null;
@@ -196,7 +218,7 @@ export const listProjects = async (req, res) => {
         userRole,
         isShared: !isOwner // Flag to indicate if this is a shared project
       };
-    }));
+    });
 
     // Categorize projects
     const myProjects = enhancedProjects.filter(p => !p.isShared);
