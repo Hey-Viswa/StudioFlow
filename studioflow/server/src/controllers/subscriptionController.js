@@ -35,6 +35,7 @@ const SUBSCRIPTION_PLANS = {
     name: 'Starter',
     price: 0,
     currency: 'INR',
+    trialDays: 0,
     features: {
       maxProjects: 5,
       maxMembers: 1,
@@ -48,8 +49,9 @@ const SUBSCRIPTION_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 100, // ₹100/month
+    price: 499, // ₹499/month (CORRECTED)
     currency: 'INR',
+    trialDays: 7, // 7-day free trial
     razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
     features: {
       maxProjects: 50,
@@ -66,8 +68,9 @@ const SUBSCRIPTION_PLANS = {
   studio: {
     id: 'studio',
     name: 'Studio',
-    price: 499, // ₹499/month
+    price: 999, // ₹999/month (CORRECTED)
     currency: 'INR',
+    trialDays: 7, // 7-day free trial
     razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',
     features: {
       maxProjects: 100,
@@ -228,7 +231,33 @@ export const createSubscription = async (req, res) => {
       console.log('✓ Using existing Razorpay customer:', customerId);
     }
 
-    // Create Razorpay subscription
+    // Check if user has never subscribed before (eligible for trial)
+    const isFirstSubscription = user.subscription.plan === 'free' && 
+                                 !user.subscription.previousPlan;
+    
+    // Start 7-day trial for first-time subscribers
+    if (isFirstSubscription && plan.trialDays > 0) {
+      console.log(`🎁 Starting ${plan.trialDays}-day free trial for user`);
+      const { startTrial } = await import('../utils/subscriptionHelpers.js');
+      
+      const trialResult = await startTrial(user, planId);
+      
+      console.log(`✅ Trial activated: ${planId} plan until ${trialResult.trialEnd.toLocaleDateString()}`);
+      
+      return res.json({
+        success: true,
+        trial: true,
+        message: `${plan.trialDays}-day free trial activated! No charge until ${trialResult.trialEnd.toLocaleDateString()}`,
+        subscription: {
+          plan: planId,
+          status: 'trial',
+          trialStart: trialResult.trialStart,
+          trialEnd: trialResult.trialEnd
+        }
+      });
+    }
+
+    // Create Razorpay subscription (for non-trial or returning users)
     console.log('Creating Razorpay subscription...');
     console.log('  Plan ID:', plan.razorpayPlanId);
     console.log('  Customer ID:', customerId);
@@ -490,7 +519,34 @@ export const cancelSubscription = async (req, res) => {
 
     const user = await User.findOne({ clerkUserId: userId });
     
-    if (!user || !user.subscription.razorpaySubscriptionId) {
+    if (!user) {
+      console.error(`[${timestamp}] ❌ User not found`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // SPECIAL CASE: Handle trial cancellation
+    const { isTrialActive, endTrial } = await import('../utils/subscriptionHelpers.js');
+    
+    if (isTrialActive(user)) {
+      console.log(`[${timestamp}] 🎁 Cancelling during trial period - full refund (no charge)`);
+      
+      const trialResult = await endTrial(user, false, razorpay);
+      
+      console.log(`[${timestamp}] ✅ Trial cancelled - downgraded to free plan`);
+      
+      return res.json({
+        success: true,
+        message: 'Trial cancelled. No charges applied.',
+        subscription: {
+          plan: 'free',
+          status: 'active',
+          refund: 0,
+          wasTrial: true
+        }
+      });
+    }
+    
+    if (!user.subscription.razorpaySubscriptionId) {
       console.error(`[${timestamp}] ❌ No active subscription found`);
       return res.status(404).json({ error: 'No active subscription found' });
     }
@@ -1526,25 +1582,61 @@ export const changePlan = async (req, res) => {
       });
 
     } else if (isDowngrade) {
-      // DOWNGRADE: Schedule change for end of current period
+      // DOWNGRADE: Process immediately with refund
+      const { calculateRefund, issueRefund } = await import('../utils/subscriptionHelpers.js');
       
+      // Check if refund already issued in this billing cycle
+      if (user.subscription.refundIssued) {
+        return res.status(400).json({
+          error: 'Refund already issued',
+          message: 'You can only receive one refund per billing cycle. Downgrade will be processed at period end.'
+        });
+      }
+      
+      // Calculate refund amount
+      const refundAmount = calculateRefund(currentPlan.id, newPlan);
+      console.log(`💰 Refund calculation: ${currentPlan.name}(₹${currentPlan.price}) → ${targetPlan.name}(₹${targetPlan.price}) = ₹${refundAmount} refund`);
+      
+      let refundResult = null;
+      
+      // Issue refund if amount > 0
+      if (refundAmount > 0 && user.subscription.razorpayPaymentId) {
+        refundResult = await issueRefund(user, refundAmount, razorpay, {
+          reason: `Plan downgrade from ${currentPlan.name} to ${targetPlan.name}`,
+          oldPlan: currentPlan.id,
+          newPlan: newPlan
+        });
+        
+        if (!refundResult.success) {
+          console.error('❌ Refund failed:', refundResult.error);
+          // Continue with downgrade even if refund fails
+        }
+      }
+      
+      // Update subscription immediately
+      user.subscription.previousPlan = currentPlan.id;
       user.subscription.plan = newPlan;
-      user.subscription.status = 'scheduled_downgrade';
-      user.subscription.nextBillingDate = new Date(periodEnd);
+      user.subscription.status = 'active';
+      user.subscription.refundIssued = refundAmount > 0;
       user.subscription.lastStatusChange = new Date();
       await user.save();
 
-      console.log(`✅ Downgrade to ${targetPlan.name} scheduled for ${new Date(periodEnd).toLocaleDateString()}`);
+      console.log(`✅ Downgraded from ${currentPlan.name} to ${targetPlan.name}`);
 
       return res.json({
         success: true,
-        message: `Downgrade to ${targetPlan.name} scheduled`,
+        message: `Successfully downgraded to ${targetPlan.name}`,
         subscription: {
           plan: newPlan,
-          effectiveDate: new Date(periodEnd),
-          currentPlanExpiresOn: new Date(periodEnd),
-          refund: proratedRefund
-        }
+          previousPlan: currentPlan.id,
+          status: 'active'
+        },
+        refund: refundAmount > 0 ? {
+          amount: refundAmount,
+          status: refundResult?.status || 'pending',
+          refundId: refundResult?.refundId || null,
+          message: `Refund of ₹${refundAmount} will be processed to your original payment method`
+        } : null
       });
     }
 

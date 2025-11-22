@@ -49,10 +49,35 @@ const UserSchema = new mongoose.Schema({
             enum: ['free', 'pro', 'studio'],
             default: 'free'
         },
+        previousPlan: {
+            type: String,
+            enum: ['free', 'pro', 'studio'],
+            default: null
+        },
         status: {
             type: String,
-            enum: ['active', 'inactive', 'cancelled', 'expired', 'created', 'paused', 'payment_failed', 'pending', 'scheduled_downgrade'],
+            enum: ['active', 'inactive', 'cancelled', 'expired', 'created', 'paused', 'payment_failed', 'pending', 'scheduled_downgrade', 'trial'],
             default: 'active'
+        },
+        trialStart: {
+            type: Date,
+            default: null
+        },
+        trialEnd: {
+            type: Date,
+            default: null
+        },
+        refundIssued: {
+            type: Boolean,
+            default: false
+        },
+        refundAmount: {
+            type: Number,
+            default: 0
+        },
+        refundDate: {
+            type: Date,
+            default: null
         },
         razorpayCustomerId: {
             type: String,
