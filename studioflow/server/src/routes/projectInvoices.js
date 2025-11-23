@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  getAllUserInvoices,
   generateProjectInvoice,
   getProjectInvoices,
   getProjectInvoiceDetails,
@@ -12,6 +13,9 @@ import {
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 
 const router = express.Router();
+
+// Get all invoices for current user
+router.get('/invoices', verifyClerk, getAllUserInvoices);
 
 // Project-specific invoice routes (protected)
 router.post('/projects/:projectId/invoices/generate', verifyClerk, generateProjectInvoice);

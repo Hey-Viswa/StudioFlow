@@ -168,10 +168,9 @@ app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/invoices', invoiceRoutes);
+app.use('/api/subscription-invoices', invoiceRoutes); // Changed: subscription invoices now at /api/subscription-invoices
 app.use('/api/contact', contactRoutes);
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
-app.use('/api', projectInvoiceRoutes); // Project invoice routes
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
 
 // Socket.IO connection handling

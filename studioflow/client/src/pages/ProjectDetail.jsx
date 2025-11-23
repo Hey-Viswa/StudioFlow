@@ -23,6 +23,7 @@ import {
 } from '../components/ui/breadcrumb';
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
+import ProjectInvoiceList from '../components/ProjectInvoiceList';
 import {
   Select,
   SelectContent,
@@ -796,18 +797,22 @@ export default function ProjectDetail() {
         </Card>
 
         {/* Placeholder for future features */}
-        {/* Tasks, Files, and Comments Tabs */}
+        {/* Tasks, Files, Comments, and Invoices Tabs */}
         <Card>
           <CardHeader>
             <CardTitle>Project Workspace</CardTitle>
-            <CardDescription>Manage tasks, files, and communicate with your team</CardDescription>
+            <CardDescription>Manage tasks, invoices, and communicate with your team</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="tasks" className="flex items-center gap-2">
                   <ListTodo className="w-4 h-4" />
                   Tasks
+                </TabsTrigger>
+                <TabsTrigger value="invoices" className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Invoices
                 </TabsTrigger>
                 <TabsTrigger value="files" className="flex items-center gap-2">
                   <Upload className="w-4 h-4" />
@@ -821,6 +826,13 @@ export default function ProjectDetail() {
               
               <TabsContent value="tasks" className="mt-6">
                 <TasksTab projectId={projectId} project={project} />
+              </TabsContent>
+              
+              <TabsContent value="invoices" className="mt-6">
+                <ProjectInvoiceList 
+                  projectId={projectId} 
+                  clients={project.members?.filter(m => m.role === 'client')} 
+                />
               </TabsContent>
               
               <TabsContent value="files" className="mt-6">

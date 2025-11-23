@@ -133,14 +133,18 @@ function addCustomerInfo(doc, user, invoice) {
      .fillColor('#1e293b')
      .text('Bill To:', 320, 200);
 
-  const userName = invoice.metadata?.userName || user.name || 'Customer';
-  const userEmail = invoice.metadata?.userEmail || user.email || 'customer@example.com';
+  // Use client info from invoice if available (project invoices)
+  const userName = invoice.client?.name || invoice.metadata?.userName || user.name || 'Customer';
+  const userEmail = invoice.client?.email || invoice.metadata?.userEmail || user.email || 'customer@example.com';
 
   doc.fontSize(11)
      .fillColor('#334155')
      .text(userName, 320, 220)
-     .text(userEmail, 320, 235)
-     .text(`User ID: ${user.clerkUserId || user._id}`, 320, 250);
+     .text(userEmail, 320, 235);
+     
+  if (invoice.client?.userId || user.clerkUserId || user._id) {
+    doc.text(`User ID: ${invoice.client?.userId || user.clerkUserId || user._id}`, 320, 250);
+  }
 }
 
 function addInvoiceDetails(doc, invoice) {
@@ -150,32 +154,72 @@ function addInvoiceDetails(doc, invoice) {
      .strokeColor('#e2e8f0')
      .stroke();
 
-  // Billing period
-  const startDate = invoice.billingPeriodStart 
-    ? new Date(invoice.billingPeriodStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'N/A';
-  const endDate = invoice.billingPeriodEnd 
-    ? new Date(invoice.billingPeriodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'N/A';
+  let yPos = 325;
 
-  doc.fontSize(10)
-     .fillColor('#64748b')
-     .text('Billing Period:', 50, 325)
-     .fillColor('#334155')
-     .text(`${startDate} - ${endDate}`, 150, 325);
+  // Project invoice details
+  if (invoice.projectId) {
+    doc.fontSize(10)
+       .fillColor('#64748b')
+       .text('Project:', 50, yPos)
+       .fillColor('#334155')
+       .text(invoice.projectId?.title || 'N/A', 150, yPos);
+    yPos += 20;
+  }
 
-  // Subscription details
-  doc.fillColor('#64748b')
-     .text('Plan:', 50, 345)
-     .fillColor('#334155')
-     .text(invoice.planName || invoice.planId, 150, 345);
+  // Due date
+  if (invoice.dueDate) {
+    const dueDate = new Date(invoice.dueDate).toLocaleDateString('en-IN', { 
+      day: 'numeric', month: 'short', year: 'numeric' 
+    });
+    doc.fillColor('#64748b')
+       .text('Due Date:', 50, yPos)
+       .fillColor('#334155')
+       .text(dueDate, 150, yPos);
+    yPos += 20;
+  }
+
+  // Billing period (for subscription invoices)
+  if (invoice.billingPeriodStart && invoice.billingPeriodEnd) {
+    const startDate = new Date(invoice.billingPeriodStart).toLocaleDateString('en-IN', { 
+      day: 'numeric', month: 'short', year: 'numeric' 
+    });
+    const endDate = new Date(invoice.billingPeriodEnd).toLocaleDateString('en-IN', { 
+      day: 'numeric', month: 'short', year: 'numeric' 
+    });
+
+    doc.fillColor('#64748b')
+       .text('Billing Period:', 50, yPos)
+       .fillColor('#334155')
+       .text(`${startDate} - ${endDate}`, 150, yPos);
+    yPos += 20;
+  }
+
+  // Subscription/Plan details
+  if (invoice.planName || invoice.planId) {
+    doc.fillColor('#64748b')
+       .text('Plan:', 50, yPos)
+       .fillColor('#334155')
+       .text(invoice.planName || invoice.planId, 150, yPos);
+    yPos += 20;
+  }
 
   if (invoice.razorpaySubscriptionId || invoice.subscriptionId) {
     doc.fillColor('#64748b')
-       .text('Subscription ID:', 50, 365)
+       .text('Subscription ID:', 50, yPos)
        .fillColor('#334155')
        .fontSize(9)
-       .text(invoice.razorpaySubscriptionId || invoice.subscriptionId, 150, 365);
+       .text(invoice.razorpaySubscriptionId || invoice.subscriptionId, 150, yPos);
+  }
+  
+  // Notes
+  if (invoice.notes) {
+    yPos += 20;
+    doc.fontSize(10)
+       .fillColor('#64748b')
+       .text('Notes:', 50, yPos);
+    doc.fontSize(9)
+       .fillColor('#334155')
+       .text(invoice.notes, 50, yPos + 15, { width: 495 });
   }
 }
 
@@ -190,64 +234,141 @@ function addInvoiceTable(doc, invoice) {
   doc.fontSize(10)
      .fillColor('#1e293b')
      .text('Description', 60, tableTop + 10)
-     .text('Quantity', 320, tableTop + 10)
-     .text('Amount', 450, tableTop + 10);
+     .text('Qty', 280, tableTop + 10)
+     .text('Rate', 360, tableTop + 10)
+     .text('Amount', 460, tableTop + 10);
 
-  // Table content background
-  doc.rect(50, tableTop + 30, 495, 50)
-     .fillAndStroke('#ffffff', '#e2e8f0');
+  // Check if invoice has items (project invoice) or is subscription invoice
+  const hasItems = invoice.items && invoice.items.length > 0;
+  
+  if (hasItems) {
+    // Project invoice with line items
+    let yOffset = tableTop + 30;
+    const rowHeight = 40;
+    
+    invoice.items.forEach((item, index) => {
+      // Row background
+      doc.rect(50, yOffset, 495, rowHeight)
+         .fillAndStroke('#ffffff', '#e2e8f0');
 
-  // Description
-  const description = invoice.description || `${invoice.planName} subscription ${isRefund ? 'refund' : 'payment'}`;
-  doc.fontSize(11)
-     .fillColor('#334155')
-     .text(description, 60, tableTop + 45, { width: 240 });
+      // Item details
+      doc.fontSize(10)
+         .fillColor('#334155')
+         .text(item.title, 60, yOffset + 10, { width: 200 });
+      
+      if (item.description) {
+        doc.fontSize(8)
+           .fillColor('#64748b')
+           .text(item.description, 60, yOffset + 24, { width: 200 });
+      }
 
-  // Quantity
-  doc.text('1', 340, tableTop + 45);
+      doc.fontSize(10)
+         .fillColor('#334155')
+         .text(item.quantity.toString(), 290, yOffset + 10)
+         .text(`₹${item.rate.toFixed(2)}`, 360, yOffset + 10)
+         .text(`₹${item.amount.toFixed(2)}`, 460, yOffset + 10);
 
-  // Amount
-  const amount = Math.abs(invoice.amount);
-  const amountText = isRefund ? `-₹${amount.toFixed(2)}` : `₹${amount.toFixed(2)}`;
-  doc.text(amountText, 450, tableTop + 45);
+      yOffset += rowHeight;
+    });
 
-  // Calculate subtotal, taxes, and total
-  const subtotal = amount;
-  const gst = 0; // Adjust if you have GST
-  const total = subtotal + gst;
+    // Calculate totals
+    const subtotal = invoice.subtotal || invoice.items.reduce((sum, item) => sum + item.amount, 0);
+    const taxAmount = invoice.tax?.amount || 0;
+    const discountAmount = invoice.discount?.amount || 0;
+    const total = invoice.total || (subtotal + taxAmount - discountAmount);
 
-  let yPos = tableTop + 100;
+    let yPos = yOffset + 20;
 
-  // Subtotal
-  doc.fontSize(10)
-     .fillColor('#64748b')
-     .text('Subtotal:', 380, yPos)
-     .fillColor('#334155')
-     .text(`₹${subtotal.toFixed(2)}`, 480, yPos, { align: 'right' });
-
-  yPos += 20;
-
-  // GST (if applicable)
-  if (gst > 0) {
-    doc.fillColor('#64748b')
-       .text('GST (18%):', 380, yPos)
+    // Subtotal
+    doc.fontSize(10)
+       .fillColor('#64748b')
+       .text('Subtotal:', 380, yPos)
        .fillColor('#334155')
-       .text(`₹${gst.toFixed(2)}`, 480, yPos, { align: 'right' });
+       .text(`₹${subtotal.toFixed(2)}`, 480, yPos, { align: 'right' });
+
     yPos += 20;
+
+    // Tax (if applicable)
+    if (taxAmount > 0) {
+      doc.fillColor('#64748b')
+         .text(`Tax (${invoice.tax?.percentage || 0}%):`, 380, yPos)
+         .fillColor('#334155')
+         .text(`₹${taxAmount.toFixed(2)}`, 480, yPos, { align: 'right' });
+      yPos += 20;
+    }
+
+    // Discount (if applicable)
+    if (discountAmount > 0) {
+      doc.fillColor('#64748b')
+         .text(`Discount (${invoice.discount?.percentage || 0}%):`, 380, yPos)
+         .fillColor('#ef4444')
+         .text(`-₹${discountAmount.toFixed(2)}`, 480, yPos, { align: 'right' });
+      yPos += 20;
+    }
+
+    // Total
+    doc.rect(370, yPos - 5, 175, 35)
+       .fillAndStroke('#f1f5f9', '#e2e8f0');
+
+    doc.fontSize(12)
+       .fillColor('#1e293b')
+       .text('Total:', 380, yPos + 5);
+
+    doc.fontSize(14)
+       .fillColor('#10b981')
+       .text(`₹${total.toFixed(2)}`, 480, yPos + 5, { align: 'right' });
+       
+  } else {
+    // Subscription invoice (legacy format)
+    doc.rect(50, tableTop + 30, 495, 50)
+       .fillAndStroke('#ffffff', '#e2e8f0');
+
+    const description = invoice.description || `${invoice.planName} subscription ${isRefund ? 'refund' : 'payment'}`;
+    doc.fontSize(11)
+       .fillColor('#334155')
+       .text(description, 60, tableTop + 45, { width: 240 });
+
+    doc.text('1', 290, tableTop + 45);
+    
+    const amount = Math.abs(invoice.amount);
+    const amountText = isRefund ? `-₹${amount.toFixed(2)}` : `₹${amount.toFixed(2)}`;
+    doc.text(amountText, 360, tableTop + 45);
+    doc.text(amountText, 460, tableTop + 45);
+
+    const subtotal = amount;
+    const gst = 0;
+    const total = subtotal + gst;
+
+    let yPos = tableTop + 100;
+
+    doc.fontSize(10)
+       .fillColor('#64748b')
+       .text('Subtotal:', 380, yPos)
+       .fillColor('#334155')
+       .text(`₹${subtotal.toFixed(2)}`, 480, yPos, { align: 'right' });
+
+    yPos += 20;
+
+    if (gst > 0) {
+      doc.fillColor('#64748b')
+         .text('GST (18%):', 380, yPos)
+         .fillColor('#334155')
+         .text(`₹${gst.toFixed(2)}`, 480, yPos, { align: 'right' });
+      yPos += 20;
+    }
+
+    doc.rect(370, yPos - 5, 175, 35)
+       .fillAndStroke('#f1f5f9', '#e2e8f0');
+
+    doc.fontSize(12)
+       .fillColor('#1e293b')
+       .text('Total:', 380, yPos + 5);
+
+    const totalText = isRefund ? `-₹${total.toFixed(2)}` : `₹${total.toFixed(2)}`;
+    doc.fontSize(14)
+       .fillColor(isRefund ? '#ef4444' : '#10b981')
+       .text(totalText, 480, yPos + 5, { align: 'right' });
   }
-
-  // Total
-  doc.rect(370, yPos - 5, 175, 35)
-     .fillAndStroke('#f1f5f9', '#e2e8f0');
-
-  doc.fontSize(12)
-     .fillColor('#1e293b')
-     .text('Total:', 380, yPos + 5);
-
-  const totalText = isRefund ? `-₹${total.toFixed(2)}` : `₹${total.toFixed(2)}`;
-  doc.fontSize(14)
-     .fillColor(isRefund ? '#ef4444' : '#10b981')
-     .text(totalText, 480, yPos + 5, { align: 'right' });
 }
 
 function addPaymentInfo(doc, invoice) {

@@ -3,6 +3,59 @@ import Project from '../models/Project.js';
 import { razorpay } from '../config/razorpay.js';
 import crypto from 'crypto';
 
+// @desc    Get all invoices for current user
+// @route   GET /api/invoices
+// @access  Protected
+export const getAllUserInvoices = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { page = 1, limit = 20, status, search } = req.query;
+
+    console.log('=== GET ALL USER INVOICES ===');
+    console.log('User:', userId);
+
+    // Build query
+    const query = {
+      $or: [
+        { userId }, // Creator
+        { 'client.userId': userId } // Client
+      ]
+    };
+    
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Fetch invoices with pagination
+    const skip = (page - 1) * limit;
+    const invoices = await ProjectInvoice.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('projectId', 'title status')
+      .lean();
+
+    const total = await ProjectInvoice.countDocuments(query);
+
+    console.log(`✓ Found ${invoices.length} invoices (${total} total)`);
+
+    res.json({
+      success: true,
+      invoices,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get all invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+};
+
 // @desc    Generate new invoice for a project
 // @route   POST /api/projects/:projectId/invoices/generate
 // @access  Protected (Project Owner Only)

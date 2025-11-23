@@ -19,8 +19,8 @@ const projectInvoiceSchema = new mongoose.Schema({
   // Auto-generated invoice number
   invoiceNumber: {
     type: String,
-    required: true,
-    unique: true
+    unique: true,
+    sparse: true
   },
   
   // Client details (from project members)
