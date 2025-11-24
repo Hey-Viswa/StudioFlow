@@ -18,9 +18,8 @@ export default function InvoicesPage() {
   const [showNewInvoiceModal, setShowNewInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailModalMode, setDetailModalMode] = useState('view'); // 'view' | 'edit'
   const [showSendModal, setShowSendModal] = useState(false);
-  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // useInvoices hook - called exactly once per render
   const {
@@ -67,6 +66,7 @@ export default function InvoicesPage() {
   // Handle view invoice
   const handleViewInvoice = (invoice) => {
     setSelectedInvoice(invoice);
+    setDetailModalMode('view');
     setShowDetailModal(true);
   };
 
@@ -99,10 +99,8 @@ export default function InvoicesPage() {
   // Handle edit invoice - opens detail modal in edit mode
   const handleEditInvoice = async (invoice) => {
     try {
-      // Prefetch invoice data for faster modal loading
-      setEditingInvoiceId(invoice._id);
       setSelectedInvoice(invoice);
-      setIsEditModalOpen(true);
+      setDetailModalMode('edit');
       setShowDetailModal(true);
     } catch (error) {
       console.error('Failed to open invoice for editing:', error);
@@ -113,36 +111,37 @@ export default function InvoicesPage() {
   };
 
   // Handle delete invoice - removes invoice after confirmation
-  const handleDeleteInvoice = async (invoice) => {
+  const handleDeleteInvoice = async (invoiceId) => {
     try {
-      await deleteInvoice(invoice._id);
-      toast.success('Invoice deleted successfully');
-      // Hook already calls refreshInvoices internally
+      await deleteInvoice(invoiceId);
+      // Don't show toast here - InvoiceDetailModal handles it
     } catch (error) {
       console.error('Failed to delete invoice:', error);
-      toast.error('Failed to delete invoice', {
-        description: error.message || 'Please try again'
-      });
-      throw error; // Rethrow to let RowActions handle UI state
+      throw error; // Rethrow to let modal handle error display
     }
   };
 
   // Handle resend invoice - resends invoice email to client
-  const handleResendInvoice = async (invoice) => {
+  const handleResendInvoice = async (invoiceId) => {
     try {
-      const result = await resendInvoice(invoice._id);
-      const resendCount = result?.invoice?.resendCount || result?.resendCount || 1;
-      toast.success('Invoice resent successfully', {
-        description: `Sent ${resendCount} time${resendCount > 1 ? 's' : ''} total`
-      });
-      // Hook already calls refreshInvoices internally
+      const result = await resendInvoice(invoiceId);
+      // Don't show toast here - modal handles it
       return result;
     } catch (error) {
       console.error('Failed to resend invoice:', error);
-      toast.error('Failed to resend invoice', {
-        description: error.message || 'Please try again'
-      });
-      throw error; // Rethrow to let RowActions handle UI state
+      throw error;
+    }
+  };
+
+  // Handle save invoice edits
+  const handleSaveInvoice = async (invoiceId, updatedData) => {
+    try {
+      await updateInvoice(invoiceId, updatedData);
+      // Refresh invoice data after update
+      refreshInvoices();
+    } catch (error) {
+      console.error('Failed to update invoice:', error);
+      throw error;
     }
   };
 
@@ -285,24 +284,16 @@ export default function InvoicesPage() {
         <InvoiceDetailModal
           invoice={selectedInvoice}
           isOpen={showDetailModal}
+          mode={detailModalMode}
           onClose={() => {
             setShowDetailModal(false);
             setSelectedInvoice(null);
+            setDetailModalMode('view');
           }}
-          onSend={() => {
-            setShowDetailModal(false);
-            setShowSendModal(true);
-          }}
-          onPay={() => {
-            setShowDetailModal(false);
-            handlePayInvoice(selectedInvoice);
-          }}
-          actions={{
-            updateInvoice,
-            deleteInvoice,
-            resendInvoice,
-            refreshInvoices,
-          }}
+          onSave={handleSaveInvoice}
+          onDelete={handleDeleteInvoice}
+          onResend={handleResendInvoice}
+          onDownload={downloadInvoice}
         />
 
         <SendInvoiceModal
