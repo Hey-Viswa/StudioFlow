@@ -17,6 +17,10 @@ export const useInvoices = () => {
     total: 0,
     totalPages: 0
   });
+  const [filters, setFilters] = useState({
+    status: 'all',
+    search: ''
+  });
 
   /**
    * Fetch invoices from API
@@ -27,7 +31,19 @@ export const useInvoices = () => {
 
     try {
       await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.getInvoices(options);
+      
+      // Build query parameters
+      const queryParams = {
+        ...filters,
+        ...options
+      };
+      
+      // Don't send 'all' status to the API - let backend return all invoices
+      if (queryParams.status === 'all') {
+        delete queryParams.status;
+      }
+      
+      const response = await invoiceApi.getInvoices(queryParams);
 
       console.log('Fetched invoices response:', response);
 
@@ -40,30 +56,35 @@ export const useInvoices = () => {
       });
     } catch (err) {
       console.error('Failed to fetch invoices:', err);
-      setError(err.message);
+      const errorMessage = err.message || 'Unknown error occurred';
+      setError(errorMessage);
       setInvoices([]);
-      toast.error('Failed to load invoices', {
-        description: err.message
-      });
+      
+      // Only show toast for non-network errors to avoid duplicate error UI
+      if (!errorMessage.toLowerCase().includes('network') && !errorMessage.toLowerCase().includes('fetch')) {
+        toast.error('Failed to load invoices', {
+          description: errorMessage
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, filters]);
 
   /**
-   * Create invoice
+   * Create invoice (project-based)
+   * Always posts full payload to POST /api/invoices
    */
-  const createInvoice = useCallback(async (projectId, invoiceData) => {
+  const createInvoice = useCallback(async (invoiceData) => {
     try {
-      console.log('Creating invoice for project:', projectId);
-      console.log('Invoice data:', invoiceData);
+      console.log('Creating invoice with payload:', invoiceData);
       
       await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.generateInvoice(projectId, invoiceData);
+      const response = await invoiceApi.createInvoice(invoiceData);
       
       console.log('Invoice created successfully:', response);
       
-      // Refresh list
+      // Refresh list so InvoiceTable includes the new invoice
       await fetchInvoices();
       
       toast.success('Invoice created successfully');
@@ -139,10 +160,10 @@ export const useInvoices = () => {
   /**
    * Download invoice PDF
    */
-  const downloadInvoice = useCallback(async (invoiceNumber) => {
+  const downloadInvoice = useCallback(async (invoiceId) => {
     try {
       await invoiceApi.setAuthToken(getToken);
-      await invoiceApi.downloadInvoicePDF(invoiceNumber);
+      await invoiceApi.downloadInvoicePDF(invoiceId);
       
       toast.success('Invoice downloaded');
     } catch (err) {
@@ -166,6 +187,89 @@ export const useInvoices = () => {
       throw err;
     }
   }, [getToken]);
+
+  // Optional helper for opening invoice in edit mode (used by pages/modals)
+  const openEditInvoice = useCallback(async (invoiceId) => {
+    try {
+      // Reuse getInvoice so the implementation stays in one place
+      const data = await getInvoice(invoiceId);
+      return data;
+    } catch (err) {
+      // Error toast is not shown here to let callers decide UX
+      console.error('Failed to open invoice for editing:', err);
+      throw err;
+    }
+  }, [getInvoice]);
+
+  const deleteInvoice = useCallback(async (invoiceId) => {
+    try {
+      await invoiceApi.setAuthToken(getToken);
+      await invoiceApi.deleteInvoice(invoiceId);
+      // Success toast shown in page component to avoid duplication
+      await fetchInvoices();
+    } catch (err) {
+      console.error('Failed to delete invoice:', err);
+      // Let page component handle error toast
+      throw err;
+    }
+  }, [getToken, fetchInvoices]);
+
+  const resendInvoice = useCallback(async (invoiceId) => {
+    try {
+      await invoiceApi.setAuthToken(getToken);
+      const response = await invoiceApi.resendInvoice(invoiceId);
+      // Success toast shown in page component to avoid duplication
+      await fetchInvoices();
+      return response; // Return response so page can show resend count
+    } catch (err) {
+      console.error('Failed to resend invoice:', err);
+      // Let page component handle error toast
+      throw err;
+    }
+  }, [getToken, fetchInvoices]);
+
+  const updateInvoice = useCallback(async (invoiceId, payload) => {
+    try {
+      await invoiceApi.setAuthToken(getToken);
+      const response = await invoiceApi.updateInvoice(invoiceId, payload);
+      toast.success('Invoice updated');
+      await fetchInvoices();
+      return response;
+    } catch (err) {
+      console.error('Failed to update invoice:', err);
+      toast.error('Failed to update invoice', { description: err.message });
+      throw err;
+    }
+  }, [getToken, fetchInvoices]);
+
+  const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
+    const previousInvoices = invoices;
+
+    setInvoices((current) => current.map((invoice) =>
+      invoice._id === invoiceId ? { ...invoice, status } : invoice
+    ));
+
+    try {
+      await invoiceApi.setAuthToken(getToken);
+      await invoiceApi.updateInvoiceStatus(invoiceId, status);
+      toast.success('Status updated');
+    } catch (err) {
+      console.error('Failed to update invoice status:', err);
+      setInvoices(previousInvoices);
+      toast.error('Failed to update status', { description: err.message });
+      throw err;
+    }
+  }, [getToken, invoices]);
+
+  const setStatusFilter = useCallback((status) => {
+    setFilters((prev) => ({ ...prev, status }));
+  }, []);
+
+  const setSearchFilter = useCallback((search) => {
+    setFilters((prev) => ({ ...prev, search }));
+  }, []);
+
+  const refreshInvoices = useCallback(() => fetchInvoices(), [fetchInvoices]);
 
   /**
    * Get invoice statistics
@@ -214,10 +318,14 @@ export const useInvoices = () => {
     return stats;
   }, [invoices]);
 
-  // Initial load
+  // Debounce filter changes to avoid rapid API calls (200ms)
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    const handle = setTimeout(() => {
+      fetchInvoices();
+    }, 200);
+
+    return () => clearTimeout(handle);
+  }, [filters]);
 
   return {
     invoices,
@@ -231,6 +339,15 @@ export const useInvoices = () => {
     createPaymentOrder,
     verifyPayment,
     downloadInvoice,
-    getStats
+    getStats,
+    deleteInvoice,
+    resendInvoice,
+    updateInvoice,
+    updateInvoiceStatus,
+    openEditInvoice,
+    setStatusFilter,
+    setSearchFilter,
+    filters,
+    refreshInvoices
   };
 };

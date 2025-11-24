@@ -11,7 +11,8 @@ import {
   deleteProject,
   listTrash,
   restoreProject,
-  permanentlyDeleteProject
+  permanentlyDeleteProject,
+  getProjectMetrics
 } from '../controllers/projectController.js';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.post('/', checkProjectLimit, createProject);       // Create project (wit
 router.get('/', cacheMiddleware(2 * 60 * 1000), listProjects);  // List all user's projects (2 min cache)
 router.get('/usage', getProjectUsage);                     // Get project usage/limits
 router.get('/trash', cacheMiddleware(5 * 60 * 1000), listTrash); // Get trashed projects (5 min cache)
+router.get('/:id/metrics', getProjectMetrics);
 router.get('/:id', cacheMiddleware(1 * 60 * 1000), getProjectById); // Get single project (1 min cache)
 router.put('/:id', updateProject);                        // Update project (owner only)
 router.patch('/:id', updateProject);                      // Update project (owner only) - supports PATCH too

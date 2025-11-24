@@ -2,6 +2,7 @@ import ProjectInvoice from '../models/ProjectInvoice.js';
 import Project from '../models/Project.js';
 import { razorpay } from '../config/razorpay.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 // @desc    Get all invoices for current user
 // @route   GET /api/invoices
@@ -23,7 +24,14 @@ export const getAllUserInvoices = async (req, res) => {
     };
     
     if (status && status !== 'all') {
-      query.status = status;
+      if (status === 'sent') {
+        query.status = 'pending';
+      } else if (status === 'overdue') {
+        query.status = 'pending';
+        query.dueDate = { $lt: new Date() };
+      } else {
+        query.status = status;
+      }
     }
 
     // Fetch invoices with pagination
@@ -220,6 +228,279 @@ export const getProjectInvoiceDetails = async (req, res) => {
   } catch (error) {
     console.error('❌ Get invoice details error:', error);
     res.status(500).json({ error: 'Failed to fetch invoice' });
+  }
+};
+
+// @desc    Create invoice using request body (REST style)
+// @route   POST /api/invoices
+// @access  Protected
+export const createInvoiceFromBody = async (req, res) => {
+  try {
+    const { projectId } = req.body;
+
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId is required' });
+    }
+
+    req.params.projectId = projectId;
+    return generateProjectInvoice(req, res);
+  } catch (error) {
+    console.error('❌ Create invoice error:', error);
+    res.status(500).json({ error: 'Failed to create invoice' });
+  }
+};
+
+// @desc    Update invoice
+// @route   PUT /api/invoices/:invoiceId
+// @access  Protected (Owner only)
+export const updateProjectInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const userId = req.userId;
+    const updates = req.body || {};
+
+    const invoice = await ProjectInvoice.findById(invoiceId);
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.userId !== userId) {
+      return res.status(403).json({ error: 'Only invoice creator can update' });
+    }
+
+    if (updates.projectId && String(updates.projectId) !== String(invoice.projectId)) {
+      if (!mongoose.Types.ObjectId.isValid(updates.projectId)) {
+        return res.status(400).json({ error: 'Invalid project selection' });
+      }
+
+      const project = await Project.findById(updates.projectId);
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      if (!project.isOwner(userId)) {
+        return res.status(403).json({ error: 'Only project owner can link invoice' });
+      }
+
+      invoice.projectId = updates.projectId;
+    }
+
+    if (updates.items && (!Array.isArray(updates.items) || updates.items.length === 0)) {
+      return res.status(400).json({ error: 'Invoice must include at least one item' });
+    }
+
+    if (updates.items) {
+      invoice.items = updates.items.map(item => ({
+        title: item.title,
+        description: item.description || '',
+        quantity: Math.max(1, parseFloat(item.quantity) || 1),
+        rate: Math.max(0, parseFloat(item.rate) || 0),
+        amount: Math.max(0, (parseFloat(item.quantity) || 1) * (parseFloat(item.rate) || 0))
+      }));
+    }
+
+    if (updates.client) {
+      invoice.client = {
+        ...invoice.client,
+        ...updates.client
+      };
+    }
+
+    if (updates.notes !== undefined) {
+      invoice.notes = updates.notes;
+    }
+
+    if (updates.issueDate) {
+      const issueDate = new Date(updates.issueDate);
+      if (isNaN(issueDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid issue date' });
+      }
+      invoice.issueDate = issueDate;
+    }
+
+    if (updates.dueDate) {
+      const dueDate = new Date(updates.dueDate);
+      if (isNaN(dueDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid due date' });
+      }
+      invoice.dueDate = dueDate;
+    }
+
+    if (invoice.issueDate && invoice.dueDate && invoice.dueDate < invoice.issueDate) {
+      return res.status(400).json({ error: 'Due date cannot be earlier than invoice date' });
+    }
+
+    if (updates.tax) {
+      const percentage = updates.tax.percentage !== undefined
+        ? parseFloat(updates.tax.percentage) || 0
+        : invoice.tax.percentage;
+
+      const subtotal = invoice.items.reduce((sum, item) => sum + item.amount, 0);
+      invoice.tax = {
+        percentage,
+        amount: (subtotal * (percentage || 0)) / 100
+      };
+    }
+
+    if (updates.discount) {
+      const percentage = updates.discount.percentage !== undefined
+        ? parseFloat(updates.discount.percentage) || 0
+        : invoice.discount.percentage;
+
+      const subtotal = invoice.items.reduce((sum, item) => sum + item.amount, 0);
+      invoice.discount = {
+        percentage,
+        amount: (subtotal * (percentage || 0)) / 100
+      };
+    }
+
+    if (updates.status) {
+      invoice.status = updates.status;
+      if (updates.status === 'paid' && !invoice.paidAt) {
+        invoice.paidAt = new Date();
+      }
+      if (updates.status !== 'paid') {
+        invoice.paidAt = null;
+      }
+    }
+
+    await invoice.save();
+    await invoice.populate('projectId', 'title status');
+
+    res.json({ success: true, invoice });
+  } catch (error) {
+    console.error('❌ Update invoice error:', error);
+    res.status(500).json({ error: 'Failed to update invoice' });
+  }
+};
+
+// @desc    Delete invoice
+// @route   DELETE /api/invoices/:invoiceId
+// @access  Protected (Owner only)
+export const deleteProjectInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const userId = req.userId;
+
+    const invoice = await ProjectInvoice.findById(invoiceId);
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.userId !== userId) {
+      return res.status(403).json({ error: 'Only invoice creator can delete' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ error: 'Cannot delete paid invoice' });
+    }
+
+    await invoice.deleteOne();
+
+    res.json({ success: true, message: 'Invoice deleted successfully' });
+  } catch (error) {
+    console.error('❌ Delete invoice error:', error);
+    res.status(500).json({ error: 'Failed to delete invoice' });
+  }
+};
+
+// @desc    Update invoice status inline
+// @route   PATCH /api/invoices/:invoiceId/status
+// @access  Protected (Owner only)
+export const updateProjectInvoiceStatus = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const { status } = req.body;
+    const userId = req.userId;
+
+    const allowedStatuses = ['draft', 'pending', 'paid', 'failed', 'cancelled'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const invoice = await ProjectInvoice.findById(invoiceId);
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.userId !== userId) {
+      return res.status(403).json({ error: 'Only invoice creator can update status' });
+    }
+
+    invoice.status = status;
+    if (status === 'paid' && !invoice.paidAt) {
+      invoice.paidAt = new Date();
+    }
+    if (status !== 'paid') {
+      invoice.paidAt = null;
+    }
+
+    await invoice.save();
+
+    res.json({ success: true, invoice });
+  } catch (error) {
+    console.error('❌ Status update error:', error);
+    res.status(500).json({ error: 'Failed to update invoice status' });
+  }
+};
+
+// @desc    Resend invoice via email
+// @route   POST /api/invoices/:invoiceId/resend
+// @access  Protected (Owner only)
+export const resendProjectInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const userId = req.userId;
+
+    const invoice = await ProjectInvoice.findById(invoiceId).populate('projectId', 'title');
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.userId !== userId) {
+      return res.status(403).json({ error: 'Only invoice creator can resend' });
+    }
+
+    if (!invoice.client?.email) {
+      return res.status(400).json({ error: 'Client email not available' });
+    }
+
+    const { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } = await import('../utils/pdfGenerator.js');
+    let pdfPath = getInvoicePDFPath(invoice.invoiceNumber);
+
+    if (!invoicePDFExists(invoice.invoiceNumber)) {
+      const user = {
+        email: invoice.client.email,
+        name: invoice.client.name || 'Client'
+      };
+      pdfPath = await generateInvoicePDF(invoice, user);
+      invoice.pdfUrl = `/api/invoices/project/${invoice.invoiceNumber}/download`;
+      invoice.pdfGenerated = true;
+    }
+
+    const { sendInvoiceEmail } = await import('../utils/emailService.js');
+    await sendInvoiceEmail({
+      to: invoice.client.email,
+      userName: invoice.client.name || 'Client',
+      invoice,
+      pdfPath
+    });
+
+    invoice.emailSent = true;
+    invoice.emailSentAt = new Date();
+    invoice.resendCount = (invoice.resendCount || 0) + 1;
+    invoice.lastResentAt = new Date();
+    await invoice.save();
+
+    res.json({ success: true, message: 'Invoice resent successfully', invoice });
+  } catch (error) {
+    console.error('❌ Resend invoice error:', error);
+    res.status(500).json({ error: 'Failed to resend invoice' });
   }
 };
 
@@ -552,15 +833,19 @@ async function handlePaymentFailed(payment, timestamp) {
 // @access  Protected (Owner or Client)
 export const downloadProjectInvoicePDF = async (req, res) => {
   try {
-    const { invoiceNumber } = req.params;
+    const { invoiceIdentifier } = req.params;
     const userId = req.userId;
 
     console.log('=== DOWNLOAD PROJECT INVOICE PDF ===');
-    console.log('Invoice Number:', invoiceNumber);
+    console.log('Invoice Identifier:', invoiceIdentifier);
     console.log('User:', userId);
 
-    // Find invoice by number
-    const invoice = await ProjectInvoice.findOne({ invoiceNumber });
+    // Find invoice by number or ObjectId
+    let invoice = await ProjectInvoice.findOne({ invoiceNumber: invoiceIdentifier });
+
+    if (!invoice && mongoose.Types.ObjectId.isValid(invoiceIdentifier)) {
+      invoice = await ProjectInvoice.findById(invoiceIdentifier);
+    }
 
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -574,9 +859,9 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     // Check if PDF exists or generate it
     const { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } = await import('../utils/pdfGenerator.js');
     
-    let pdfPath = getInvoicePDFPath(invoiceNumber);
+    let pdfPath = getInvoicePDFPath(invoice.invoiceNumber);
 
-    if (!invoicePDFExists(invoiceNumber)) {
+    if (!invoicePDFExists(invoice.invoiceNumber)) {
       console.log('PDF not found, generating...');
       
       // Generate PDF for project invoice
@@ -589,7 +874,7 @@ export const downloadProjectInvoicePDF = async (req, res) => {
         pdfPath = await generateInvoicePDF(invoice, user);
         
         // Update invoice with PDF URL
-        invoice.pdfUrl = `/api/invoices/project/${invoiceNumber}/download`;
+        invoice.pdfUrl = `/api/invoices/project/${invoice.invoiceNumber}/download`;
         invoice.pdfGenerated = true;
         await invoice.save();
         
@@ -610,7 +895,7 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${invoiceNumber}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
 
     const fileStream = fs.createReadStream(pdfPath);
     fileStream.pipe(res);

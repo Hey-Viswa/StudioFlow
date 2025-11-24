@@ -4,6 +4,7 @@ import Trash from '../models/Trash.js';
 import User from '../models/User.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -334,6 +335,65 @@ export const generateInvite = async (req, res) => {
   } catch (error) {
     console.error('❌ Generate invite error:', error);
     res.status(500).json({ error: 'Failed to generate invite: ' + error.message });
+  }
+};
+
+// @desc    Get project metrics for invoice autofill
+// @route   GET /api/projects/:id/metrics
+// @access  Protected (Project members)
+export const getProjectMetrics = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (!project.isMember(userId)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const tasks = project.tasks || [];
+    const completedTasks = tasks.filter(task => task.status === 'completed');
+
+    // Attempt to derive metrics from previous invoices
+    const latestInvoice = await ProjectInvoice.findOne({ projectId: id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const hoursFromTasks = completedTasks.reduce((sum, task) => {
+      const tracked = task?.metrics?.hoursWorked ?? task?.hoursWorked ?? task?.billableHours ?? 0;
+      return sum + (tracked || 0);
+    }, 0);
+
+    const derivedHours = latestInvoice
+      ? latestInvoice.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+      : 0;
+
+    const hoursWorked = hoursFromTasks || derivedHours || completedTasks.length;
+    const billableHours = latestInvoice
+      ? latestInvoice.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+      : hoursWorked;
+
+    const rateFromInvoice = latestInvoice && latestInvoice.items.length > 0
+      ? latestInvoice.items[0].rate
+      : 0;
+
+    const metrics = {
+      hoursWorked,
+      billableHours,
+      rate: project.billingRate || project.agreedPrice || rateFromInvoice || 0,
+      expenses: project.expenses?.total || 0,
+      completedTasks: completedTasks.length
+    };
+
+    res.json({ success: true, metrics });
+  } catch (error) {
+    console.error('❌ Get project metrics error:', error);
+    res.status(500).json({ error: 'Failed to calculate project metrics' });
   }
 };
 

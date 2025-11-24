@@ -153,6 +153,26 @@ const projectInvoiceSchema = new mongoose.Schema({
   pdfGenerated: {
     type: Boolean,
     default: false
+  },
+
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
+
+  emailSentAt: {
+    type: Date,
+    default: null
+  },
+
+  resendCount: {
+    type: Number,
+    default: 0
+  },
+
+  lastResentAt: {
+    type: Date,
+    default: null
   }
   
 }, {

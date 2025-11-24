@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { downloadBlob } from '../utils/downloadBlob';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -33,7 +34,7 @@ class InvoiceAPI {
   async getInvoices({ page = 1, limit = 20, status, search } = {}) {
     try {
       const params = { page, limit };
-      if (status) params.status = status;
+      if (status && status !== 'all') params.status = status;
       if (search) params.search = search;
 
       console.log('🔍 Fetching project invoices with params:', params);
@@ -52,7 +53,7 @@ class InvoiceAPI {
   async getInvoice(invoiceId) {
     try {
       console.log('🔍 Fetching invoice details for:', invoiceId);
-      const response = await this.client.get(`/invoices/project/${invoiceId}`);
+      const response = await this.client.get(`/invoices/${invoiceId}`);
       console.log('✅ Invoice details fetched:', response.data);
       return response.data;
     } catch (error) {
@@ -70,8 +71,10 @@ class InvoiceAPI {
       console.log('Generating invoice - Data:', JSON.stringify(invoiceData, null, 2));
       
       const response = await this.client.post(
-        `/projects/${projectId}/invoices/generate`,
-        invoiceData
+        projectId
+          ? `/projects/${projectId}/invoices/generate`
+          : '/invoices',
+        projectId ? invoiceData : { ...invoiceData, projectId: invoiceData.projectId }
       );
       
       console.log('Invoice generated successfully:', response.data);
@@ -156,30 +159,75 @@ class InvoiceAPI {
   /**
    * Download invoice PDF (PROJECT INVOICE)
    */
-  async downloadInvoicePDF(invoiceNumber) {
+  async downloadInvoicePDF(invoiceId) {
     try {
-      console.log('📥 Downloading PDF for invoice:', invoiceNumber);
+      console.log('📥 Downloading PDF for invoice:', invoiceId);
       const response = await this.client.get(
-        `/invoices/project/${invoiceNumber}/download`,
+        `/invoices/${invoiceId}/pdf`,
         { responseType: 'blob' }
       );
-      
-      // Trigger download
+
       const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${invoiceNumber}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
+      downloadBlob(blob, `invoice-${invoiceId}.pdf`);
       console.log('✅ PDF downloaded successfully');
       return response.data;
     } catch (error) {
       console.error('❌ Failed to download PDF:', error);
       this.handleError(error, 'Failed to download invoice PDF');
+    }
+  }
+
+  async createInvoice(invoiceData) {
+    try {
+      const response = await this.client.post('/invoices', invoiceData);
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to create invoice');
+    }
+  }
+
+  async updateInvoice(invoiceId, payload) {
+    try {
+      const response = await this.client.put(`/invoices/${invoiceId}`, payload);
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to update invoice');
+    }
+  }
+
+  async updateInvoiceStatus(invoiceId, status) {
+    try {
+      const response = await this.client.patch(`/invoices/${invoiceId}/status`, { status });
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to update invoice status');
+    }
+  }
+
+  async deleteInvoice(invoiceId) {
+    try {
+      const response = await this.client.delete(`/invoices/${invoiceId}`);
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to delete invoice');
+    }
+  }
+
+  async resendInvoice(invoiceId) {
+    try {
+      const response = await this.client.post(`/invoices/${invoiceId}/resend`);
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to resend invoice');
+    }
+  }
+
+  async fetchProjectMetrics(projectId) {
+    try {
+      const response = await this.client.get(`/projects/${projectId}/metrics`);
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'Failed to fetch project metrics');
     }
   }
 

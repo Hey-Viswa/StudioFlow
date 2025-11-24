@@ -91,6 +91,7 @@ export default function DashboardLayout() {
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
                     title={sidebarCollapsed ? item.name : ''}
+                    aria-current={active ? 'page' : undefined}
                     className={`flex items-center relative ${
                       sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
                     } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
@@ -128,6 +129,7 @@ export default function DashboardLayout() {
                 to="/dashboard/trash"
                 onClick={() => setMobileMenuOpen(false)}
                 title={sidebarCollapsed ? 'Trash' : ''}
+                aria-current={isActive('/dashboard/trash') ? 'page' : undefined}
                 className={`flex items-center relative ${
                   sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
                 } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
