@@ -12,16 +12,17 @@ export const invoiceItemSchema = z.object({
 
 /**
  * Validation schema for new invoice form
+ * Note: Tax and discount percentages are stored as integers (0-100)
  */
 export const newInvoiceSchema = z.object({
   projectId: z.string().min(1, 'Project is required'),
   items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
   dueDate: z.string().min(1, 'Due date is required'),
   tax: z.object({
-    percentage: z.number().min(0).max(100).optional(),
+    percentage: z.number().int('Tax must be a whole number').min(0, 'Tax cannot be negative').max(100, 'Tax cannot exceed 100%'),
   }),
   discount: z.object({
-    percentage: z.number().min(0).max(100).optional(),
+    percentage: z.number().int('Discount must be a whole number').min(0, 'Discount cannot be negative').max(100, 'Discount cannot exceed 100%'),
   }),
   notes: z.string().optional(),
 });

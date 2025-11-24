@@ -141,6 +141,7 @@ export default function InvoiceDetailModal({
     
     setLoading(true);
     try {
+      // Note: API expects integer percentages (0-100), not fractions
       const payload = {
         ...data,
         items: data.items.map(item => ({
@@ -148,8 +149,8 @@ export default function InvoiceDetailModal({
           quantity: parseFloat(item.quantity) || 1,
           rate: parseFloat(item.rate) || 0,
         })),
-        tax: { percentage: parseFloat(data.tax.percentage) || 0 },
-        discount: { percentage: parseFloat(data.discount.percentage) || 0 },
+        tax: { percentage: Math.round(parseInt(data.tax.percentage, 10) || 0) },
+        discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
       };
 
       await onSave(invoice._id, payload);
@@ -305,10 +306,22 @@ export default function InvoiceDetailModal({
                               type="number"
                               min="0"
                               max="100"
-                              step="0.01"
+                              step="1"
                               placeholder="0"
                               {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              value={field.value || ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                field.onChange(isNaN(val) ? 0 : val);
+                              }}
+                              onBlur={(e) => {
+                                let val = parseInt(e.target.value, 10);
+                                if (isNaN(val)) val = 0;
+                                // Clamp between 0 and 100
+                                val = Math.max(0, Math.min(100, Math.round(val)));
+                                field.onChange(val);
+                                field.onBlur();
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -326,10 +339,22 @@ export default function InvoiceDetailModal({
                               type="number"
                               min="0"
                               max="100"
-                              step="0.01"
+                              step="1"
                               placeholder="0"
                               {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              value={field.value || ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                field.onChange(isNaN(val) ? 0 : val);
+                              }}
+                              onBlur={(e) => {
+                                let val = parseInt(e.target.value, 10);
+                                if (isNaN(val)) val = 0;
+                                // Clamp between 0 and 100
+                                val = Math.max(0, Math.min(100, Math.round(val)));
+                                field.onChange(val);
+                                field.onBlur();
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
