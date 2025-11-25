@@ -158,7 +158,7 @@ export const useInvoices = () => {
   const downloadInvoice = useCallback(async (invoiceId, invoiceNumber) => {
     try {
       await invoicesApi.setAuthToken(getToken);
-      await invoicesApi.downloadInvoicePdf(invoiceId, invoiceNumber);
+      await invoicesApi.downloadInvoicePDF(invoiceId, invoiceNumber);
       
       toast.success('Invoice downloaded');
     } catch (err) {

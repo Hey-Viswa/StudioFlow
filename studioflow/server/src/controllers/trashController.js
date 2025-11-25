@@ -1,5 +1,7 @@
 import Project from '../models/Project.js';
 import Trash from '../models/Trash.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
+import DeletedInvoice from '../models/DeletedInvoice.js';
 import { createClerkClient } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
@@ -193,5 +195,173 @@ export const emptyTrash = async (req, res) => {
   } catch (error) {
     console.error('Empty trash error:', error);
     res.status(500).json({ error: 'Failed to empty trash' });
+  }
+};
+
+// ============= INVOICE TRASH MANAGEMENT =============
+
+// @desc    Get all deleted invoices for user
+// @route   GET /api/trash/invoices
+// @access  Protected
+export const getDeletedInvoices = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Find invoices deleted by user or owned by user
+    const deletedInvoices = await DeletedInvoice.find({
+      $or: [
+        { userId: userId },
+        { deletedBy: userId },
+        { 'client.userId': userId }
+      ]
+    }).sort({ deletedAt: -1 });
+
+    // Add days remaining to each invoice
+    const invoicesWithDetails = deletedInvoices.map(invoice => {
+      const invoiceObj = invoice.toObject();
+      return {
+        ...invoiceObj,
+        daysRemaining: invoice.getDaysRemaining(),
+        type: 'invoice'
+      };
+    });
+
+    res.json(invoicesWithDetails);
+  } catch (error) {
+    console.error('Get deleted invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch deleted invoices' });
+  }
+};
+
+// @desc    Restore invoice from trash
+// @route   POST /api/trash/invoices/:id/restore
+// @access  Protected
+export const restoreInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const deletedEntry = await DeletedInvoice.findById(id);
+
+    if (!deletedEntry) {
+      return res.status(404).json({ error: 'Deleted invoice not found' });
+    }
+
+    // Check if user can restore (owner or deleter)
+    if (!deletedEntry.canRestore(userId)) {
+      return res.status(403).json({ error: 'You do not have permission to restore this invoice' });
+    }
+
+    // Check if invoice with same ID already exists
+    const existingInvoice = await ProjectInvoice.findById(deletedEntry.originalInvoiceId);
+    if (existingInvoice) {
+      return res.status(400).json({ error: 'An invoice with this ID already exists. Cannot restore.' });
+    }
+
+    // Restore invoice from full data
+    const restoredInvoice = new ProjectInvoice(deletedEntry.fullInvoiceData);
+    await restoredInvoice.save();
+
+    // Remove from deleted invoices
+    await DeletedInvoice.findByIdAndDelete(id);
+
+    res.json({
+      message: 'Invoice restored successfully',
+      invoice: restoredInvoice
+    });
+  } catch (error) {
+    console.error('Restore invoice error:', error);
+    res.status(500).json({ error: 'Failed to restore invoice' });
+  }
+};
+
+// @desc    Permanently delete invoice from trash
+// @route   DELETE /api/trash/invoices/:id
+// @access  Protected
+export const permanentlyDeleteInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const deletedEntry = await DeletedInvoice.findById(id);
+
+    if (!deletedEntry) {
+      return res.status(404).json({ error: 'Deleted invoice not found' });
+    }
+
+    // Check if user can delete (owner or deleter)
+    if (!deletedEntry.canRestore(userId)) {
+      return res.status(403).json({ error: 'You do not have permission to permanently delete this invoice' });
+    }
+
+    await DeletedInvoice.findByIdAndDelete(id);
+
+    res.json({ message: 'Invoice permanently deleted' });
+  } catch (error) {
+    console.error('Permanent delete invoice error:', error);
+    res.status(500).json({ error: 'Failed to permanently delete invoice' });
+  }
+};
+
+// @desc    Get all trash items (projects + invoices combined)
+// @route   GET /api/trash/all
+// @access  Protected
+export const getAllTrashItems = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Get trashed projects
+    const trashedProjects = await Trash.find({
+      $or: [
+        { ownerId: userId },
+        { deletedBy: userId },
+        { 'members.userId': userId }
+      ]
+    }).sort({ deletedAt: -1 });
+
+    // Get deleted invoices
+    const deletedInvoices = await DeletedInvoice.find({
+      $or: [
+        { userId: userId },
+        { deletedBy: userId },
+        { 'client.userId': userId }
+      ]
+    }).sort({ deletedAt: -1 });
+
+    // Format projects
+    const projectsWithDetails = trashedProjects.map(project => {
+      const projectObj = project.toObject();
+      return {
+        ...projectObj,
+        daysRemaining: project.getDaysRemaining(),
+        type: 'project'
+      };
+    });
+
+    // Format invoices
+    const invoicesWithDetails = deletedInvoices.map(invoice => {
+      const invoiceObj = invoice.toObject();
+      return {
+        ...invoiceObj,
+        daysRemaining: invoice.getDaysRemaining(),
+        type: 'invoice'
+      };
+    });
+
+    // Combine and sort by deletedAt
+    const allItems = [...projectsWithDetails, ...invoicesWithDetails]
+      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+
+    res.json({
+      items: allItems,
+      counts: {
+        projects: projectsWithDetails.length,
+        invoices: invoicesWithDetails.length,
+        total: allItems.length
+      }
+    });
+  } catch (error) {
+    console.error('Get all trash items error:', error);
+    res.status(500).json({ error: 'Failed to fetch trash items' });
   }
 };

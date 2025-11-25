@@ -14,7 +14,22 @@ import {
   TableRow,
 } from '../ui/table';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '../ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -30,7 +45,11 @@ import {
   Loader2,
   Calendar as CalendarIcon,
   Check,
-  X
+  X,
+  Edit2,
+  MoreVertical,
+  Trash2,
+  Download
 } from 'lucide-react';
 import InvoiceRowActions from './InvoiceRowActions';
 import InvoiceStatusBadge from './InvoiceStatusBadge';
@@ -78,6 +97,7 @@ export default function InvoiceTable({
   onSendInvoice,
   onPayInvoice,
   onEditInvoice,
+  onInlineUpdate,
   onDeleteInvoice,
   onResendInvoice,
   onStatusUpdate,
@@ -87,6 +107,9 @@ export default function InvoiceTable({
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
   const [statusUpdating, setStatusUpdating] = useState(null);
+  const [editingField, setEditingField] = useState(null); // { invoiceId, field: 'dueDate'|'amount' }
+  const [editValue, setEditValue] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(null);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -120,6 +143,60 @@ export default function InvoiceTable({
       await onStatusUpdate(invoiceId, nextStatus);
     } finally {
       setStatusUpdating(null);
+    }
+  };
+
+  const startEditing = (invoice, field) => {
+    setEditingField({ invoiceId: invoice._id, field });
+    if (field === 'dueDate') {
+      setEditValue(invoice.dueDate ? format(new Date(invoice.dueDate), 'yyyy-MM-dd') : '');
+    } else if (field === 'amount') {
+      setEditValue(invoice.total?.toString() || '0');
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+    setEditValue('');
+  };
+
+  const saveEdit = async (invoice) => {
+    if (!editingField || !onInlineUpdate) return;
+    
+    const { field } = editingField;
+    const updates = { _id: invoice._id }; // Only include the ID
+    
+    if (field === 'dueDate') {
+      updates.dueDate = new Date(editValue);
+    } else if (field === 'amount') {
+      const newTotal = parseFloat(editValue);
+      if (isNaN(newTotal) || newTotal < 0) {
+        toast.error('Invalid amount');
+        return;
+      }
+      updates.total = newTotal;
+    }
+    
+    try {
+      // Pass only the updates object with _id and the changed field
+      await onInlineUpdate(updates);
+      cancelEditing();
+    } catch (error) {
+      console.error('Failed to save edit:', error);
+    }
+  };
+
+  const handleDeleteClick = (invoice) => {
+    setShowDeleteDialog(invoice);
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteDialog || !onDeleteInvoice) return;
+    try {
+      await onDeleteInvoice(showDeleteDialog._id);
+      setShowDeleteDialog(null);
+    } catch (error) {
+      console.error('Failed to delete:', error);
     }
   };
 
@@ -237,26 +314,111 @@ export default function InvoiceTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2 text-sm">
-                      <CalendarIcon className="w-3 h-3 text-muted-foreground" />
-                      <span>{formatDate(invoice.dueDate)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatINR(invoice.total)}
+                    {editingField?.invoiceId === invoice._id && editingField?.field === 'dueDate' ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="date"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="h-8 w-36 text-sm"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => saveEdit(invoice)}
+                        >
+                          <Check className="w-4 h-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={cancelEditing}
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div 
+                        className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 group"
+                        onClick={() => startEditing(invoice, 'dueDate')}
+                      >
+                        <CalendarIcon className="w-3 h-3 text-muted-foreground" />
+                        <span>{formatDate(invoice.dueDate)}</span>
+                        <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                  <InvoiceRowActions
-                    invoice={invoice}
-                    pendingAction={pendingAction}
-                    onView={() => onViewInvoice?.(invoice)}
-                    onEdit={() => handleRowAction(invoice, 'edit', () => onEditInvoice?.(invoice))}
-                    onDownload={() => handleRowAction(invoice, 'download', () => onDownloadInvoice?.(invoice))}
-                    onSend={() => handleRowAction(invoice, 'send', () => onSendInvoice?.(invoice))}
-                    onPay={() => handleRowAction(invoice, 'pay', () => onPayInvoice?.(invoice))}
-                    onDelete={() => handleRowAction(invoice, 'delete', () => onDeleteInvoice?.(invoice._id))}
-                    onResend={() => handleRowAction(invoice, 'resend', () => onResendInvoice?.(invoice._id))}
-                  />
+                    {editingField?.invoiceId === invoice._id && editingField?.field === 'amount' ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Input
+                          type="number"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="h-8 w-28 text-sm text-right"
+                          autoFocus
+                          step="0.01"
+                          min="0"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => saveEdit(invoice)}
+                        >
+                          <Check className="w-4 h-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={cancelEditing}
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div 
+                        className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 inline-flex items-center gap-2 group"
+                        onClick={() => startEditing(invoice, 'amount')}
+                      >
+                        <span>{formatINR(invoice.total)}</span>
+                        <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600"
+                        onClick={() => onDownloadInvoice?.(invoice)}
+                        title="Download PDF"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-3 hover:bg-blue-50 hover:text-blue-600"
+                        onClick={() => onEditInvoice?.(invoice)}
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                        onClick={() => handleDeleteClick(invoice)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -293,6 +455,40 @@ export default function InvoiceTable({
           </div>
         </div>
       )}
+      
+      <DeleteConfirmDialog
+        invoice={showDeleteDialog}
+        open={!!showDeleteDialog}
+        onOpenChange={(open) => !open && setShowDeleteDialog(null)}
+        onConfirm={confirmDelete}
+      />
     </Card>
+  );
+}
+
+// Delete confirmation dialog component
+function DeleteConfirmDialog({ invoice, open, onOpenChange, onConfirm }) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete invoice{' '}
+            <span className="font-mono font-medium">{invoice?.invoiceNumber}</span>?
+            This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

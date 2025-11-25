@@ -248,8 +248,6 @@ export default function Projects() {
         <Button 
           onClick={() => navigate('/dashboard/projects/new')} 
           className="gap-2"
-          disabled={subscription !== null && !canCreateProject(subscription)}
-          title={subscription && !canCreateProject(subscription) ? 'Project limit reached or subscription inactive' : 'Create new project'}
         >
           <Plus className="w-4 h-4" />
           New Project

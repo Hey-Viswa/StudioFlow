@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -29,138 +30,118 @@ import {
   RotateCcw,
   XCircle,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  FileText,
+  FolderOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatINR } from '../utils/currency';
 
 export default function Trash() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
-  const [trashedProjects, setTrashedProjects] = useState([]);
+  const [trashItems, setTrashItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [filter, setFilter] = useState('all'); // 'all', 'projects', 'invoices'
 
   useEffect(() => {
-    fetchTrashedProjects();
+    fetchTrashItems();
   }, []);
 
-  const fetchTrashedProjects = async () => {
+  const fetchTrashItems = async () => {
     setLoading(true);
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/trash`, {
-        method: 'GET',
+      console.log('Fetching trash from:', `${apiUrl}/trash/all`);
+      
+      const response = await fetch(`${apiUrl}/trash/all`, {
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
+      console.log('Trash response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to fetch trashed projects');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Trash fetch error:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch trash items');
       }
 
       const data = await response.json();
-      setTrashedProjects(data);
+      console.log('Trash data received:', data);
+      setTrashItems(data.items || []);
     } catch (error) {
-      console.error('Fetch trash error:', error);
-      toast.error('Failed to load trashed projects');
+      console.error('Error fetching trash:', error);
+      toast.error(`Failed to load trash: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRestore = async (trashId) => {
-    setActionLoading(trashId);
+  const handleRestore = async (item) => {
+    setActionLoading(item._id);
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/trash/${trashId}/restore`, {
+      const endpoint = item.type === 'invoice' 
+        ? `/trash/invoices/${item._id}/restore`
+        : `/trash/projects/${item._id}/restore`;
+      
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to restore project');
+        throw new Error(`Failed to restore ${item.type}`);
       }
 
-      const data = await response.json();
-      toast.success('Project restored successfully!');
-      
-      setTrashedProjects(prev => prev.filter(p => p._id !== trashId));
-      
-      setTimeout(() => {
-        navigate(`/dashboard/projects/${data.project._id}`);
-      }, 1000);
+      toast.success(`${item.type === 'invoice' ? 'Invoice' : 'Project'} restored successfully`);
+      fetchTrashItems();
     } catch (error) {
-      console.error('Restore error:', error);
-      toast.error(error.message);
+      console.error('Error restoring item:', error);
+      toast.error(`Failed to restore ${item.type}`);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handlePermanentDelete = async (trashId) => {
-    setActionLoading(trashId);
+  const handlePermanentDelete = async (item) => {
+    setActionLoading(item._id);
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/trash/${trashId}`, {
+      const endpoint = item.type === 'invoice' 
+        ? `/trash/invoices/${item._id}`
+        : `/trash/projects/${item._id}`;
+      
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete project permanently');
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });      if (!response.ok) {
+        throw new Error(`Failed to permanently delete ${item.type}`);
       }
 
-      toast.success('Project permanently deleted');
-      setTrashedProjects(prev => prev.filter(p => p._id !== trashId));
+      toast.success(`${item.type === 'invoice' ? 'Invoice' : 'Project'} permanently deleted`);
+      fetchTrashItems();
     } catch (error) {
-      console.error('Delete error:', error);
-      toast.error('Failed to delete project');
+      console.error('Error deleting item:', error);
+      toast.error(`Failed to delete ${item.type}`);
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const handleEmptyTrash = async () => {
-    setLoading(true);
-    try {
-      const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/trash`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to empty trash');
-      }
-
-      const data = await response.json();
-      toast.success(`Trash emptied: ${data.deletedCount} project(s) deleted`);
-      setTrashedProjects([]);
-    } catch (error) {
-      console.error('Empty trash error:', error);
-      toast.error('Failed to empty trash');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -168,6 +149,10 @@ export default function Trash() {
     if (!date) return 'N/A';
     return format(new Date(date), 'MMM dd, yyyy');
   };
+
+  const filteredItems = filter === 'all' 
+    ? trashItems 
+    : trashItems.filter(item => item.type === (filter === 'projects' ? 'project' : 'invoice'));
 
   if (loading) {
     return (
@@ -186,158 +171,136 @@ export default function Trash() {
             Trash
           </h1>
           <p className="text-muted-foreground mt-1">
-            Projects will be permanently deleted after 30 days
+            Items will be permanently deleted after 30 days
           </p>
         </div>
-
-        {trashedProjects.length > 0 && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Empty Trash
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete all {trashedProjects.length} project(s) in trash.
-                  This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleEmptyTrash}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Empty Trash
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
       </div>
 
-      {trashedProjects.length === 0 ? (
+      <Tabs value={filter} onValueChange={setFilter} className="mb-6">
+        <TabsList>
+          <TabsTrigger value="all">All ({trashItems.length})</TabsTrigger>
+          <TabsTrigger value="projects">
+            <FolderOpen className="w-4 h-4 mr-2" />
+            Projects ({trashItems.filter(i => i.type === 'project').length})
+          </TabsTrigger>
+          <TabsTrigger value="invoices">
+            <FileText className="w-4 h-4 mr-2" />
+            Invoices ({trashItems.filter(i => i.type === 'invoice').length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Trash2 className="w-20 h-20 text-muted-foreground/30 mb-4" />
           <h3 className="text-xl font-semibold mb-2">Trash is empty</h3>
           <p className="text-muted-foreground max-w-md">
-            Deleted projects will appear here and be automatically removed after 30 days.
+            Deleted {filter === 'all' ? 'items' : filter} will appear here and be automatically removed after 30 days.
           </p>
-          <Button
-            variant="outline"
-            className="mt-6"
-            onClick={() => navigate('/dashboard/projects')}
-          >
-            Back to Projects
-          </Button>
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border border-border bg-card">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Project</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Deleted By</TableHead>
-                <TableHead>Deleted On</TableHead>
-                <TableHead>Days Left</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-card-foreground">Type</TableHead>
+                <TableHead className="text-card-foreground">Name</TableHead>
+                <TableHead className="text-card-foreground">Status</TableHead>
+                <TableHead className="text-card-foreground">Deleted By</TableHead>
+                <TableHead className="text-card-foreground">Deleted On</TableHead>
+                <TableHead className="text-card-foreground">Days Left</TableHead>
+                <TableHead className="text-right text-card-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trashedProjects.map((project) => (
-                <TableRow key={project._id}>
+              {filteredItems.map((item) => (
+                <TableRow key={item._id} className="hover:bg-muted/50">
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium">{project.title}</span>
-                      {project.brief && (
-                        <span className="text-sm text-muted-foreground line-clamp-1">
-                          {project.brief}
-                        </span>
+                    {item.type === 'project' ? (
+                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                        <FolderOpen className="w-3 h-3 mr-1" />
+                        Project
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                        <FileText className="w-3 h-3 mr-1" />
+                        Invoice
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium text-card-foreground">
+                        {item.type === 'project' ? item.title : item.invoiceNumber}
+                      </p>
+                      {item.type === 'project' && item.brief && (
+                        <p className="text-sm text-muted-foreground truncate max-w-md">
+                          {item.brief}
+                        </p>
                       )}
-                      {project.deleteReason && (
-                        <span className="text-xs text-muted-foreground italic">
-                          Reason: {project.deleteReason}
-                        </span>
+                      {item.type === 'invoice' && (
+                        <p className="text-sm text-muted-foreground">
+                          {item.projectTitle} • {formatINR(item.total)}
+                        </p>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize">
-                      {project.status}
-                    </Badge>
+                    <Badge variant="secondary">{item.status}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {project.deletedByName || 'Unknown'}
-                    </div>
+                  <TableCell className="text-card-foreground">
+                    {item.deletedByName || 'Unknown'}
                   </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {formatDate(project.deletedAt)}
-                    </div>
+                  <TableCell className="text-card-foreground">
+                    {formatDate(item.deletedAt)}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className={`text-sm font-medium ${
-                        project.daysRemaining <= 7 ? 'text-destructive' : 'text-muted-foreground'
-                      }`}>
-                        {project.daysRemaining} {project.daysRemaining === 1 ? 'day' : 'days'}
-                      </span>
+                      <span className="text-card-foreground">{item.daysRemaining} days</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleRestore(project._id)}
-                        disabled={actionLoading === project._id}
+                        onClick={() => handleRestore(item)}
+                        disabled={actionLoading === item._id}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
                       >
-                        {actionLoading === project._id ? (
+                        {actionLoading === item._id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          <>
-                            <RotateCcw className="w-4 h-4 mr-1" />
-                            Restore
-                          </>
+                          <RotateCcw className="w-4 h-4" />
                         )}
                       </Button>
-
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-destructive hover:text-destructive"
-                            disabled={actionLoading === project._id}
+                            disabled={actionLoading === item._id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <XCircle className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="bg-card border-border">
                           <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2">
-                              <AlertTriangle className="w-5 h-5 text-destructive" />
-                              Permanently Delete Project?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to permanently delete "{project.title}"?
+                            <AlertDialogTitle className="text-card-foreground">Permanently Delete?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-muted-foreground">
+                              This will permanently delete {item.type === 'project' ? `project "${item.title}"` : `invoice "${item.invoiceNumber}"`}.
                               This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handlePermanentDelete(project._id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => handlePermanentDelete(item)}
+                              className="bg-red-600 hover:bg-red-700"
                             >
-                              Delete Forever
+                              Delete Permanently
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

@@ -31,7 +31,9 @@ BreadcrumbItem.displayName = "BreadcrumbItem"
 const BreadcrumbLink = React.forwardRef(({ className, asChild, ...props }, ref) => {
   const Comp = asChild ? React.Fragment : "a"
 
-  return (
+  return asChild ? (
+    <Comp {...props} />
+  ) : (
     <Comp
       ref={ref}
       className={cn("transition-colors hover:text-foreground", className)}

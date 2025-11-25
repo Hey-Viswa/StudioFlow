@@ -1,8 +1,14 @@
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import Project from '../models/Project.js';
+import DeletedInvoice from '../models/DeletedInvoice.js';
 import { razorpay } from '../config/razorpay.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { createClerkClient } from '@clerk/backend';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 // @desc    Get all invoices for current user
 // @route   GET /api/invoices
@@ -20,7 +26,8 @@ export const getAllUserInvoices = async (req, res) => {
       $or: [
         { userId }, // Creator
         { 'client.userId': userId } // Client
-      ]
+      ],
+      deletedAt: null // Exclude soft-deleted
     };
     
     if (status && status !== 'all') {
@@ -375,34 +382,98 @@ export const updateProjectInvoice = async (req, res) => {
   }
 };
 
-// @desc    Delete invoice
+// @desc    Delete invoice (move to trash)
 // @route   DELETE /api/invoices/:invoiceId
 // @access  Protected (Owner only)
 export const deleteProjectInvoice = async (req, res) => {
   try {
     const { invoiceId } = req.params;
     const userId = req.userId;
+    const reason = req.body?.reason || ''; // Optional delete reason (safely access)
 
-    const invoice = await ProjectInvoice.findById(invoiceId);
+    console.log('🗑️ Delete invoice request:', { invoiceId, userId, hasBody: !!req.body });
+
+    const invoice = await ProjectInvoice.findById(invoiceId).populate('projectId', 'title');
 
     if (!invoice) {
+      console.log('❌ Invoice not found:', invoiceId);
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
+    console.log('✓ Invoice found:', invoice.invoiceNumber);
+
     if (invoice.userId !== userId) {
+      console.log('❌ Unauthorized deletion attempt:', { invoiceUserId: invoice.userId, requestUserId: userId });
       return res.status(403).json({ error: 'Only invoice creator can delete' });
     }
 
     if (invoice.status === 'paid') {
+      console.log('❌ Cannot delete paid invoice');
       return res.status(400).json({ error: 'Cannot delete paid invoice' });
     }
 
-    await invoice.deleteOne();
+    // Get user details for deletion record
+    let userName = '';
+    try {
+      const user = await clerkClient.users.getUser(userId);
+      userName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
+      console.log('✓ User details fetched:', userName);
+    } catch (err) {
+      console.error('⚠️ Error fetching user from Clerk:', err.message);
+      userName = 'Unknown User';
+    }
 
-    res.json({ success: true, message: 'Invoice deleted successfully' });
+    console.log('📝 Creating DeletedInvoice entry...');
+
+    // Create deleted invoice entry
+    const deletedEntry = new DeletedInvoice({
+      originalInvoiceId: invoice._id.toString(),
+      invoiceNumber: invoice.invoiceNumber,
+      userId: invoice.userId,
+      projectId: invoice.projectId?._id,
+      projectTitle: invoice.projectId?.title || 'Unknown Project',
+      client: invoice.client,
+      items: invoice.items,
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      discount: invoice.discount,
+      total: invoice.total,
+      currency: invoice.currency,
+      status: invoice.status,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      paidAt: invoice.paidAt,
+      notes: invoice.notes,
+      deletedBy: userId,
+      deletedByName: userName,
+      deleteReason: reason,
+      fullInvoiceData: invoice.toObject()
+    });
+
+    await deletedEntry.save();
+    console.log('✓ DeletedInvoice saved:', deletedEntry._id);
+
+    // Delete from main collection
+    await ProjectInvoice.findByIdAndDelete(invoiceId);
+    console.log('✓ Invoice removed from main collection');
+
+    console.log('✅ Invoice successfully moved to trash:', invoice.invoiceNumber);
+
+    res.json({ 
+      success: true, 
+      message: 'Invoice deleted successfully',
+      trashId: deletedEntry._id,
+      expiresIn: '30 days'
+    });
   } catch (error) {
     console.error('❌ Delete invoice error:', error);
-    res.status(500).json({ error: 'Failed to delete invoice' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to delete invoice',
+      message: error.message 
+    });
   }
 };
 

@@ -230,12 +230,12 @@ export default function InvoiceDetailModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-background border border-border text-foreground">
-          <DialogHeader className="px-6 pt-6 pb-6 border-b border-border">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-card border-border text-card-foreground">
+          <DialogHeader className="px-6 pt-6 pb-6 border-b border-border bg-card">
             <div className="flex items-start justify-between">
               <div>
-                <DialogTitle className="text-2xl">{invoice.invoiceNumber}</DialogTitle>
-                <DialogDescription className="mt-1">
+                <DialogTitle className="text-2xl text-card-foreground">{invoice.invoiceNumber}</DialogTitle>
+                <DialogDescription className="mt-1 text-muted-foreground">
                   {invoice.projectId?.title || 'Project details unavailable'}
                 </DialogDescription>
               </div>
@@ -246,7 +246,7 @@ export default function InvoiceDetailModal({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-200px)] px-6 py-6">
+          <ScrollArea className="max-h-[calc(90vh-200px)] px-6 py-6 bg-card">
             {/* Client & Date Info */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <Card className="bg-muted/30 border-border">
@@ -279,8 +279,7 @@ export default function InvoiceDetailModal({
                         <FormLabel>Status</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          value={field.value || invoice.status}
-                          defaultValue={invoice.status}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -291,6 +290,7 @@ export default function InvoiceDetailModal({
                             <SelectItem value="draft">Draft</SelectItem>
                             <SelectItem value="pending">Sent</SelectItem>
                             <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="overdue">Overdue</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                           </SelectContent>
                         </Select>

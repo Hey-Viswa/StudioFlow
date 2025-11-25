@@ -112,6 +112,22 @@ export default function InvoicesPage() {
     }
   };
 
+  // Handle inline updates (date/amount) - updates directly without modal
+  const handleInlineUpdate = async (updates) => {
+    try {
+      // Extract the invoice ID and pass only the changed fields
+      const { _id, ...fieldsToUpdate } = updates;
+      await updateInvoice(_id, fieldsToUpdate);
+      toast.success('Invoice updated successfully');
+    } catch (error) {
+      console.error('Failed to update invoice:', error);
+      toast.error('Failed to update invoice', {
+        description: error.message
+      });
+      throw error;
+    }
+  };
+
   // Handle delete invoice - removes invoice after confirmation
   const handleDeleteInvoice = async (invoiceId) => {
     try {
@@ -273,6 +289,7 @@ export default function InvoicesPage() {
           onSendInvoice={handleSendInvoice}
           onPayInvoice={handlePayInvoice}
           onEditInvoice={handleEditInvoice}
+          onInlineUpdate={handleInlineUpdate}
           onDeleteInvoice={handleDeleteInvoice}
           onResendInvoice={handleResendInvoice}
           onStatusUpdate={handleStatusUpdate}
