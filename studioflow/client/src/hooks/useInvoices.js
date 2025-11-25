@@ -34,7 +34,8 @@ export const useInvoices = () => {
       
       // Build query parameters
       const queryParams = {
-        ...filters,
+        status: filters.status,
+        search: filters.search,
         ...options
       };
       
@@ -64,7 +65,7 @@ export const useInvoices = () => {
     } finally {
       setLoading(false);
     }
-  }, [getToken, filters]);
+  }, [getToken, filters.status, filters.search]);
 
   /**
    * Create invoice (project-based)
@@ -326,7 +327,8 @@ export const useInvoices = () => {
     }, 200);
 
     return () => clearTimeout(handle);
-  }, [filters.status, filters.search, fetchInvoices]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.status, filters.search]);
 
   return {
     invoices,
