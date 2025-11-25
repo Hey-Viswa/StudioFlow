@@ -30,7 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '../ui/popover';
-import { Calendar } from '../ui/calendar';
+import { DatePicker } from '../ui/date-picker';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -56,7 +56,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
-    defaultValues: defaultInvoiceValues,
+    defaultValues: defaultInvoiceValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -83,7 +83,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      form.reset(defaultInvoiceValues);
+      form.reset(defaultInvoiceValues());
       setSelectedProject(null);
     }
   }, [isOpen, form]);
@@ -155,7 +155,8 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
       // Prepare invoice data with proper formatting
       // Note: API expects integer percentages (0-100), not fractions
       const invoiceData = {
-        ...data,
+        projectId: data.projectId,
+        dueDate: data.dueDate ? data.dueDate.toISOString() : null,
         items: data.items.map((item) => ({
           ...item,
           quantity: parseFloat(item.quantity) || 1,
@@ -167,12 +168,13 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
         discount: {
           percentage: Math.round(parseInt(data.discount.percentage, 10) || 0),
         },
+        notes: data.notes || '',
       };
 
       await onSuccess(data.projectId, invoiceData);
 
       // Reset form and close
-      form.reset(defaultInvoiceValues);
+      form.reset(defaultInvoiceValues());
       setSelectedProject(null);
       onClose();
     } catch (error) {
@@ -187,8 +189,8 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-        <DialogHeader className="px-6 pt-6">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-card border border-border text-card-foreground">
+        <DialogHeader className="px-6 pt-6 border-b border-border">
           <DialogTitle>Create New Invoice</DialogTitle>
           <DialogDescription>
             Generate an invoice for a project. Select a project to auto-populate details.
@@ -242,7 +244,10 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                     </Select>
                     {selectedProject && (
                       <p className="text-xs text-muted-foreground">
-                        Client: {selectedProject.members?.find((m) => m.role === 'client')?.name || 'Not assigned'}
+                        Client: {(() => {
+                          const client = selectedProject.members?.find((m) => m.role === 'client');
+                          return client?.name || client?.email || 'Not assigned';
+                        })()}
                       </p>
                     )}
                     <FormMessage />
@@ -359,35 +364,28 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Due Date *</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-full justify-start text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(new Date(field.value), 'PPP') : <span>Pick a date</span>}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => {
-                            if (date) {
-                              field.onChange(date.toISOString().split('T')[0]);
-                            }
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          id="invoice-due-date"
+                          type="date"
+                          value={field.value instanceof Date ? format(field.value, 'yyyy-MM-dd') : ''}
+                          onChange={(e) => {
+                            const dateValue = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
+                            field.onChange(dateValue);
                           }}
-                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                          initialFocus
+                          min={new Date().toISOString().split('T')[0]}
+                          className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
                         />
-                      </PopoverContent>
-                    </Popover>
+                        <CalendarIcon 
+                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer z-10" 
+                          onClick={() => {
+                            const input = document.getElementById('invoice-due-date');
+                            if (input) input.showPicker();
+                          }}
+                        />
+                      </div>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -445,7 +443,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
           </Form>
         </ScrollArea>
 
-        <DialogFooter className="px-6 pb-6">
+        <DialogFooter className="px-6 pb-6 border-t border-border flex items-center justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>
             Cancel
           </Button>

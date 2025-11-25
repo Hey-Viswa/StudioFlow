@@ -27,7 +27,8 @@ import {
   Edit,
   RefreshCw,
   Trash2,
-  Loader2
+  Loader2,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,6 +39,8 @@ export default function InvoiceRowActions({
   onSend,
   onPay,
   onEdit,
+  onEditDueDate,
+  onEditAmount,
   onDelete,
   onResend,
   pendingAction
@@ -50,7 +53,7 @@ export default function InvoiceRowActions({
   const canSend = invoice.status !== 'draft';
 
   const isAnyActionPending =
-    pendingAction?.invoiceId === invoice._id && pendingAction?.type !== 'view';
+    pendingAction?.invoiceId === invoice._id && pendingAction?.type !== 'view' && pendingAction?.type !== 'edit';
   const isDeleting =
     pendingAction?.invoiceId === invoice._id && pendingAction?.type === 'delete';
   const isResending =
@@ -71,11 +74,15 @@ export default function InvoiceRowActions({
   const handleDelete = async () => {
     if (!onDelete || isDeleting) return;
     try {
-      await onDelete(invoice);
+      await onDelete();
       setShowDeleteDialog(false);
+      toast.success('Invoice deleted successfully');
     } catch (error) {
       // Error already handled in parent component, just keep dialog open
       console.error('Delete action failed:', error);
+      toast.error('Failed to delete invoice', {
+        description: error.message || 'Please try again'
+      });
     }
   };
 
@@ -86,99 +93,123 @@ export default function InvoiceRowActions({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 hover:bg-slate-800"
-            disabled={isAnyActionPending}
+            className="h-8 w-8 p-0 hover:bg-muted"
+            disabled={isDeleting}
             aria-label="Invoice actions"
           >
-            <MoreVertical className="w-4 h-4 text-slate-400" />
+            <MoreVertical className="w-4 h-4" />
             <span className="sr-only">Open invoice actions menu</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="w-48 bg-slate-900 border-slate-800"
-        >
+        <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem
-            onClick={() => handleAction(() => onView?.())}
-            className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+            onSelect={() => handleAction(() => onView?.())}
+            className="cursor-pointer"
           >
-            <Eye className="w-4 h-4 mr-2 text-blue-400" />
+            <Eye className="w-4 h-4 mr-2" />
             <span>View Details</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
-            onClick={() => {
-              closeMenu();
-              onEdit?.(invoice);
-            }}
-            className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+            onSelect={() => handleAction(() => onEdit?.())}
+            className="cursor-pointer"
           >
-            <Edit className="w-4 h-4 mr-2 text-emerald-400" />
+            <Edit className="w-4 h-4 mr-2" />
             <span>Edit</span>
           </DropdownMenuItem>
 
+          {onEditDueDate && (
+            <DropdownMenuItem
+              onSelect={() => {
+                closeMenu();
+                onEditDueDate();
+              }}
+              className="cursor-pointer"
+            >
+              <CalendarIcon className="w-4 h-4 mr-2" />
+              <span>Edit Due Date</span>
+            </DropdownMenuItem>
+          )}
+
+          {onEditAmount && (
+            <DropdownMenuItem
+              onSelect={() => {
+                closeMenu();
+                onEditAmount();
+              }}
+              className="cursor-pointer"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              <span>Edit Amount</span>
+            </DropdownMenuItem>
+          )}
+
           {canDownload && (
             <DropdownMenuItem
-              onClick={() => handleAction(() => onDownload?.())}
-              className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+              onSelect={() => handleAction(() => onDownload?.())}
+              className="cursor-pointer"
             >
-              <Download className="w-4 h-4 mr-2 text-green-400" />
+              <Download className="w-4 h-4 mr-2" />
               <span>Download PDF</span>
             </DropdownMenuItem>
           )}
 
           {canSend && (
             <DropdownMenuItem
-              onClick={() => handleAction(() => onSend?.())}
-              className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+              onSelect={() => handleAction(() => onSend?.())}
+              className="cursor-pointer"
             >
-              <Send className="w-4 h-4 mr-2 text-purple-400" />
+              <Send className="w-4 h-4 mr-2" />
               <span>Send to Client</span>
             </DropdownMenuItem>
           )}
 
           <DropdownMenuItem
-            onClick={async () => {
+            onSelect={async (e) => {
               if (isResending || !onResend) return;
+              e.preventDefault();
               closeMenu();
               try {
-                await onResend(invoice);
+                await onResend();
+                toast.success('Invoice resent successfully');
               } catch (error) {
-                // Error already handled in parent component
                 console.error('Resend action failed:', error);
+                toast.error('Failed to resend invoice', {
+                  description: error.message || 'Please try again'
+                });
               }
             }}
             disabled={isResending}
-            className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isResending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin text-sky-400" />
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              <RefreshCw className="w-4 h-4 mr-2 text-sky-400" />
+              <RefreshCw className="w-4 h-4 mr-2" />
             )}
             <span>{isResending ? 'Resending...' : 'Resend'}</span>
           </DropdownMenuItem>
 
           {canPay && (
             <>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => handleAction(() => onPay?.())}
-                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                onSelect={() => handleAction(() => onPay?.())}
+                className="cursor-pointer"
               >
-                <CreditCard className="w-4 h-4 mr-2 text-amber-400" />
+                <CreditCard className="w-4 h-4 mr-2" />
                 <span>Pay Invoice</span>
               </DropdownMenuItem>
             </>
           )}
 
-          <DropdownMenuSeparator className="bg-slate-800" />
+          <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => {
+            onSelect={() => {
               closeMenu();
               setShowDeleteDialog(true);
             }}
-            className="cursor-pointer hover:bg-red-950/40 focus:bg-red-950/40 text-red-400"
+            className="cursor-pointer text-destructive focus:text-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             <span>Delete</span>
@@ -186,7 +217,7 @@ export default function InvoiceRowActions({
 
           {!canDownload && (
             <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
-              <X className="w-4 h-4 mr-2 text-slate-500" />
+              <X className="w-4 h-4 mr-2" />
               <span className="text-xs">Local invoice</span>
             </DropdownMenuItem>
           )}
@@ -194,22 +225,23 @@ export default function InvoiceRowActions({
       </DropdownMenu>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete invoice?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              This action cannot be undone. The invoice and its history will be removed permanently.
+            <AlertDialogTitle>Delete invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The invoice {invoice.invoiceNumber} and its history will be removed permanently.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-800 text-white border-slate-700">
+            <AlertDialogCancel disabled={isDeleting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
+              {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {isDeleting ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>

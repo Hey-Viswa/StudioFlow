@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import invoiceApi from '../api/invoiceApi';
+import * as invoicesApi from '../lib/api/invoices';
 import { toast } from 'sonner';
 
 /**
@@ -30,7 +30,7 @@ export const useInvoices = () => {
     setError(null);
 
     try {
-      await invoiceApi.setAuthToken(getToken);
+      await invoicesApi.setAuthToken(getToken);
       
       // Build query parameters
       const queryParams = {
@@ -38,12 +38,7 @@ export const useInvoices = () => {
         ...options
       };
       
-      // Don't send 'all' status to the API - let backend return all invoices
-      if (queryParams.status === 'all') {
-        delete queryParams.status;
-      }
-      
-      const response = await invoiceApi.getInvoices(queryParams);
+      const response = await invoicesApi.getInvoices(queryParams);
 
       console.log('Fetched invoices response:', response);
 
@@ -79,8 +74,8 @@ export const useInvoices = () => {
     try {
       console.log('Creating invoice with payload:', invoiceData);
       
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.createInvoice(invoiceData);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.createInvoice(invoiceData);
       
       console.log('Invoice created successfully:', response);
       
@@ -103,8 +98,8 @@ export const useInvoices = () => {
    */
   const sendInvoice = useCallback(async (invoiceId, emailData) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.sendInvoice(invoiceId, emailData);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.sendInvoice(invoiceId, emailData);
       
       toast.success('Invoice sent successfully');
       return response;
@@ -122,8 +117,8 @@ export const useInvoices = () => {
    */
   const createPaymentOrder = useCallback(async (invoiceId) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.createPaymentOrder(invoiceId);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.createPaymentOrder(invoiceId);
       
       return response;
     } catch (err) {
@@ -140,8 +135,8 @@ export const useInvoices = () => {
    */
   const verifyPayment = useCallback(async (invoiceId, paymentData) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.verifyPayment(invoiceId, paymentData);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.verifyInvoicePayment(invoiceId, paymentData);
       
       // Refresh invoices to show updated status
       await fetchInvoices();
@@ -160,10 +155,10 @@ export const useInvoices = () => {
   /**
    * Download invoice PDF
    */
-  const downloadInvoice = useCallback(async (invoiceId) => {
+  const downloadInvoice = useCallback(async (invoiceId, invoiceNumber) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      await invoiceApi.downloadInvoicePDF(invoiceId);
+      await invoicesApi.setAuthToken(getToken);
+      await invoicesApi.downloadInvoicePdf(invoiceId, invoiceNumber);
       
       toast.success('Invoice downloaded');
     } catch (err) {
@@ -180,8 +175,8 @@ export const useInvoices = () => {
    */
   const getInvoice = useCallback(async (invoiceId) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      return await invoiceApi.getInvoice(invoiceId);
+      await invoicesApi.setAuthToken(getToken);
+      return await invoicesApi.getInvoice(invoiceId);
     } catch (err) {
       console.error('Failed to get invoice:', err);
       throw err;
@@ -203,8 +198,8 @@ export const useInvoices = () => {
 
   const deleteInvoice = useCallback(async (invoiceId) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      await invoiceApi.deleteInvoice(invoiceId);
+      await invoicesApi.setAuthToken(getToken);
+      await invoicesApi.deleteInvoice(invoiceId);
       // Success toast shown in page component to avoid duplication
       await fetchInvoices();
     } catch (err) {
@@ -216,8 +211,8 @@ export const useInvoices = () => {
 
   const resendInvoice = useCallback(async (invoiceId) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.resendInvoice(invoiceId);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.resendInvoice(invoiceId);
       // Success toast shown in page component to avoid duplication
       await fetchInvoices();
       return response; // Return response so page can show resend count
@@ -230,8 +225,8 @@ export const useInvoices = () => {
 
   const updateInvoice = useCallback(async (invoiceId, payload) => {
     try {
-      await invoiceApi.setAuthToken(getToken);
-      const response = await invoiceApi.updateInvoice(invoiceId, payload);
+      await invoicesApi.setAuthToken(getToken);
+      const response = await invoicesApi.updateInvoice(invoiceId, payload);
       toast.success('Invoice updated');
       await fetchInvoices();
       return response;
@@ -245,13 +240,15 @@ export const useInvoices = () => {
   const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
     const previousInvoices = invoices;
 
+    // Optimistic update
     setInvoices((current) => current.map((invoice) =>
       invoice._id === invoiceId ? { ...invoice, status } : invoice
     ));
 
     try {
-      await invoiceApi.setAuthToken(getToken);
-      await invoiceApi.updateInvoiceStatus(invoiceId, status);
+      await invoicesApi.setAuthToken(getToken);
+      await invoicesApi.updateInvoiceStatus(invoiceId, status);
+      await fetchInvoices(); // Refresh to get accurate stats
       toast.success('Status updated');
     } catch (err) {
       console.error('Failed to update invoice status:', err);
@@ -305,6 +302,10 @@ export const useInvoices = () => {
             stats.totalPending += amount;
             stats.countPending++;
           }
+          break;
+        case 'overdue':
+          stats.totalOverdue += amount;
+          stats.countOverdue++;
           break;
         case 'draft':
           stats.countDraft++;

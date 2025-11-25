@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ import { useInvoices } from '../hooks/useInvoices';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpayCheckout';
 
 export default function InvoicesPage() {
+  const navigate = useNavigate();
   // All hooks MUST be called at the top level before any conditional logic or early returns
   // This prevents "Rendered more hooks than during the previous render" error
   
@@ -137,8 +139,11 @@ export default function InvoicesPage() {
   const handleSaveInvoice = async (invoiceId, updatedData) => {
     try {
       await updateInvoice(invoiceId, updatedData);
-      // Refresh invoice data after update
-      refreshInvoices();
+      // Close modal and refresh
+      setShowDetailModal(false);
+      setSelectedInvoice(null);
+      await refreshInvoices();
+      toast.success('Invoice updated successfully');
     } catch (error) {
       console.error('Failed to update invoice:', error);
       throw error;
@@ -146,9 +151,9 @@ export default function InvoicesPage() {
   };
 
   // Handle status update
-  const handleStatusUpdate = async (invoice, newStatus) => {
+  const handleStatusUpdate = async (invoiceId, newStatus) => {
     try {
-      await updateInvoiceStatus(invoice._id, newStatus);
+      await updateInvoiceStatus(invoiceId, newStatus);
       // Success toast already shown in hook
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -209,21 +214,21 @@ export default function InvoicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-1">Invoices</h1>
-            <p className="text-slate-400">
+            <h1 className="text-3xl font-bold mb-1">Invoices</h1>
+            <p className="text-muted-foreground">
               Manage project invoices and payments
             </p>
           </div>
           
           <div className="flex items-center gap-3">
             <Button
-              onClick={() => setShowNewInvoiceModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => navigate('/dashboard/invoices/new')}
+              className="bg-primary text-primary-foreground"
             >
               <Plus className="w-4 h-4 mr-2" />
               New Invoice
@@ -236,11 +241,11 @@ export default function InvoicesPage() {
 
         {/* Error Banner */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-red-400 font-semibold mb-1">Failed to load invoices</p>
-              <p className="text-sm text-slate-300">
+              <p className="text-destructive font-semibold mb-1">Failed to load invoices</p>
+              <p className="text-sm">
                 {error.includes('network') || error.includes('fetch') 
                   ? 'Check your network connection and try again.'
                   : error}
@@ -250,7 +255,6 @@ export default function InvoicesPage() {
               onClick={() => refreshInvoices()}
               variant="outline"
               size="sm"
-              className="border-red-500/30 text-red-400 hover:bg-red-500/20"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Retry
@@ -272,6 +276,7 @@ export default function InvoicesPage() {
           onDeleteInvoice={handleDeleteInvoice}
           onResendInvoice={handleResendInvoice}
           onStatusUpdate={handleStatusUpdate}
+          onRefresh={refreshInvoices}
         />
 
         {/* Modals */}

@@ -12,17 +12,25 @@ export const invoiceItemSchema = z.object({
 
 /**
  * Validation schema for new invoice form
- * Note: Tax and discount percentages are stored as integers (0-100)
+ * Note: Form stores Date objects; convert to ISO strings before API submission.
  */
 export const newInvoiceSchema = z.object({
   projectId: z.string().min(1, 'Project is required'),
   items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
-  dueDate: z.string().min(1, 'Due date is required'),
+  dueDate: z.date({ required_error: 'Due date is required' }),
   tax: z.object({
-    percentage: z.number().int('Tax must be a whole number').min(0, 'Tax cannot be negative').max(100, 'Tax cannot exceed 100%'),
+    percentage: z
+      .number()
+      .int('Tax must be a whole number')
+      .min(0, 'Tax cannot be negative')
+      .max(100, 'Tax cannot exceed 100%'),
   }),
   discount: z.object({
-    percentage: z.number().int('Discount must be a whole number').min(0, 'Discount cannot be negative').max(100, 'Discount cannot exceed 100%'),
+    percentage: z
+      .number()
+      .int('Discount must be a whole number')
+      .min(0, 'Discount cannot be negative')
+      .max(100, 'Discount cannot exceed 100%'),
   }),
   notes: z.string().optional(),
 });
@@ -30,11 +38,11 @@ export const newInvoiceSchema = z.object({
 /**
  * Default values for new invoice form
  */
-export const defaultInvoiceValues = {
+export const defaultInvoiceValues = () => ({
   projectId: '',
   items: [{ title: '', description: '', quantity: 1, rate: 0 }],
-  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   tax: { percentage: 0 },
   discount: { percentage: 0 },
   notes: '',
-};
+});

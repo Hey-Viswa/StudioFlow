@@ -196,7 +196,7 @@ export const updateInvoice = async (invoiceId: string, payload: Partial<CreateIn
 
 export const updateInvoiceStatus = async (invoiceId: string, status: InvoiceStatus) => {
   try {
-    const { data } = await client.put(`/invoices/${invoiceId}`, { status });
+    const { data } = await client.patch(`/invoices/${invoiceId}/status`, { status });
     return data;
   } catch (error) {
     throw normalizeError(error, 'Failed to update invoice status');

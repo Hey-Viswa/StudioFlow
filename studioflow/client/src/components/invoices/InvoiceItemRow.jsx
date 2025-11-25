@@ -4,6 +4,7 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Trash2 } from 'lucide-react';
 import { formatINR } from '../../utils/currency';
+import { cn } from '../../lib/utils';
 
 /**
  * Individual invoice item row component
@@ -18,6 +19,9 @@ export default function InvoiceItemRow({
   errors,
 }) {
   const amount = (item.quantity || 0) * (item.rate || 0);
+  const titleError = errors?.title?.message;
+  const quantityError = errors?.quantity?.message;
+  const rateError = errors?.rate?.message;
 
   return (
     <div className="p-4 rounded-lg border border-border bg-card space-y-3">
@@ -28,10 +32,11 @@ export default function InvoiceItemRow({
             placeholder="Item title *"
             value={item.title}
             onChange={(e) => onChange(index, 'title', e.target.value)}
-            className={errors?.title ? 'border-destructive' : ''}
+            className={cn(titleError && 'border-destructive focus-visible:ring-destructive/50')}
+            aria-invalid={Boolean(titleError)}
           />
-          {errors?.title && (
-            <p className="text-xs text-destructive">{errors.title}</p>
+          {titleError && (
+            <p className="text-xs text-destructive">{titleError}</p>
           )}
         </div>
         {canRemove && (
@@ -68,10 +73,11 @@ export default function InvoiceItemRow({
             step="1"
             value={item.quantity}
             onChange={(e) => onChange(index, 'quantity', parseFloat(e.target.value) || 1)}
-            className={errors?.quantity ? 'border-destructive' : ''}
+            className={cn(quantityError && 'border-destructive focus-visible:ring-destructive/50')}
+            aria-invalid={Boolean(quantityError)}
           />
-          {errors?.quantity && (
-            <p className="text-xs text-destructive">{errors.quantity}</p>
+          {quantityError && (
+            <p className="text-xs text-destructive">{quantityError}</p>
           )}
         </div>
         <div className="space-y-1">
@@ -82,10 +88,11 @@ export default function InvoiceItemRow({
             step="0.01"
             value={item.rate}
             onChange={(e) => onChange(index, 'rate', parseFloat(e.target.value) || 0)}
-            className={errors?.rate ? 'border-destructive' : ''}
+            className={cn(rateError && 'border-destructive focus-visible:ring-destructive/50')}
+            aria-invalid={Boolean(rateError)}
           />
-          {errors?.rate && (
-            <p className="text-xs text-destructive">{errors.rate}</p>
+          {rateError && (
+            <p className="text-xs text-destructive">{rateError}</p>
           )}
         </div>
         <div className="space-y-1">

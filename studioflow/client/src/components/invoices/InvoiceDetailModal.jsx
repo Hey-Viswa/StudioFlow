@@ -42,6 +42,9 @@ import { Card, CardContent } from '../ui/card';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
+import { Calendar } from '../ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { DatePicker } from '../ui/date-picker';
 import {
   Download,
   Edit,
@@ -89,13 +92,14 @@ export default function InvoiceDetailModal({
     resolver: zodResolver(newInvoiceSchema),
     defaultValues: {
       projectId: invoice?.projectId?._id || '',
+      status: invoice?.status || 'draft',
       items: invoice?.items?.map(item => ({
         title: item.title || '',
         description: item.description || '',
         quantity: item.quantity || 1,
         rate: item.rate || 0,
       })) || [{ title: '', description: '', quantity: 1, rate: 0 }],
-      dueDate: invoice?.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
+      dueDate: invoice?.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       tax: { percentage: invoice?.tax?.percentage || 0 },
       discount: { percentage: invoice?.discount?.percentage || 0 },
       notes: invoice?.notes || '',
@@ -121,13 +125,14 @@ export default function InvoiceDetailModal({
     if (invoice && isOpen) {
       form.reset({
         projectId: invoice.projectId?._id || '',
+        status: invoice.status || 'draft',
         items: invoice.items?.map(item => ({
           title: item.title || '',
           description: item.description || '',
           quantity: item.quantity || 1,
           rate: item.rate || 0,
         })) || [{ title: '', description: '', quantity: 1, rate: 0 }],
-        dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         tax: { percentage: invoice.tax?.percentage || 0 },
         discount: { percentage: invoice.discount?.percentage || 0 },
         notes: invoice.notes || '',
@@ -143,7 +148,9 @@ export default function InvoiceDetailModal({
     try {
       // Note: API expects integer percentages (0-100), not fractions
       const payload = {
-        ...data,
+        projectId: data.projectId,
+        status: data.status || invoice.status,
+        dueDate: data.dueDate ? data.dueDate.toISOString() : invoice.dueDate,
         items: data.items.map(item => ({
           ...item,
           quantity: parseFloat(item.quantity) || 1,
@@ -151,11 +158,12 @@ export default function InvoiceDetailModal({
         })),
         tax: { percentage: Math.round(parseInt(data.tax.percentage, 10) || 0) },
         discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
+        notes: data.notes || '',
       };
 
       await onSave(invoice._id, payload);
-      toast.success('Invoice updated successfully');
       setIsEditMode(false);
+      // Don't show toast here - parent handles it
     } catch (error) {
       console.error('Failed to update invoice:', error);
       toast.error('Failed to update invoice', {
@@ -222,8 +230,8 @@ export default function InvoiceDetailModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-background border border-border text-foreground">
+          <DialogHeader className="px-6 pt-6 pb-6 border-b border-border">
             <div className="flex items-start justify-between">
               <div>
                 <DialogTitle className="text-2xl">{invoice.invoiceNumber}</DialogTitle>
@@ -238,17 +246,17 @@ export default function InvoiceDetailModal({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
+          <ScrollArea className="max-h-[calc(90vh-200px)] px-6 py-6">
             {/* Client & Date Info */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <Card>
+              <Card className="bg-muted/30 border-border">
                 <CardContent className="pt-4">
                   <p className="text-sm text-muted-foreground">Client</p>
                   <p className="font-medium">{invoice.client?.name || 'N/A'}</p>
                   <p className="text-sm text-muted-foreground">{invoice.client?.email || ''}</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="bg-muted/30 border-border">
                 <CardContent className="pt-4">
                   <p className="text-sm text-muted-foreground">Due Date</p>
                   <p className="font-medium flex items-center gap-2">
@@ -262,6 +270,35 @@ export default function InvoiceDetailModal({
             {isEditMode ? (
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleSaveClick)} className="space-y-6 pb-6">
+                  {/* Status Selection */}
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || invoice.status}
+                          defaultValue={invoice.status}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="draft">Draft</SelectItem>
+                            <SelectItem value="pending">Sent</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {/* Invoice Items */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -292,6 +329,40 @@ export default function InvoiceDetailModal({
                       ))}
                     </div>
                   </div>
+
+                  {/* Due Date */}
+                  <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Due Date</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              id="invoice-detail-due-date"
+                              type="date"
+                              value={field.value instanceof Date ? format(field.value, 'yyyy-MM-dd') : ''}
+                              onChange={(e) => {
+                                const dateValue = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
+                                field.onChange(dateValue);
+                              }}
+                              min={new Date().toISOString().split('T')[0]}
+                              className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                            />
+                            <CalendarIcon 
+                              className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer z-10" 
+                              onClick={() => {
+                                const input = document.getElementById('invoice-detail-due-date');
+                                if (input) input.showPicker();
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {/* Tax & Discount */}
                   <div className="grid grid-cols-2 gap-4">
@@ -384,7 +455,7 @@ export default function InvoiceDetailModal({
                   />
 
                   {/* Totals Summary */}
-                  <Card>
+                  <Card className="bg-muted/30 border-border">
                     <CardContent className="pt-6">
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
@@ -419,7 +490,7 @@ export default function InvoiceDetailModal({
                 <div className="space-y-3">
                   <h3 className="font-semibold">Invoice Items</h3>
                   {invoice.items?.map((item, index) => (
-                    <Card key={index}>
+                    <Card key={index} className="bg-muted/30 border-border">
                       <CardContent className="pt-4">
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
@@ -440,7 +511,7 @@ export default function InvoiceDetailModal({
                 </div>
 
                 {/* View Mode - Totals */}
-                <Card>
+                <Card className="bg-muted/30 border-border">
                   <CardContent className="pt-6">
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
@@ -470,7 +541,7 @@ export default function InvoiceDetailModal({
 
                 {/* Notes */}
                 {invoice.notes && (
-                  <Card>
+                  <Card className="bg-muted/30 border-border">
                     <CardContent className="pt-4">
                       <p className="text-sm text-muted-foreground mb-1">Notes</p>
                       <p className="text-sm">{invoice.notes}</p>
@@ -481,7 +552,7 @@ export default function InvoiceDetailModal({
             )}
           </ScrollArea>
 
-          <DialogFooter className="px-6 pb-6 flex-row justify-between">
+          <DialogFooter className="px-6 py-4 border-t border-border bg-muted/20 flex-row justify-between">
             <div className="flex gap-2">
               {!isEditMode && (
                 <>

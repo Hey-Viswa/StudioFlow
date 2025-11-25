@@ -357,3 +357,10 @@ body {
   }
 }
 
+/* Ensure calendar day buttons are clickable */
+.rdp-day,
+.rdp-day button,
+[data-slot="calendar"] button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}

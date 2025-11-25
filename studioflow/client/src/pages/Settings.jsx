@@ -287,7 +287,7 @@ export default function Settings() {
 
   const getPlanBadge = (plan) => {
     const badges = {
-      free: { color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', label: 'Free' },
+      free: { color: 'bg-muted text-muted-foreground border-border', label: 'Free' },
       pro: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: 'Pro' },
       studio: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', label: 'Studio' }
     };

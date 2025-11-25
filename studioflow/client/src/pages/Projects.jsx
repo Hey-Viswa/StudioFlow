@@ -52,7 +52,11 @@ export default function Projects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'board'
+  const [viewMode, setViewMode] = useState(() => {
+    // Restore view mode from localStorage
+    const saved = localStorage.getItem('projects-view-mode');
+    return saved === 'board' ? 'board' : 'table';
+  });
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'my', 'shared'
   const [subscription, setSubscription] = useState(null);
 
@@ -132,6 +136,11 @@ export default function Projects() {
       label: 'In Progress', 
       badge: 'In Progress' 
     },
+    'in-progress': { 
+      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', 
+      label: 'In Progress', 
+      badge: 'In Progress' 
+    },
     'completed': { 
       color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', 
       label: 'Completed', 
@@ -139,13 +148,18 @@ export default function Projects() {
     },
     'on-hold': { 
       color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
+      label: 'On Hold', 
+      badge: 'On Hold' 
+    },
+    'review': { 
+      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
       label: 'Review', 
       badge: 'Review' 
     },
     'archived': { 
-      color: 'bg-red-500/10 text-red-600 border-red-500/20', 
-      label: 'Blocked', 
-      badge: 'Blocked' 
+      color: 'bg-muted/50 text-muted-foreground border-border', 
+      label: 'Archived', 
+      badge: 'Archived' 
     }
   };
 
@@ -234,8 +248,8 @@ export default function Projects() {
         <Button 
           onClick={() => navigate('/dashboard/projects/new')} 
           className="gap-2"
-          disabled={!canCreateProject(subscription)}
-          title={!canCreateProject(subscription) ? 'Project limit reached or subscription inactive' : 'Create new project'}
+          disabled={subscription !== null && !canCreateProject(subscription)}
+          title={subscription && !canCreateProject(subscription) ? 'Project limit reached or subscription inactive' : 'Create new project'}
         >
           <Plus className="w-4 h-4" />
           New Project
@@ -319,15 +333,21 @@ export default function Projects() {
         <div className="flex gap-2 ml-auto">
           <Button
             variant={viewMode === 'table' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => setViewMode('table')}
+            size="sm"
+            onClick={() => {
+              setViewMode('table');
+              localStorage.setItem('projects-view-mode', 'table');
+            }}
           >
             <LayoutList className="w-4 h-4" />
           </Button>
           <Button
             variant={viewMode === 'board' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => setViewMode('board')}
+            size="sm"
+            onClick={() => {
+              setViewMode('board');
+              localStorage.setItem('projects-view-mode', 'board');
+            }}
           >
             <LayoutGrid className="w-4 h-4" />
           </Button>
@@ -415,13 +435,13 @@ export default function Projects() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/dashboard/projects/${project._id}`)}>
+                              <DropdownMenuItem onSelect={() => navigate(`/dashboard/projects/${project._id}`)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Project
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive focus:text-destructive"
-                                onClick={async () => {
+                                onSelect={async () => {
                                   try {
                                     const token = await getToken();
                                     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';

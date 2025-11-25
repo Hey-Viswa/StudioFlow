@@ -102,7 +102,7 @@ const projectInvoiceSchema = new mongoose.Schema({
   // Payment status
   status: {
     type: String,
-    enum: ['draft', 'pending', 'paid', 'failed', 'cancelled'],
+    enum: ['draft', 'pending', 'paid', 'overdue', 'failed', 'cancelled'],
     default: 'draft'
   },
   

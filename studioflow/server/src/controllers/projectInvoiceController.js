@@ -415,7 +415,7 @@ export const updateProjectInvoiceStatus = async (req, res) => {
     const { status } = req.body;
     const userId = req.userId;
 
-    const allowedStatuses = ['draft', 'pending', 'paid', 'failed', 'cancelled'];
+    const allowedStatuses = ['draft', 'pending', 'paid', 'overdue', 'failed', 'cancelled'];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });

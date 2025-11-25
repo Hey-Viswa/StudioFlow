@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Plus, FileText, Clock, CheckCircle2, XCircle, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProjectInvoices } from '../lib/projectInvoiceApi';
-import GenerateInvoiceModal from './GenerateInvoiceModal';
 
 export default function ProjectInvoiceList({ projectId, clients }) {
   const { getToken } = useAuth();
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -31,11 +31,11 @@ export default function ProjectInvoiceList({ projectId, clients }) {
   }, [projectId]);
 
   const statusConfig = {
-    draft: { icon: FileText, color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
+    draft: { icon: FileText, color: 'bg-muted text-muted-foreground border-border' },
     pending: { icon: Clock, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
     paid: { icon: CheckCircle2, color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
     failed: { icon: XCircle, color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-    cancelled: { icon: XCircle, color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
+    cancelled: { icon: XCircle, color: 'bg-muted text-muted-foreground border-border' }
   };
 
   const formatCurrency = (amount) => `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -48,17 +48,17 @@ export default function ProjectInvoiceList({ projectId, clients }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">Invoices</h3>
-        <Button onClick={() => setShowModal(true)} size="sm">
+        <Button onClick={() => navigate('/dashboard/invoices/new')} size="sm">
           <Plus className="w-4 h-4 mr-1" />
           New Invoice
         </Button>
       </div>
 
       {invoices.length === 0 ? (
-        <Card className="bg-card border-slate-800 p-6 text-center">
-          <FileText className="w-12 h-12 mx-auto text-slate-600 mb-3" />
-          <p className="text-slate-400 mb-4">No invoices yet</p>
-          <Button onClick={() => setShowModal(true)}>
+        <Card className="bg-card border-border p-6 text-center">
+          <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground mb-4">No invoices yet</p>
+          <Button onClick={() => navigate('/dashboard/invoices/new')}>
             Create First Invoice
           </Button>
         </Card>
@@ -68,15 +68,15 @@ export default function ProjectInvoiceList({ projectId, clients }) {
             const StatusIcon = statusConfig[invoice.status]?.icon || FileText;
             
             return (
-              <Card key={invoice._id} className="bg-card border-slate-800 p-4">
+              <Card key={invoice._id} className="bg-card border-border p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-md bg-slate-800 flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-slate-400" />
+                    <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-medium text-white font-mono text-sm">{invoice.invoiceNumber}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="font-medium text-foreground font-mono text-sm">{invoice.invoiceNumber}</p>
+                      <p className="text-xs text-muted-foreground">
                         Due: {new Date(invoice.dueDate).toLocaleDateString()}
                       </p>
                     </div>
@@ -103,14 +103,6 @@ export default function ProjectInvoiceList({ projectId, clients }) {
           })}
         </div>
       )}
-
-      <GenerateInvoiceModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        projectId={projectId}
-        clients={clients}
-        onSuccess={fetchInvoices}
-      />
     </div>
   );
 }

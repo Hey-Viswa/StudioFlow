@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
+import { Calendar } from '../ui/calendar';
 import {
   Table,
   TableBody,
@@ -26,10 +27,17 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  Loader2
+  Loader2,
+  Calendar as CalendarIcon,
+  Check,
+  X
 } from 'lucide-react';
 import InvoiceRowActions from './InvoiceRowActions';
+import InvoiceStatusBadge from './InvoiceStatusBadge';
 import { formatINR } from '../../utils/currency';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { cn } from '../../lib/utils';
 
 const STATUS_TABS = [
   { value: 'all', label: 'All' },
@@ -57,28 +65,6 @@ const formatDate = (date) => {
   });
 };
 
-const getStatusBadge = (status, dueDate) => {
-  const isOverdue = status === 'pending' && new Date(dueDate) < new Date();
-  if (isOverdue) {
-    return <Badge variant="destructive">Overdue</Badge>;
-  }
-
-  const statusConfig = {
-    paid: { label: 'Paid', className: 'bg-green-500/20 text-green-400 border-green-500/30' },
-    pending: { label: 'Sent', className: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-    draft: { label: 'Draft', className: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
-    failed: { label: 'Failed', className: 'bg-red-500/20 text-red-400 border-red-500/30' },
-    cancelled: { label: 'Cancelled', className: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
-  };
-
-  const config = statusConfig[status] || statusConfig.draft;
-  return (
-    <Badge variant="outline" className={`gap-1.5 ${config.className}`}>
-      {config.label}
-    </Badge>
-  );
-};
-
 export default function InvoiceTable({
   invoices,
   pagination,
@@ -94,8 +80,10 @@ export default function InvoiceTable({
   onEditInvoice,
   onDeleteInvoice,
   onResendInvoice,
-  onStatusUpdate
+  onStatusUpdate,
+  onRefresh
 }) {
+  const { getToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
   const [statusUpdating, setStatusUpdating] = useState(null);
@@ -118,25 +106,28 @@ export default function InvoiceTable({
     if (!callback) return;
     setPendingAction({ invoiceId: invoice._id, type });
     try {
-      await callback(invoice);
+      await callback();
     } finally {
       setPendingAction(null);
     }
   };
 
-  const handleStatusChange = async (invoice, nextStatus) => {
-    if (!onStatusUpdate || invoice.status === nextStatus) return;
-    setStatusUpdating(invoice._id);
+  const handleStatusChange = async (invoiceId, nextStatus) => {
+    const invoice = invoices.find(inv => inv._id === invoiceId);
+    if (!invoice || !onStatusUpdate || invoice.status === nextStatus) return;
+    setStatusUpdating(invoiceId);
     try {
-      await onStatusUpdate(invoice, nextStatus);
+      await onStatusUpdate(invoiceId, nextStatus);
     } finally {
       setStatusUpdating(null);
     }
   };
 
+
+
   if (loading) {
     return (
-      <Card className="p-6 bg-slate-900 border-slate-800">
+      <Card className="p-6">
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
@@ -147,11 +138,11 @@ export default function InvoiceTable({
   }
 
   return (
-    <Card className="bg-card border-slate-800">
-      <div className="p-4 border-b border-slate-800 space-y-4">
+    <Card>
+      <div className="p-4 border-b space-y-4">
         <div className="flex flex-col gap-3">
           <Tabs value={statusFilter} onValueChange={onStatusFilterChange}>
-            <TabsList className="bg-slate-900/60 border border-slate-800">
+            <TabsList>
               {STATUS_TABS.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value} className="text-xs">
                   {tab.label}
@@ -174,24 +165,24 @@ export default function InvoiceTable({
 
       <div className="overflow-x-auto">
         <Table>
-          <TableHeader className="bg-slate-900/50">
-            <TableRow className="border-b border-slate-800 hover:bg-transparent">
-              <TableHead className="text-slate-400">Invoice</TableHead>
-              <TableHead className="text-slate-400">Project</TableHead>
-              <TableHead className="text-slate-400">Client</TableHead>
-              <TableHead className="text-slate-400">Status</TableHead>
-              <TableHead className="text-slate-400">Due Date</TableHead>
-              <TableHead className="text-right text-slate-400">Amount</TableHead>
-              <TableHead className="text-right text-slate-400">Actions</TableHead>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-muted-foreground">Invoice</TableHead>
+              <TableHead className="text-muted-foreground">Project</TableHead>
+              <TableHead className="text-muted-foreground">Client</TableHead>
+              <TableHead className="text-muted-foreground">Status</TableHead>
+              <TableHead className="text-muted-foreground">Due Date</TableHead>
+              <TableHead className="text-right text-muted-foreground">Amount</TableHead>
+              <TableHead className="text-right text-muted-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="divide-y divide-slate-800">
+          <TableBody className="divide-y">
             {invoices.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="px-4 py-12 text-center">
-                  <FileText className="w-12 h-12 mx-auto text-slate-600 mb-3" />
-                  <p className="text-slate-400 mb-1">No invoices found</p>
-                  <p className="text-sm text-slate-500">
+                  <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground mb-1">No invoices found</p>
+                  <p className="text-sm text-muted-foreground">
                     {searchTerm || statusFilter !== 'all'
                       ? 'Try adjusting your filters'
                       : 'Create your first invoice to get started'}
@@ -202,19 +193,19 @@ export default function InvoiceTable({
               invoices.map((invoice) => (
                 <TableRow
                   key={invoice._id}
-                  className="hover:bg-slate-900/50 transition-colors border-slate-800"
+                  className="hover:bg-muted/50 transition-colors"
                 >
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 bg-slate-800 rounded">
-                        <FileText className="w-4 h-4 text-slate-400" />
+                      <div className="p-2 bg-muted rounded">
+                        <FileText className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm font-mono font-medium text-white">
+                        <p className="text-sm font-mono font-medium">
                           {invoice.invoiceNumber}
                         </p>
                         {invoice.resendCount > 0 && (
-                          <p className="text-[10px] text-slate-500">
+                          <p className="text-[10px] text-muted-foreground">
                             Resent {invoice.resendCount}x
                           </p>
                         )}
@@ -222,70 +213,50 @@ export default function InvoiceTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-white truncate max-w-[200px]">
+                    <p className="text-sm truncate max-w-[200px]">
                       {invoice.projectId?.title || 'N/A'}
                     </p>
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-white">
+                    <p className="text-sm">
                       {invoice.client?.name || 'N/A'}
                     </p>
                     {invoice.client?.email && (
-                      <p className="text-xs text-slate-500 truncate max-w-[150px]">
+                      <p className="text-xs text-muted-foreground truncate max-w-[150px]">
                         {invoice.client.email}
                       </p>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-auto px-0">
-                          {statusUpdating === invoice._id ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                          ) : (
-                            getStatusBadge(invoice.status, invoice.dueDate)
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-48 bg-slate-900 border-slate-800">
-                        <Select
-                          value={invoice.status}
-                          onValueChange={(value) => handleStatusChange(invoice, value)}
-                        >
-                          <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
-                            <SelectValue placeholder="Status" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-slate-900 text-white border-slate-800">
-                            {INLINE_STATUS_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </PopoverContent>
-                    </Popover>
+                    <InvoiceStatusBadge
+                      status={invoice.status === 'pending' && new Date(invoice.dueDate) < new Date() ? 'overdue' : invoice.status}
+                      invoiceId={invoice._id}
+                      onStatusChange={handleStatusChange}
+                      loading={statusUpdating === invoice._id}
+                      allowEdit={true}
+                    />
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm text-white">{formatDate(invoice.dueDate)}</p>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CalendarIcon className="w-3 h-3 text-muted-foreground" />
+                      <span>{formatDate(invoice.dueDate)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatINR(invoice.total)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <p className="text-sm font-semibold text-white">
-                      {formatINR(invoice.total)}
-                    </p>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <InvoiceRowActions
-                      invoice={invoice}
-                      pendingAction={pendingAction}
-                      onView={() => onViewInvoice(invoice)}
-                      onEdit={() => onEditInvoice?.(invoice)}
-                      onDownload={() => handleRowAction(invoice, 'download', () => onDownloadInvoice?.(invoice))}
-                      onSend={() => handleRowAction(invoice, 'send', () => onSendInvoice?.(invoice))}
-                      onPay={() => handleRowAction(invoice, 'pay', () => onPayInvoice?.(invoice))}
-                      onDelete={(inv) => handleRowAction(inv, 'delete', () => onDeleteInvoice?.(inv))}
-                      onResend={(inv) => handleRowAction(inv, 'resend', () => onResendInvoice?.(inv))}
-                    />
+                  <InvoiceRowActions
+                    invoice={invoice}
+                    pendingAction={pendingAction}
+                    onView={() => onViewInvoice?.(invoice)}
+                    onEdit={() => handleRowAction(invoice, 'edit', () => onEditInvoice?.(invoice))}
+                    onDownload={() => handleRowAction(invoice, 'download', () => onDownloadInvoice?.(invoice))}
+                    onSend={() => handleRowAction(invoice, 'send', () => onSendInvoice?.(invoice))}
+                    onPay={() => handleRowAction(invoice, 'pay', () => onPayInvoice?.(invoice))}
+                    onDelete={() => handleRowAction(invoice, 'delete', () => onDeleteInvoice?.(invoice._id))}
+                    onResend={() => handleRowAction(invoice, 'resend', () => onResendInvoice?.(invoice._id))}
+                  />
                   </TableCell>
                 </TableRow>
               ))
@@ -295,8 +266,8 @@ export default function InvoiceTable({
       </div>
 
       {totalPages > 1 && (
-        <div className="p-4 border-t border-slate-800 flex items-center justify-between">
-          <p className="text-sm text-slate-400">
+        <div className="p-4 border-t flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
             Showing {pageStart} - {pageEnd} of {totalCount} invoices
           </p>
           <div className="flex items-center gap-2">
@@ -305,11 +276,10 @@ export default function InvoiceTable({
               size="sm"
               onClick={() => onPageChange?.(currentPage - 1)}
               disabled={currentPage === 1}
-              className="bg-slate-900 border-slate-700 text-white hover:bg-slate-800"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-muted-foreground">
               Page {currentPage} of {totalPages}
             </span>
             <Button
@@ -317,7 +287,6 @@ export default function InvoiceTable({
               size="sm"
               onClick={() => onPageChange?.(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="bg-slate-900 border-slate-700 text-white hover:bg-slate-800"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>

@@ -15,7 +15,7 @@ export default function InvoicesKPI({ stats, loading }) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i} className="p-6 bg-slate-900 border-slate-800">
+          <Card key={i} className="p-6 bg-card border-border">
             <Skeleton className="h-4 w-24 mb-2" />
             <Skeleton className="h-8 w-32 mb-2" />
             <Skeleton className="h-3 w-20" />
@@ -33,6 +33,7 @@ export default function InvoicesKPI({ stats, loading }) {
       icon: DollarSign,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
+      iconColor: 'rgb(59 130 246)',
       trend: null
     },
     {
@@ -42,6 +43,7 @@ export default function InvoicesKPI({ stats, loading }) {
       icon: CheckCircle2,
       color: 'text-green-500',
       bgColor: 'bg-green-500/10',
+      iconColor: 'rgb(22 163 74)',
       trend: stats.totalPaid > 0 ? 'up' : null
     },
     {
@@ -49,8 +51,9 @@ export default function InvoicesKPI({ stats, loading }) {
       value: stats.totalPending,
       count: stats.countPending,
       icon: Clock,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10',
+      iconColor: 'rgb(249 115 22)',
       trend: null
     },
     {
@@ -58,8 +61,9 @@ export default function InvoicesKPI({ stats, loading }) {
       value: stats.totalOverdue,
       count: stats.countOverdue,
       icon: AlertTriangle,
-      color: 'text-red-500',
-      bgColor: 'bg-red-500/10',
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/10',
+      iconColor: 'rgb(147 51 234)',
       trend: stats.countOverdue > 0 ? 'down' : null
     }
   ];
@@ -71,12 +75,12 @@ export default function InvoicesKPI({ stats, loading }) {
         const TrendIcon = kpi.trend === 'up' ? TrendingUp : TrendingDown;
 
         return (
-          <Card key={kpi.label} className="p-6 bg-card border-slate-800 hover:border-slate-700 transition-colors">
+          <Card key={kpi.label} className="p-6 bg-card border-border hover:bg-muted/50 transition-colors">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <div className={`p-2 rounded-lg ${kpi.bgColor}`}>
-                    <Icon className={`w-5 h-5 ${kpi.color}`} />
+                    <Icon className="w-5 h-5" style={{ color: kpi.iconColor }} />
                   </div>
                   {kpi.trend && (
                     <TrendIcon 
