@@ -37,6 +37,7 @@ export const getAllUserInvoices = async (req, res) => {
         // For overdue, find invoices that are pending with past due date
         query.status = { $in: ['pending', 'overdue'] };
         query.dueDate = { $lt: new Date() };
+        console.log('🔍 Overdue query:', JSON.stringify(query));
       } else {
         query.status = status;
       }

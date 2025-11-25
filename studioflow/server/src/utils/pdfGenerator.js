@@ -122,10 +122,9 @@ function addCompanyInfo(doc) {
   doc.fontSize(11)
      .fillColor('#334155')
      .text('StudioFlow Technologies', 50, 220)
-     .text('Bangalore, Karnataka', 50, 235)
-     .text('India - 560001', 50, 250)
-     .text('Email: billing@studioflow.com', 50, 265)
-     .text('GSTIN: 29XXXXX1234X1ZX', 50, 280);
+     .text('Mumbai, Maharashtra 400001', 50, 235)
+     .text('India', 50, 250)
+     .text('GSTIN: 29XXXXX1234X1ZX', 50, 265);
 }
 
 function addCustomerInfo(doc, user, invoice) {
@@ -143,7 +142,11 @@ function addCustomerInfo(doc, user, invoice) {
      .text(userEmail, 320, 235);
      
   if (invoice.client?.userId || user.clerkUserId || user._id) {
-    doc.text(`User ID: ${invoice.client?.userId || user.clerkUserId || user._id}`, 320, 250);
+    doc.fontSize(9)
+       .fillColor('#64748b')
+       .text(`User ID:`, 320, 250)
+       .fillColor('#94a3b8')
+       .text(`${invoice.client?.userId || user.clerkUserId || user._id}`, 320, 263);
   }
 }
 
@@ -156,14 +159,16 @@ function addInvoiceDetails(doc, invoice) {
 
   let yPos = 325;
 
-  // Project invoice details
+  // Project invoice details - always show if project exists
   if (invoice.projectId) {
+    const projectName = invoice.projectId?.title || invoice.projectTitle || 'N/A';
     doc.fontSize(10)
        .fillColor('#64748b')
        .text('Project:', 50, yPos)
-       .fillColor('#334155')
-       .text(invoice.projectId?.title || 'N/A', 150, yPos);
-    yPos += 20;
+       .fontSize(11)
+       .fillColor('#1e293b')
+       .text(projectName, 120, yPos, { width: 420 });
+    yPos += 25;
   }
 
   // Due date
