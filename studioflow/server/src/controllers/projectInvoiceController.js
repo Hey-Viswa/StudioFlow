@@ -34,11 +34,28 @@ export const getAllUserInvoices = async (req, res) => {
       if (status === 'sent') {
         query.status = 'pending';
       } else if (status === 'overdue') {
-        query.status = 'pending';
+        // For overdue, find invoices that are pending with past due date
+        query.status = { $in: ['pending', 'overdue'] };
         query.dueDate = { $lt: new Date() };
       } else {
         query.status = status;
       }
+    }
+
+    // Add search functionality
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$and = [
+        {
+          $or: [
+            { invoiceNumber: searchRegex }, // Search by invoice number
+            { 'client.name': searchRegex }, // Search by client name
+            { 'client.email': searchRegex }, // Search by client email
+            { notes: searchRegex } // Search in notes
+          ]
+        }
+      ];
+      console.log('🔍 Search term:', search);
     }
 
     // Fetch invoices with pagination

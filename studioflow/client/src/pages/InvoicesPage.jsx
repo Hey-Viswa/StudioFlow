@@ -40,6 +40,7 @@ export default function InvoicesPage() {
     getStats,
     filters,
     setStatusFilter,
+    setSearchFilter,
     refreshInvoices,
   } = useInvoices();
 
@@ -49,6 +50,12 @@ export default function InvoicesPage() {
   // The hook will automatically refetch when status changes
   const handleStatusFilterChange = (newStatus) => {
     setStatusFilter(newStatus);
+  };
+
+  // Handle search filter change - updates the hook's search filter
+  // The hook will automatically refetch when search term changes (debounced)
+  const handleSearchChange = (searchTerm) => {
+    setSearchFilter(searchTerm);
   };
 
   // Handle create invoice
@@ -284,6 +291,7 @@ export default function InvoicesPage() {
           loading={loading}
           statusFilter={filters.status}
           onStatusFilterChange={handleStatusFilterChange}
+          onSearchChange={handleSearchChange}
           onViewInvoice={handleViewInvoice}
           onDownloadInvoice={handleDownloadInvoice}
           onSendInvoice={handleSendInvoice}

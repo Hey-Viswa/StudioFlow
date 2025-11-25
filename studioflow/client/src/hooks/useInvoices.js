@@ -326,7 +326,7 @@ export const useInvoices = () => {
     }, 200);
 
     return () => clearTimeout(handle);
-  }, [filters]);
+  }, [filters.status, filters.search, fetchInvoices]);
 
   return {
     invoices,
