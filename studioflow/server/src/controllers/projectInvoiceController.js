@@ -20,6 +20,7 @@ export const getAllUserInvoices = async (req, res) => {
 
     console.log('=== GET ALL USER INVOICES ===');
     console.log('User:', userId);
+    console.log('Status filter:', status);
 
     // Build query
     const query = {
@@ -37,7 +38,8 @@ export const getAllUserInvoices = async (req, res) => {
         // For overdue, find invoices that are pending with past due date
         query.status = { $in: ['pending', 'overdue'] };
         query.dueDate = { $lt: new Date() };
-        console.log('🔍 Overdue query:', JSON.stringify(query));
+        console.log('🔍 Overdue query:', JSON.stringify(query, null, 2));
+        console.log('🔍 Current date:', new Date());
       } else {
         query.status = status;
       }
@@ -71,6 +73,14 @@ export const getAllUserInvoices = async (req, res) => {
     const total = await ProjectInvoice.countDocuments(query);
 
     console.log(`✓ Found ${invoices.length} invoices (${total} total)`);
+    
+    // Debug: Show invoice statuses and due dates for overdue filter
+    if (status === 'overdue') {
+      console.log('📋 Overdue invoices details:');
+      invoices.forEach(inv => {
+        console.log(`  - ${inv.invoiceNumber}: status=${inv.status}, dueDate=${inv.dueDate}, isPast=${new Date(inv.dueDate) < new Date()}`);
+      });
+    }
 
     res.json({
       success: true,

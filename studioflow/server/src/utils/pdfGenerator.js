@@ -161,7 +161,14 @@ function addInvoiceDetails(doc, invoice) {
 
   // Project invoice details - always show if project exists
   if (invoice.projectId) {
-    const projectName = invoice.projectId?.title || invoice.projectTitle || 'N/A';
+    // Handle both populated and non-populated projectId
+    let projectName = 'N/A';
+    if (typeof invoice.projectId === 'object' && invoice.projectId !== null) {
+      projectName = invoice.projectId.title || invoice.projectId.name || 'N/A';
+    } else if (typeof invoice.projectId === 'string') {
+      projectName = invoice.projectTitle || invoice.projectId;
+    }
+    
     doc.fontSize(10)
        .fillColor('#64748b')
        .text('Project:', 50, yPos)
@@ -270,8 +277,8 @@ function addInvoiceTable(doc, invoice) {
       doc.fontSize(10)
          .fillColor('#334155')
          .text(item.quantity.toString(), 290, yOffset + 10)
-         .text(`₹${item.rate.toFixed(2)}`, 360, yOffset + 10)
-         .text(`₹${item.amount.toFixed(2)}`, 460, yOffset + 10);
+         .text('₹' + item.rate.toFixed(2), 360, yOffset + 10)
+         .text('₹' + item.amount.toFixed(2), 460, yOffset + 10);
 
       yOffset += rowHeight;
     });
@@ -289,25 +296,25 @@ function addInvoiceTable(doc, invoice) {
        .fillColor('#64748b')
        .text('Subtotal:', 380, yPos)
        .fillColor('#334155')
-       .text(`₹${subtotal.toFixed(2)}`, 480, yPos, { align: 'right' });
+       .text('₹' + subtotal.toFixed(2), 480, yPos, { align: 'right' });
 
     yPos += 20;
 
     // Tax (if applicable)
     if (taxAmount > 0) {
       doc.fillColor('#64748b')
-         .text(`Tax (${invoice.tax?.percentage || 0}%):`, 380, yPos)
+         .text('Tax (' + (invoice.tax?.percentage || 0) + '%):', 380, yPos)
          .fillColor('#334155')
-         .text(`₹${taxAmount.toFixed(2)}`, 480, yPos, { align: 'right' });
+         .text('₹' + taxAmount.toFixed(2), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
     // Discount (if applicable)
     if (discountAmount > 0) {
       doc.fillColor('#64748b')
-         .text(`Discount (${invoice.discount?.percentage || 0}%):`, 380, yPos)
+         .text('Discount (' + (invoice.discount?.percentage || 0) + '%):', 380, yPos)
          .fillColor('#ef4444')
-         .text(`-₹${discountAmount.toFixed(2)}`, 480, yPos, { align: 'right' });
+         .text('-₹' + discountAmount.toFixed(2), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
@@ -321,7 +328,7 @@ function addInvoiceTable(doc, invoice) {
 
     doc.fontSize(14)
        .fillColor('#10b981')
-       .text(`₹${total.toFixed(2)}`, 480, yPos + 5, { align: 'right' });
+       .text('₹' + total.toFixed(2), 480, yPos + 5, { align: 'right' });
        
   } else {
     // Subscription invoice (legacy format)
@@ -336,7 +343,7 @@ function addInvoiceTable(doc, invoice) {
     doc.text('1', 290, tableTop + 45);
     
     const amount = Math.abs(invoice.amount);
-    const amountText = isRefund ? `-₹${amount.toFixed(2)}` : `₹${amount.toFixed(2)}`;
+    const amountText = isRefund ? ('-\u20b9' + amount.toFixed(2)) : ('\u20b9' + amount.toFixed(2));
     doc.text(amountText, 360, tableTop + 45);
     doc.text(amountText, 460, tableTop + 45);
 
@@ -350,7 +357,7 @@ function addInvoiceTable(doc, invoice) {
        .fillColor('#64748b')
        .text('Subtotal:', 380, yPos)
        .fillColor('#334155')
-       .text(`₹${subtotal.toFixed(2)}`, 480, yPos, { align: 'right' });
+       .text('\u20b9' + subtotal.toFixed(2), 480, yPos, { align: 'right' });
 
     yPos += 20;
 
@@ -358,7 +365,7 @@ function addInvoiceTable(doc, invoice) {
       doc.fillColor('#64748b')
          .text('GST (18%):', 380, yPos)
          .fillColor('#334155')
-         .text(`₹${gst.toFixed(2)}`, 480, yPos, { align: 'right' });
+         .text('\u20b9' + gst.toFixed(2), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
@@ -369,7 +376,7 @@ function addInvoiceTable(doc, invoice) {
        .fillColor('#1e293b')
        .text('Total:', 380, yPos + 5);
 
-    const totalText = isRefund ? `-₹${total.toFixed(2)}` : `₹${total.toFixed(2)}`;
+    const totalText = isRefund ? ('-\u20b9' + total.toFixed(2)) : ('\u20b9' + total.toFixed(2));
     doc.fontSize(14)
        .fillColor(isRefund ? '#ef4444' : '#10b981')
        .text(totalText, 480, yPos + 5, { align: 'right' });
