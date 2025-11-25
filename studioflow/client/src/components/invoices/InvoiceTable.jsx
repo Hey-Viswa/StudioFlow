@@ -69,9 +69,9 @@ const STATUS_TABS = [
 
 const INLINE_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Sent' },
+  { value: 'pending', label: 'Pending' },
   { value: 'paid', label: 'Paid' },
-  { value: 'failed', label: 'Failed' },
+  { value: 'overdue', label: 'Overdue' },
   { value: 'cancelled', label: 'Cancelled' }
 ];
 
