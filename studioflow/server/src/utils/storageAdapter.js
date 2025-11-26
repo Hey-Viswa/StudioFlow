@@ -101,9 +101,15 @@ class StorageAdapter {
       Key: key,
     };
 
-    // Add Content-Disposition header to force download with original filename
-    if (forceDownload && filename) {
-      commandParams.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+    // Set Content-Disposition header
+    if (filename) {
+      if (forceDownload) {
+        // Force download with original filename
+        commandParams.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+      } else {
+        // Allow preview in browser (inline display)
+        commandParams.ResponseContentDisposition = `inline; filename="${encodeURIComponent(filename)}"`;
+      }
     }
 
     const command = new GetObjectCommand(commandParams);

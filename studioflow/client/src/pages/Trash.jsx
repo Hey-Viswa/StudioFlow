@@ -32,7 +32,8 @@ import {
   Clock,
   AlertTriangle,
   FileText,
-  FolderOpen
+  FolderOpen,
+  File
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatINR } from '../utils/currency';
@@ -43,7 +44,7 @@ export default function Trash() {
   const [trashItems, setTrashItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'projects', 'invoices'
+  const [filter, setFilter] = useState('all'); // 'all', 'projects', 'invoices', 'files'
 
   useEffect(() => {
     fetchTrashItems();
@@ -88,9 +89,15 @@ export default function Trash() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const endpoint = item.type === 'invoice' 
-        ? `/trash/invoices/${item._id}/restore`
-        : `/trash/projects/${item._id}/restore`;
+      
+      let endpoint;
+      if (item.type === 'invoice') {
+        endpoint = `/trash/invoices/${item._id}/restore`;
+      } else if (item.type === 'file') {
+        endpoint = `/files/${item._id}/restore`;
+      } else {
+        endpoint = `/trash/projects/${item._id}/restore`;
+      }
       
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
@@ -105,7 +112,8 @@ export default function Trash() {
         throw new Error(`Failed to restore ${item.type}`);
       }
 
-      toast.success(`${item.type === 'invoice' ? 'Invoice' : 'Project'} restored successfully`);
+      const itemName = item.type === 'invoice' ? 'Invoice' : item.type === 'file' ? 'File' : 'Project';
+      toast.success(`${itemName} restored successfully`);
       fetchTrashItems();
     } catch (error) {
       console.error('Error restoring item:', error);
@@ -120,9 +128,15 @@ export default function Trash() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const endpoint = item.type === 'invoice' 
-        ? `/trash/invoices/${item._id}`
-        : `/trash/projects/${item._id}`;
+      
+      let endpoint;
+      if (item.type === 'invoice') {
+        endpoint = `/trash/invoices/${item._id}`;
+      } else if (item.type === 'file') {
+        endpoint = `/files/${item._id}`;
+      } else {
+        endpoint = `/trash/projects/${item._id}`;
+      }
       
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'DELETE',
@@ -131,11 +145,14 @@ export default function Trash() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
-      });      if (!response.ok) {
+      });
+
+      if (!response.ok) {
         throw new Error(`Failed to permanently delete ${item.type}`);
       }
 
-      toast.success(`${item.type === 'invoice' ? 'Invoice' : 'Project'} permanently deleted`);
+      const itemName = item.type === 'invoice' ? 'Invoice' : item.type === 'file' ? 'File' : 'Project';
+      toast.success(`${itemName} permanently deleted`);
       fetchTrashItems();
     } catch (error) {
       console.error('Error deleting item:', error);
@@ -152,7 +169,12 @@ export default function Trash() {
 
   const filteredItems = filter === 'all' 
     ? trashItems 
-    : trashItems.filter(item => item.type === (filter === 'projects' ? 'project' : 'invoice'));
+    : trashItems.filter(item => {
+        if (filter === 'projects') return item.type === 'project';
+        if (filter === 'invoices') return item.type === 'invoice';
+        if (filter === 'files') return item.type === 'file';
+        return true;
+      });
 
   if (loading) {
     return (
@@ -186,6 +208,10 @@ export default function Trash() {
           <TabsTrigger value="invoices">
             <FileText className="w-4 h-4 mr-2" />
             Invoices ({trashItems.filter(i => i.type === 'invoice').length})
+          </TabsTrigger>
+          <TabsTrigger value="files">
+            <File className="w-4 h-4 mr-2" />
+            Files ({trashItems.filter(i => i.type === 'file').length})
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -221,17 +247,24 @@ export default function Trash() {
                         <FolderOpen className="w-3 h-3 mr-1" />
                         Project
                       </Badge>
-                    ) : (
+                    ) : item.type === 'invoice' ? (
                       <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
                         <FileText className="w-3 h-3 mr-1" />
                         Invoice
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                        <File className="w-3 h-3 mr-1" />
+                        File
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     <div>
                       <p className="font-medium text-card-foreground">
-                        {item.type === 'project' ? item.title : item.invoiceNumber}
+                        {item.type === 'project' ? item.title : 
+                         item.type === 'invoice' ? item.invoiceNumber :
+                         item.filename}
                       </p>
                       {item.type === 'project' && item.brief && (
                         <p className="text-sm text-muted-foreground truncate max-w-md">
@@ -241,6 +274,11 @@ export default function Trash() {
                       {item.type === 'invoice' && (
                         <p className="text-sm text-muted-foreground">
                           {item.projectTitle} • {formatINR(item.total)}
+                        </p>
+                      )}
+                      {item.type === 'file' && (
+                        <p className="text-sm text-muted-foreground">
+                          {(item.size / 1024 / 1024).toFixed(2)} MB • {item.mimeType}
                         </p>
                       )}
                     </div>
@@ -290,7 +328,11 @@ export default function Trash() {
                           <AlertDialogHeader>
                             <AlertDialogTitle className="text-card-foreground">Permanently Delete?</AlertDialogTitle>
                             <AlertDialogDescription className="text-muted-foreground">
-                              This will permanently delete {item.type === 'project' ? `project "${item.title}"` : `invoice "${item.invoiceNumber}"`}.
+                              This will permanently delete {
+                                item.type === 'project' ? `project "${item.title}"` : 
+                                item.type === 'invoice' ? `invoice "${item.invoiceNumber}"` :
+                                `file "${item.filename}"`
+                              }.
                               This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>

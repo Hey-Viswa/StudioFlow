@@ -2,6 +2,7 @@ import Project from '../models/Project.js';
 import Trash from '../models/Trash.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import DeletedInvoice from '../models/DeletedInvoice.js';
+import ProjectFile from '../models/ProjectFile.js';
 import { createClerkClient } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
@@ -328,6 +329,21 @@ export const getAllTrashItems = async (req, res) => {
       ]
     }).sort({ deletedAt: -1 });
 
+    // Get archived files from projects where user is a collaborator
+    const userProjects = await Project.find({
+      $or: [
+        { ownerId: userId },
+        { 'members.userId': userId }
+      ]
+    }).select('_id');
+
+    const projectIds = userProjects.map(p => p._id);
+
+    const archivedFiles = await ProjectFile.find({
+      projectId: { $in: projectIds },
+      status: 'archived'
+    }).sort({ updatedAt: -1 });
+
     // Format projects
     const projectsWithDetails = trashedProjects.map(project => {
       const projectObj = project.toObject();
@@ -348,8 +364,26 @@ export const getAllTrashItems = async (req, res) => {
       };
     });
 
+    // Format files
+    const filesWithDetails = archivedFiles.map(file => {
+      const fileObj = file.toObject();
+      return {
+        ...fileObj,
+        _id: file._id,
+        fileId: file.fileId,
+        filename: file.filename,
+        size: file.size,
+        mimeType: file.mimeType,
+        projectId: file.projectId,
+        deletedAt: file.updatedAt,
+        deletedBy: file.uploaderId,
+        daysRemaining: 90, // Files have 90-day retention
+        type: 'file'
+      };
+    });
+
     // Combine and sort by deletedAt
-    const allItems = [...projectsWithDetails, ...invoicesWithDetails]
+    const allItems = [...projectsWithDetails, ...invoicesWithDetails, ...filesWithDetails]
       .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
 
     res.json({
@@ -357,6 +391,7 @@ export const getAllTrashItems = async (req, res) => {
       counts: {
         projects: projectsWithDetails.length,
         invoices: invoicesWithDetails.length,
+        files: filesWithDetails.length,
         total: allItems.length
       }
     });
