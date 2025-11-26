@@ -17,7 +17,7 @@ const STATUS_CONFIG = {
     style: { backgroundColor: 'rgb(255 255 255 / 0.1)', color: 'rgb(212 212 216)', borderColor: 'rgb(161 161 170 / 0.3)' },
   },
   pending: {
-    label: 'Pending',
+    label: 'Sent',
     icon: Clock,
     style: { backgroundColor: 'rgb(251 146 60 / 0.2)', color: 'rgb(249 115 22)', borderColor: 'rgb(251 146 60 / 0.3)' },
   },

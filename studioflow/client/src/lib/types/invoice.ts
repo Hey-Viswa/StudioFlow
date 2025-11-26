@@ -35,6 +35,7 @@ export interface Invoice {
   invoiceNumber: string;
   status: InvoiceStatus;
   projectId?: InvoiceProject | string;
+  projectTitle?: string;
   client: InvoiceClient;
   items: InvoiceItem[];
   subtotal: number;

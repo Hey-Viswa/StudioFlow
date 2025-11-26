@@ -10,6 +10,46 @@ const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
 });
 
+async function ensureInvoiceProject(invoice) {
+  if (!invoice || !invoice.projectId) {
+    return invoice;
+  }
+
+  const alreadyPopulated = typeof invoice.projectId === 'object' && invoice.projectId !== null && invoice.projectId.title;
+
+  if (!alreadyPopulated) {
+    if (typeof invoice.populate === 'function') {
+      try {
+        await invoice.populate('projectId', 'title status');
+      } catch (err) {
+        console.warn('⚠️  Failed to populate project for invoice:', err.message);
+      }
+    }
+
+    if (!(typeof invoice.projectId === 'object' && invoice.projectId?.title)) {
+      try {
+        const projectIdValue = typeof invoice.projectId === 'object' && invoice.projectId !== null
+          ? invoice.projectId._id
+          : invoice.projectId;
+        if (projectIdValue) {
+          const project = await Project.findById(projectIdValue).select('title status');
+          if (project) {
+            invoice.projectId = project;
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️  Failed to fetch project for invoice:', err.message);
+      }
+    }
+  }
+
+  if (!invoice.projectTitle && invoice.projectId?.title) {
+    invoice.projectTitle = invoice.projectId.title;
+  }
+
+  return invoice;
+}
+
 // @desc    Get all invoices for current user
 // @route   GET /api/invoices
 // @access  Protected
@@ -35,11 +75,22 @@ export const getAllUserInvoices = async (req, res) => {
       if (status === 'sent') {
         query.status = 'pending';
       } else if (status === 'overdue') {
-        // For overdue, find invoices that are pending with past due date
-        query.status = { $in: ['pending', 'overdue'] };
-        query.dueDate = { $lt: new Date() };
-        console.log('🔍 Overdue query:', JSON.stringify(query, null, 2));
-        console.log('🔍 Current date:', new Date());
+        const now = new Date();
+        const overdueClause = {
+          $or: [
+            { status: 'overdue' },
+            { status: 'pending', dueDate: { $lt: now } }
+          ]
+        };
+
+        if (query.$and) {
+          query.$and.push(overdueClause);
+        } else {
+          query.$and = [overdueClause];
+        }
+
+        console.log('🔍 Overdue query clause:', JSON.stringify(overdueClause, null, 2));
+        console.log('🔍 Current date:', now);
       } else {
         query.status = status;
       }
@@ -73,18 +124,33 @@ export const getAllUserInvoices = async (req, res) => {
     const total = await ProjectInvoice.countDocuments(query);
 
     console.log(`✓ Found ${invoices.length} invoices (${total} total)`);
+
+    const now = new Date();
+    const invoicesWithDerivedStatus = invoices.map(inv => {
+      const invoice = { ...inv };
+
+      if (!invoice.projectTitle && invoice.projectId?.title) {
+        invoice.projectTitle = invoice.projectId.title;
+      }
+
+      if (invoice.status === 'pending' && invoice.dueDate && new Date(invoice.dueDate) < now) {
+        invoice.status = 'overdue';
+      }
+
+      return invoice;
+    });
     
     // Debug: Show invoice statuses and due dates for overdue filter
     if (status === 'overdue') {
       console.log('📋 Overdue invoices details:');
-      invoices.forEach(inv => {
+      invoicesWithDerivedStatus.forEach(inv => {
         console.log(`  - ${inv.invoiceNumber}: status=${inv.status}, dueDate=${inv.dueDate}, isPast=${new Date(inv.dueDate) < new Date()}`);
       });
     }
 
     res.json({
       success: true,
-      invoices,
+      invoices: invoicesWithDerivedStatus,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -165,6 +231,7 @@ export const generateProjectInvoice = async (req, res) => {
     const invoice = await ProjectInvoice.create({
       userId,
       projectId,
+      projectTitle: project.title,
       client: clientInfo,
       items: processedItems,
       dueDate: dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -319,6 +386,7 @@ export const updateProjectInvoice = async (req, res) => {
       }
 
       invoice.projectId = updates.projectId;
+      invoice.projectTitle = project.title;
     }
 
     if (updates.items && (!Array.isArray(updates.items) || updates.items.length === 0)) {
@@ -428,6 +496,8 @@ export const deleteProjectInvoice = async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
+    await ensureInvoiceProject(invoice);
+
     console.log('✓ Invoice found:', invoice.invoiceNumber);
 
     if (invoice.userId !== userId) {
@@ -461,7 +531,7 @@ export const deleteProjectInvoice = async (req, res) => {
       invoiceNumber: invoice.invoiceNumber,
       userId: invoice.userId,
       projectId: invoice.projectId?._id,
-      projectTitle: invoice.projectId?.title || 'Unknown Project',
+      projectTitle: invoice.projectId?.title || invoice.projectTitle || 'Unknown Project',
       client: invoice.client,
       items: invoice.items,
       subtotal: invoice.subtotal,
@@ -560,6 +630,8 @@ export const resendProjectInvoice = async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
+
+    await ensureInvoiceProject(invoice);
 
     if (invoice.userId !== userId) {
       return res.status(403).json({ error: 'Only invoice creator can resend' });
@@ -842,6 +914,8 @@ async function handlePaymentCaptured(payment, timestamp) {
       return;
     }
 
+    await ensureInvoiceProject(invoice);
+
     if (invoice.status !== 'paid') {
       invoice.status = 'paid';
       invoice.razorpayPaymentId = payment.id;
@@ -954,6 +1028,8 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     if (invoice.userId !== userId && invoice.client.userId !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    await ensureInvoiceProject(invoice);
 
     // Check if PDF exists or generate it
     const { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } = await import('../utils/pdfGenerator.js');

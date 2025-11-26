@@ -6,6 +6,29 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const CURRENCY_SYMBOLS = {
+  INR: '₹',
+  USD: '$',
+  EUR: '€',
+  GBP: '£'
+};
+
+function formatCurrency(amount = 0, currency = 'INR') {
+  const value = Number(amount) || 0;
+  const formatted = value.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  const normalized = (currency || 'INR').toUpperCase();
+  const symbol = CURRENCY_SYMBOLS[normalized];
+
+  if (symbol) {
+    return `${symbol}${formatted}`;
+  }
+
+  return `${normalized} ${formatted}`.trim();
+}
+
 /**
  * Generate Invoice PDF
  * @param {Object} invoice - Invoice data from database
@@ -238,6 +261,7 @@ function addInvoiceDetails(doc, invoice) {
 function addInvoiceTable(doc, invoice) {
   const tableTop = 410;
   const isRefund = invoice.type === 'refund';
+  const currency = invoice.currency || 'INR';
   
   // Table header
   doc.rect(50, tableTop, 495, 30)
@@ -274,11 +298,15 @@ function addInvoiceTable(doc, invoice) {
            .text(item.description, 60, yOffset + 24, { width: 200 });
       }
 
+      const quantity = Number(item.quantity) || 0;
+      const rateText = formatCurrency(item.rate, currency);
+      const amountText = formatCurrency(item.amount, currency);
+
       doc.fontSize(10)
-         .fillColor('#334155')
-         .text(item.quantity.toString(), 290, yOffset + 10)
-         .text('₹' + item.rate.toFixed(2), 360, yOffset + 10)
-         .text('₹' + item.amount.toFixed(2), 460, yOffset + 10);
+        .fillColor('#334155')
+        .text(quantity.toString(), 290, yOffset + 10)
+        .text(rateText, 360, yOffset + 10)
+        .text(amountText, 460, yOffset + 10);
 
       yOffset += rowHeight;
     });
@@ -292,29 +320,29 @@ function addInvoiceTable(doc, invoice) {
     let yPos = yOffset + 20;
 
     // Subtotal
-    doc.fontSize(10)
+     doc.fontSize(10)
        .fillColor('#64748b')
        .text('Subtotal:', 380, yPos)
        .fillColor('#334155')
-       .text('₹' + subtotal.toFixed(2), 480, yPos, { align: 'right' });
+       .text(formatCurrency(subtotal, currency), 480, yPos, { align: 'right' });
 
     yPos += 20;
 
     // Tax (if applicable)
     if (taxAmount > 0) {
       doc.fillColor('#64748b')
-         .text('Tax (' + (invoice.tax?.percentage || 0) + '%):', 380, yPos)
-         .fillColor('#334155')
-         .text('₹' + taxAmount.toFixed(2), 480, yPos, { align: 'right' });
+        .text('Tax (' + (invoice.tax?.percentage || 0) + '%):', 380, yPos)
+        .fillColor('#334155')
+        .text(formatCurrency(taxAmount, currency), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
     // Discount (if applicable)
     if (discountAmount > 0) {
       doc.fillColor('#64748b')
-         .text('Discount (' + (invoice.discount?.percentage || 0) + '%):', 380, yPos)
-         .fillColor('#ef4444')
-         .text('-₹' + discountAmount.toFixed(2), 480, yPos, { align: 'right' });
+        .text('Discount (' + (invoice.discount?.percentage || 0) + '%):', 380, yPos)
+        .fillColor('#ef4444')
+        .text('-' + formatCurrency(discountAmount, currency), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
@@ -322,13 +350,13 @@ function addInvoiceTable(doc, invoice) {
     doc.rect(370, yPos - 5, 175, 35)
        .fillAndStroke('#f1f5f9', '#e2e8f0');
 
-    doc.fontSize(12)
+     doc.fontSize(12)
        .fillColor('#1e293b')
        .text('Total:', 380, yPos + 5);
 
-    doc.fontSize(14)
+     doc.fontSize(14)
        .fillColor('#10b981')
-       .text('₹' + total.toFixed(2), 480, yPos + 5, { align: 'right' });
+       .text(formatCurrency(total, currency), 480, yPos + 5, { align: 'right' });
        
   } else {
     // Subscription invoice (legacy format)
@@ -343,7 +371,7 @@ function addInvoiceTable(doc, invoice) {
     doc.text('1', 290, tableTop + 45);
     
     const amount = Math.abs(invoice.amount);
-    const amountText = isRefund ? ('-\u20b9' + amount.toFixed(2)) : ('\u20b9' + amount.toFixed(2));
+    const amountText = `${isRefund ? '-' : ''}${formatCurrency(amount, currency)}`;
     doc.text(amountText, 360, tableTop + 45);
     doc.text(amountText, 460, tableTop + 45);
 
@@ -353,19 +381,19 @@ function addInvoiceTable(doc, invoice) {
 
     let yPos = tableTop + 100;
 
-    doc.fontSize(10)
+     doc.fontSize(10)
        .fillColor('#64748b')
        .text('Subtotal:', 380, yPos)
        .fillColor('#334155')
-       .text('\u20b9' + subtotal.toFixed(2), 480, yPos, { align: 'right' });
+       .text(formatCurrency(subtotal, currency), 480, yPos, { align: 'right' });
 
     yPos += 20;
 
     if (gst > 0) {
       doc.fillColor('#64748b')
-         .text('GST (18%):', 380, yPos)
-         .fillColor('#334155')
-         .text('\u20b9' + gst.toFixed(2), 480, yPos, { align: 'right' });
+        .text('GST (18%):', 380, yPos)
+        .fillColor('#334155')
+        .text(formatCurrency(gst, currency), 480, yPos, { align: 'right' });
       yPos += 20;
     }
 
@@ -376,7 +404,7 @@ function addInvoiceTable(doc, invoice) {
        .fillColor('#1e293b')
        .text('Total:', 380, yPos + 5);
 
-    const totalText = isRefund ? ('-\u20b9' + total.toFixed(2)) : ('\u20b9' + total.toFixed(2));
+    const totalText = `${isRefund ? '-' : ''}${formatCurrency(total, currency)}`;
     doc.fontSize(14)
        .fillColor(isRefund ? '#ef4444' : '#10b981')
        .text(totalText, 480, yPos + 5, { align: 'right' });

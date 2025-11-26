@@ -36,6 +36,7 @@ export interface Invoice {
   invoiceNumber: string;
   status: InvoiceStatus;
   projectId?: InvoiceProject | string;
+  projectTitle?: string;
   client: InvoiceClient;
   items: InvoiceItem[];
   subtotal: number;
@@ -120,14 +121,22 @@ export const setAuthToken = async (getToken: GetTokenFn) => {
 };
 
 const isInvoiceOverdue = (invoice: Invoice) => {
-  if (invoice.status !== 'pending' || !invoice.dueDate) return false;
-  return new Date(invoice.dueDate).getTime() < Date.now();
+  if (!invoice.dueDate) return false;
+
+  if (invoice.status === 'overdue') {
+    return true;
+  }
+
+  if (invoice.status === 'pending') {
+    return new Date(invoice.dueDate).getTime() < Date.now();
+  }
+
+  return false;
 };
 
 const coerceStatusParam = (status?: InvoiceStatus | 'all') => {
   if (!status || status === 'all') return undefined;
-  if (status === 'overdue') return 'pending';
-  if (status === 'pending') return 'pending';
+  if (status === 'sent') return 'pending';
   return status;
 };
 

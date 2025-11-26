@@ -47,7 +47,7 @@ export default function InvoicesKPI({ stats, loading }) {
       trend: stats.totalPaid > 0 ? 'up' : null
     },
     {
-      label: 'Pending',
+      label: 'Sent',
       value: stats.totalPending,
       count: stats.countPending,
       icon: Clock,

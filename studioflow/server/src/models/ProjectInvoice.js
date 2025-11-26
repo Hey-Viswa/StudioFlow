@@ -15,6 +15,11 @@ const projectInvoiceSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+
+  projectTitle: {
+    type: String,
+    default: ''
+  },
   
   // Auto-generated invoice number
   invoiceNumber: {

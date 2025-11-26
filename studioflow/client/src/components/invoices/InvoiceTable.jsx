@@ -69,7 +69,7 @@ const STATUS_TABS = [
 
 const INLINE_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'pending', label: 'Sent' },
   { value: 'paid', label: 'Paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'cancelled', label: 'Cancelled' }
@@ -291,7 +291,7 @@ export default function InvoiceTable({
                   </TableCell>
                   <TableCell>
                     <p className="text-sm truncate max-w-[200px]">
-                      {invoice.projectId?.title || 'N/A'}
+                      {invoice.projectId?.title || invoice.projectTitle || 'N/A'}
                     </p>
                   </TableCell>
                   <TableCell>

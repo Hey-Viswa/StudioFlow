@@ -236,7 +236,7 @@ export default function InvoiceDetailModal({
               <div>
                 <DialogTitle className="text-2xl text-card-foreground">{invoice.invoiceNumber}</DialogTitle>
                 <DialogDescription className="mt-1 text-muted-foreground">
-                  {invoice.projectId?.title || 'Project details unavailable'}
+                  {invoice.projectId?.title || invoice.projectTitle || 'Project details unavailable'}
                 </DialogDescription>
               </div>
               <Badge variant={statusConfig.variant} className="flex items-center gap-1">
