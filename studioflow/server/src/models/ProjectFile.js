@@ -129,6 +129,35 @@ const projectFileSchema = new mongoose.Schema({
     type: String,
   }],
   
+  // File sharing for clients
+  sharedWith: [{
+    userId: {
+      type: String,
+      required: true,
+    },
+    shareToken: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    allowDownload: {
+      type: Boolean,
+      default: false,
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
+    sharedBy: {
+      type: String,
+      required: true,
+    },
+    sharedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
+  
   // Analytics
   downloadCount: {
     type: Number,

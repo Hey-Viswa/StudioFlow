@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { getProjectFiles, getFileDetails, deleteFile, formatFileSize, getFileIcon } from '@/lib/api/files';
+import { getProjectFiles, getFileDetails, deleteFile, archiveFile, restoreFile, getFilePreviewUrl, formatFileSize, getFileIcon } from '@/lib/api/files';
 import { useProjectSocket } from '@/hooks/useSocket';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FileUploadDropzone } from './FileUploadDropzone';
 import { toast } from 'sonner';
-import { Download, MoreVertical, Trash2, Eye, History, RefreshCw } from 'lucide-react';
+import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -68,16 +68,40 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleDelete = async (fileId, filename) => {
-    if (!confirm(`Delete "${filename}"?`)) return;
+    try {
+      const token = await getToken();
+      await archiveFile(projectId, fileId, token);
+      setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'archived' } : f));
+      toast.success(`"${filename}" archived successfully`);
+    } catch (error) {
+      console.error('Failed to archive file:', error);
+      toast.error(error.message || 'Failed to archive file');
+    }
+  };
+
+  const handlePermanentDelete = async (fileId, filename) => {
+    if (!confirm(`Permanently delete "${filename}"? This cannot be undone.`)) return;
 
     try {
       const token = await getToken();
       await deleteFile(projectId, fileId, token);
       setFiles((prev) => prev.filter((f) => f.fileId !== fileId));
-      toast.success('File deleted successfully');
+      toast.success('File permanently deleted');
     } catch (error) {
       console.error('Failed to delete file:', error);
-      toast.error('Failed to delete file');
+      toast.error(error.message || 'Failed to delete file. Only project owners can permanently delete files.');
+    }
+  };
+
+  const handleRestore = async (fileId, filename) => {
+    try {
+      const token = await getToken();
+      await restoreFile(projectId, fileId, token);
+      setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'active' } : f));
+      toast.success(`"${filename}" restored successfully`);
+    } catch (error) {
+      console.error('Failed to restore file:', error);
+      toast.error(error.message || 'Failed to restore file');
     }
   };
 
@@ -94,26 +118,29 @@ export function ProjectFilesPanel({ projectId }) {
       toast.success('Download started');
     } catch (error) {
       console.error('Failed to download file:', error);
-      toast.error('Failed to download file');
+      toast.error(error.message || 'Failed to download file');
     }
   };
 
   const handlePreview = async (fileId, filename) => {
     try {
       const token = await getToken();
-      const response = await getFileDetails(projectId, fileId, token);
-      window.open(response.downloadUrl, '_blank');
+      const response = await getFilePreviewUrl(projectId, fileId, token);
+      window.open(response.previewUrl, '_blank');
     } catch (error) {
       console.error('Failed to preview file:', error);
-      toast.error('Failed to preview file');
+      toast.error(error.message || 'Failed to preview file');
     }
   };
 
   const filteredFiles = files.filter((file) => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'images') return file.mimeType.startsWith('image/');
-    if (activeTab === 'videos') return file.mimeType.startsWith('video/');
-    if (activeTab === 'documents') return file.mimeType.includes('pdf') || file.mimeType.includes('document');
+    // Filter out archived files unless specifically viewing archived tab
+    if (activeTab !== 'archived' && file.status === 'archived') return false;
+    if (activeTab === 'archived') return file.status === 'archived';
+    if (activeTab === 'all') return file.status === 'active';
+    if (activeTab === 'images') return file.status === 'active' && file.mimeType.startsWith('image/');
+    if (activeTab === 'videos') return file.status === 'active' && file.mimeType.startsWith('video/');
+    if (activeTab === 'documents') return file.status === 'active' && (file.mimeType.includes('pdf') || file.mimeType.includes('document'));
     return true;
   });
 
@@ -148,6 +175,7 @@ export function ProjectFilesPanel({ projectId }) {
               <TabsTrigger value="images">Images</TabsTrigger>
               <TabsTrigger value="videos">Videos</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
+              <TabsTrigger value="archived">Archived</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activeTab}>
@@ -155,7 +183,9 @@ export function ProjectFilesPanel({ projectId }) {
                 <FileListSkeleton />
               ) : filteredFiles.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-muted-foreground">No files yet. Upload your first file above!</p>
+                  <p className="text-muted-foreground">
+                    {activeTab === 'archived' ? 'No archived files' : 'No files yet. Upload your first file above!'}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -164,6 +194,8 @@ export function ProjectFilesPanel({ projectId }) {
                       key={file.fileId}
                       file={file}
                       onDelete={handleDelete}
+                      onPermanentDelete={handlePermanentDelete}
+                      onRestore={handleRestore}
                       onDownload={handleDownload}
                       onPreview={handlePreview}
                     />
@@ -181,20 +213,26 @@ export function ProjectFilesPanel({ projectId }) {
 /**
  * Individual file item
  */
-function FileItem({ file, onDelete, onDownload, onPreview }) {
+function FileItem({ file, onDelete, onPermanentDelete, onRestore, onDownload, onPreview }) {
   const isPreviewable = file.mimeType.startsWith('image/') || 
                         file.mimeType.startsWith('video/') || 
                         file.mimeType === 'application/pdf';
+  const isArchived = file.status === 'archived';
 
   return (
-    <Card className="p-4 hover:bg-muted/50 transition-colors">
+    <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
       <div className="flex items-center gap-4">
         {/* Icon */}
         <div className="flex-shrink-0 text-3xl">{getFileIcon(file.mimeType)}</div>
 
         {/* File Info */}
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{file.filename}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium truncate">{file.filename}</p>
+            {isArchived && (
+              <span className="text-xs bg-muted px-2 py-0.5 rounded">Archived</span>
+            )}
+          </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span>{formatFileSize(file.size)}</span>
             {file.version > 1 && (
@@ -217,24 +255,49 @@ function FileItem({ file, onDelete, onDownload, onPreview }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isPreviewable && (
-              <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
-                <Eye className="w-4 h-4 mr-2" />
-                Preview
-              </DropdownMenuItem>
+            {!isArchived ? (
+              <>
+                {isPreviewable && (
+                  <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => onDelete(file.fileId, file.filename)}
+                  className="text-orange-600 focus:text-orange-600"
+                >
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onPermanentDelete(file.fileId, file.filename)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Permanently
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
+                  <ArchiveRestore className="w-4 h-4 mr-2" />
+                  Restore
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onPermanentDelete(file.fileId, file.filename)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Permanently
+                </DropdownMenuItem>
+              </>
             )}
-            <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
-              <Download className="w-4 h-4 mr-2" />
-              Download
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => onDelete(file.fileId, file.filename)}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

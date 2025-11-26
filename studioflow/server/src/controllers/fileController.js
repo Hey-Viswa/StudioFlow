@@ -373,19 +373,18 @@ export const getFileDetails = async (req, res) => {
 };
 
 /**
- * @desc    Delete a file
- * @route   DELETE /api/projects/:id/files/:fileId
+ * @desc    Archive a file (soft delete)
+ * @route   POST /api/projects/:id/files/:fileId/archive
  * @access  Protected (Project Collaborators Only)
  */
-export const deleteFile = async (req, res) => {
+export const archiveFile = async (req, res) => {
   try {
     const { id: projectId, fileId } = req.params;
     const userId = req.userId;
 
-    // RBAC: Check project access
     const hasAccess = await isProjectCollaborator(projectId, userId);
     if (!hasAccess) {
-      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId });
@@ -393,25 +392,105 @@ export const deleteFile = async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Only uploader or project owner can delete
     const project = await Project.findById(projectId).select('ownerId').lean();
     if (file.uploaderId !== userId && project.ownerId !== userId) {
-      return res.status(403).json({ error: 'Only the uploader or project owner can delete this file' });
+      return res.status(403).json({ error: 'Only the uploader or project owner can archive this file' });
     }
 
-    // Soft delete: mark as deleted
-    file.status = 'deleted';
+    file.status = 'archived';
     await file.save();
 
-    // Optionally delete from storage (comment out if you want to keep files)
+    const io = req.app?.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('project:files:archived', { fileId });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'File archived successfully',
+      fileId,
+    });
+  } catch (error) {
+    console.error('❌ Error archiving file:', error);
+    res.status(500).json({ error: 'Failed to archive file', details: error.message });
+  }
+};
+
+/**
+ * @desc    Restore archived file
+ * @route   POST /api/projects/:id/files/:fileId/restore
+ * @access  Protected (Project Collaborators Only)
+ */
+export const restoreFile = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const userId = req.userId;
+
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId, status: 'archived' });
+    if (!file) {
+      return res.status(404).json({ error: 'Archived file not found' });
+    }
+
+    file.status = 'active';
+    await file.save();
+
+    const io = req.app?.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('project:files:restored', { fileId });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'File restored successfully',
+      file,
+    });
+  } catch (error) {
+    console.error('❌ Error restoring file:', error);
+    res.status(500).json({ error: 'Failed to restore file', details: error.message });
+  }
+};
+
+/**
+ * @desc    Permanently delete a file
+ * @route   DELETE /api/projects/:id/files/:fileId
+ * @access  Protected (Project Owner Only)
+ */
+export const deleteFile = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const userId = req.userId;
+
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Only project owner can permanently delete
+    const project = await Project.findById(projectId).select('ownerId').lean();
+    if (project.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only the project owner can permanently delete files' });
+    }
+
+    // Delete from storage
     try {
       await storageAdapter.deleteFile(file.storageKey);
     } catch (storageError) {
-      console.error('⚠️ Failed to delete file from storage:', storageError);
-      // Continue anyway - file is marked deleted in DB
+      console.error('⚠️ Failed to delete from storage:', storageError);
     }
 
-    // Emit Socket.IO event for real-time updates
+    // Delete from database
+    await ProjectFile.deleteOne({ _id: file._id });
+
     const io = req.app?.get('io');
     if (io) {
       io.to(`project-${projectId}`).emit('project:files:deleted', { fileId });
@@ -419,7 +498,7 @@ export const deleteFile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'File deleted successfully',
+      message: 'File permanently deleted',
     });
   } catch (error) {
     console.error('❌ Error deleting file:', error);

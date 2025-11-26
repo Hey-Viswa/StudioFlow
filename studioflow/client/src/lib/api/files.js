@@ -210,7 +210,26 @@ export async function getFilePreviewUrl(projectId, fileId, token) {
 }
 
 /**
- * Delete a file
+ * Delete a file (archive it)
+ */
+export async function archiveFile(projectId, fileId, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/archive`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to archive file');
+  }
+
+  return response.json();
+}
+
+/**
+ * Permanently delete a file
  */
 export async function deleteFile(projectId, fileId, token) {
   const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}`, {
@@ -223,6 +242,44 @@ export async function deleteFile(projectId, fileId, token) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to delete file');
+  }
+
+  return response.json();
+}
+
+/**
+ * Restore archived file
+ */
+export async function restoreFile(projectId, fileId, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/restore`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to restore file');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get file preview URL
+ */
+export async function getFilePreviewUrl(projectId, fileId, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/preview`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to get preview URL');
   }
 
   return response.json();
