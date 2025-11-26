@@ -7,6 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -27,6 +37,7 @@ export function ProjectFilesPanel({ projectId }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, fileId: null, filename: '', type: 'archive' });
 
   // Real-time updates via Socket.IO
   useProjectSocket(projectId, {
@@ -51,8 +62,7 @@ export function ProjectFilesPanel({ projectId }) {
       setLoading(true);
       const token = await getToken();
       const response = await getProjectFiles(projectId, token, {
-        status: 'active',
-        includeArchived: false,
+        includeArchived: true, // Fetch all files including archived
       });
       setFiles(response.files || []);
     } catch (error) {
@@ -68,28 +78,33 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleDelete = async (fileId, filename) => {
-    try {
-      const token = await getToken();
-      await archiveFile(projectId, fileId, token);
-      setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'archived' } : f));
-      toast.success(`"${filename}" archived successfully`);
-    } catch (error) {
-      console.error('Failed to archive file:', error);
-      toast.error(error.message || 'Failed to archive file');
-    }
+    setDeleteDialog({ open: true, fileId, filename, type: 'archive' });
   };
 
   const handlePermanentDelete = async (fileId, filename) => {
-    if (!confirm(`Permanently delete "${filename}"? This cannot be undone.`)) return;
+    setDeleteDialog({ open: true, fileId, filename, type: 'permanent' });
+  };
 
+  const confirmDelete = async () => {
+    const { fileId, filename, type } = deleteDialog;
+    
     try {
       const token = await getToken();
-      await deleteFile(projectId, fileId, token);
-      setFiles((prev) => prev.filter((f) => f.fileId !== fileId));
-      toast.success('File permanently deleted');
+      
+      if (type === 'archive') {
+        await archiveFile(projectId, fileId, token);
+        setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'archived' } : f));
+        toast.success(`"${filename}" archived successfully`);
+      } else {
+        await deleteFile(projectId, fileId, token);
+        setFiles((prev) => prev.filter((f) => f.fileId !== fileId));
+        toast.success('File permanently deleted');
+      }
     } catch (error) {
       console.error('Failed to delete file:', error);
-      toast.error(error.message || 'Failed to delete file. Only project owners can permanently delete files.');
+      toast.error(error.message || `Failed to ${type === 'archive' ? 'archive' : 'delete'} file`);
+    } finally {
+      setDeleteDialog({ open: false, fileId: null, filename: '', type: 'archive' });
     }
   };
 
@@ -206,6 +221,41 @@ export function ProjectFilesPanel({ projectId }) {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ ...deleteDialog, open: false })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialog.type === 'archive' ? 'Archive File?' : 'Permanently Delete File?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.type === 'archive' ? (
+                <>
+                  Are you sure you want to archive "<strong>{deleteDialog.filename}</strong>"?
+                  <br />
+                  You can restore it later from the Archived tab.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to permanently delete "<strong>{deleteDialog.filename}</strong>"?
+                  <br />
+                  <span className="text-destructive font-semibold">This action cannot be undone.</span> Only project owners can permanently delete files.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className={deleteDialog.type === 'permanent' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {deleteDialog.type === 'archive' ? 'Archive' : 'Delete Permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
