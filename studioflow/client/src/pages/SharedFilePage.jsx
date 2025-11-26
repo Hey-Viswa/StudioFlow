@@ -1,0 +1,267 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Loader2, Download, Eye, FileText, Clock, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { formatFileSize } from '@/lib/api/files';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+/**
+ * Shared File View Page
+ * Client view for accessing shared files via share token
+ */
+export default function SharedFilePage() {
+  const { shareToken } = useParams();
+  const navigate = useNavigate();
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [fileData, setFileData] = useState(null);
+  const [error, setError] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  useEffect(() => {
+    if (shareToken) {
+      fetchSharedFile();
+    }
+  }, [shareToken]);
+
+  const fetchSharedFile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await getToken();
+      
+      const response = await fetch(`${API_BASE}/projects/files/shared/${shareToken}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load shared file');
+      }
+
+      const data = await response.json();
+      setFileData(data);
+    } catch (error) {
+      console.error('Failed to fetch shared file:', error);
+      setError(error.message);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreview = () => {
+    if (fileData?.previewUrl) {
+      setPreviewing(true);
+      window.open(fileData.previewUrl, '_blank');
+      setTimeout(() => setPreviewing(false), 1000);
+    }
+  };
+
+  const handleDownload = () => {
+    if (fileData?.downloadUrl) {
+      const link = document.createElement('a');
+      link.href = fileData.downloadUrl;
+      link.download = fileData.file.originalFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Download started');
+    } else {
+      toast.error('Download not available. Contact the project owner.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-4" />
+          <p className="text-muted-foreground">Loading shared file...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <div className="flex items-center gap-2 text-destructive mb-2">
+              <AlertCircle className="w-6 h-6" />
+              <CardTitle>Access Denied</CardTitle>
+            </div>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/dashboard')} className="w-full">
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const { file, previewUrl, downloadUrl, allowDownload, expiresAt } = fileData;
+  const expiresDate = new Date(expiresAt);
+  const isExpired = expiresDate < new Date();
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 max-w-4xl">
+        {/* Header */}
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/dashboard')}
+            className="mb-4"
+          >
+            ← Back to Dashboard
+          </Button>
+          
+          <div className="flex items-center gap-3 mb-2">
+            <FileText className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold tracking-tight">Shared File</h1>
+          </div>
+          <p className="text-muted-foreground">
+            This file has been shared with you by the project owner
+          </p>
+        </div>
+
+        {/* File Info Card */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl">{file.filename}</CardTitle>
+                <CardDescription>
+                  {file.originalFilename} • {formatFileSize(file.size)}
+                </CardDescription>
+              </div>
+              <Badge variant={allowDownload ? 'default' : 'secondary'}>
+                {allowDownload ? (
+                  <>
+                    <Download className="w-3 h-3 mr-1" />
+                    Download Enabled
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3 h-3 mr-1" />
+                    Preview Only
+                  </>
+                )}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* File Details */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground mb-1">File Type</p>
+                <p className="font-medium">{file.mimeType}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">Uploaded</p>
+                <p className="font-medium">{format(new Date(file.uploadedAt), 'MMM dd, yyyy')}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">Access Expires</p>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <p className={`font-medium ${isExpired ? 'text-destructive' : ''}`}>
+                    {format(expiresDate, 'MMM dd, yyyy')}
+                    {isExpired && ' (Expired)'}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">Previewable</p>
+                <p className="font-medium">{file.isPreviewable ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4">
+              {file.isPreviewable && previewUrl && (
+                <Button
+                  onClick={handlePreview}
+                  disabled={previewing || isExpired}
+                  className="flex-1"
+                >
+                  {previewing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Eye className="w-4 h-4 mr-2" />
+                  )}
+                  Preview File
+                </Button>
+              )}
+              
+              {allowDownload && downloadUrl ? (
+                <Button
+                  onClick={handleDownload}
+                  disabled={isExpired}
+                  variant="default"
+                  className="flex-1"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download File
+                </Button>
+              ) : (
+                <Button variant="outline" className="flex-1" disabled>
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Download Not Available
+                </Button>
+              )}
+            </div>
+
+            {!allowDownload && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                <p className="text-blue-900 font-medium mb-1">Preview Only Access</p>
+                <p className="text-blue-700">
+                  You can preview this file but cannot download it yet. The project owner will enable download access after payment is received.
+                </p>
+              </div>
+            )}
+
+            {isExpired && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm">
+                <p className="text-destructive font-medium mb-1">Access Expired</p>
+                <p className="text-destructive/80">
+                  This share link has expired. Please contact the project owner to request a new link.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Preview Container */}
+        {file.isPreviewable && file.mimeType.startsWith('image/') && previewUrl && !isExpired && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <img 
+                src={previewUrl} 
+                alt={file.filename}
+                className="w-full rounded-lg border"
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

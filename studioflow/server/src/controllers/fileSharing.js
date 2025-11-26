@@ -113,6 +113,7 @@ export const getSharedFile = async (req, res) => {
       filename: file.originalFilename,
       ttl: 600,
       forceDownload: false, // Preview only
+      contentType: file.mimeType  // Ensure correct MIME type
     });
 
     let downloadUrl = null;
@@ -121,6 +122,7 @@ export const getSharedFile = async (req, res) => {
         filename: file.originalFilename,
         ttl: 600,
         forceDownload: true,
+        contentType: file.mimeType
       });
     }
 

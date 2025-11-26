@@ -94,12 +94,17 @@ class StorageAdapter {
       throw new Error('Storage client not initialized. Check credentials.');
     }
 
-    const { filename, ttl = 900, forceDownload = true } = options;
+    const { filename, ttl = 900, forceDownload = true, contentType } = options;
 
     const commandParams = {
       Bucket: this.bucket,
       Key: key,
     };
+
+    // Set Content-Type if provided (ensures proper MIME type for preview)
+    if (contentType) {
+      commandParams.ResponseContentType = contentType;
+    }
 
     // Set Content-Disposition header
     if (filename) {

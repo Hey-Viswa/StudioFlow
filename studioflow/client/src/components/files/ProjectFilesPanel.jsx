@@ -24,8 +24,10 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { FileUploadDropzone } from './FileUploadDropzone';
+import { ShareFileDialog } from './ShareFileDialog';
+import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
 import { toast } from 'sonner';
-import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
+import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -38,6 +40,8 @@ export function ProjectFilesPanel({ projectId }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [deleteDialog, setDeleteDialog] = useState({ open: false, fileId: null, filename: '', type: 'archive' });
+  const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, filename: '' });
+  const [manageDialog, setManageDialog] = useState({ open: false, file: null });
 
   // Real-time updates via Socket.IO
   useProjectSocket(projectId, {
@@ -81,28 +85,17 @@ export function ProjectFilesPanel({ projectId }) {
     setDeleteDialog({ open: true, fileId, filename, type: 'archive' });
   };
 
-  const handlePermanentDelete = async (fileId, filename) => {
-    setDeleteDialog({ open: true, fileId, filename, type: 'permanent' });
-  };
-
   const confirmDelete = async () => {
-    const { fileId, filename, type } = deleteDialog;
+    const { fileId, filename } = deleteDialog;
     
     try {
       const token = await getToken();
-      
-      if (type === 'archive') {
-        await archiveFile(projectId, fileId, token);
-        setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'archived' } : f));
-        toast.success(`"${filename}" archived successfully`);
-      } else {
-        await deleteFile(projectId, fileId, token);
-        setFiles((prev) => prev.filter((f) => f.fileId !== fileId));
-        toast.success('File permanently deleted');
-      }
+      await archiveFile(projectId, fileId, token);
+      setFiles((prev) => prev.map(f => f.fileId === fileId ? { ...f, status: 'archived' } : f));
+      toast.success(`"${filename}" moved to trash`);
     } catch (error) {
       console.error('Failed to delete file:', error);
-      toast.error(error.message || `Failed to ${type === 'archive' ? 'archive' : 'delete'} file`);
+      toast.error(error.message || 'Failed to delete file');
     } finally {
       setDeleteDialog({ open: false, fileId: null, filename: '', type: 'archive' });
     }
@@ -148,6 +141,18 @@ export function ProjectFilesPanel({ projectId }) {
     }
   };
 
+  const handleShare = (fileId, filename) => {
+    setShareDialog({ open: true, fileId, filename });
+  };
+
+  const handleManageSharing = (file) => {
+    setManageDialog({ open: true, file });
+  };
+
+  const handleShareComplete = () => {
+    fetchFiles(); // Refresh to get updated share info
+  };
+
   const filteredFiles = files.filter((file) => {
     // Filter out archived files unless specifically viewing archived tab
     if (activeTab !== 'archived' && file.status === 'archived') return false;
@@ -190,7 +195,7 @@ export function ProjectFilesPanel({ projectId }) {
               <TabsTrigger value="images">Images</TabsTrigger>
               <TabsTrigger value="videos">Videos</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="archived">Archived</TabsTrigger>
+              <TabsTrigger value="archived">Trash</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activeTab}>
@@ -199,7 +204,7 @@ export function ProjectFilesPanel({ projectId }) {
               ) : filteredFiles.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">
-                    {activeTab === 'archived' ? 'No archived files' : 'No files yet. Upload your first file above!'}
+                    {activeTab === 'archived' ? 'Trash is empty' : 'No files yet. Upload your first file above!'}
                   </p>
                 </div>
               ) : (
@@ -209,10 +214,11 @@ export function ProjectFilesPanel({ projectId }) {
                       key={file.fileId}
                       file={file}
                       onDelete={handleDelete}
-                      onPermanentDelete={handlePermanentDelete}
                       onRestore={handleRestore}
                       onDownload={handleDownload}
                       onPreview={handlePreview}
+                      onShare={handleShare}
+                      onManageSharing={handleManageSharing}
                     />
                   ))}
                 </div>
@@ -227,35 +233,43 @@ export function ProjectFilesPanel({ projectId }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deleteDialog.type === 'archive' ? 'Archive File?' : 'Permanently Delete File?'}
+              Delete File?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteDialog.type === 'archive' ? (
-                <>
-                  Are you sure you want to archive "<strong>{deleteDialog.filename}</strong>"?
-                  <br />
-                  You can restore it later from the Archived tab.
-                </>
-              ) : (
-                <>
-                  Are you sure you want to permanently delete "<strong>{deleteDialog.filename}</strong>"?
-                  <br />
-                  <span className="text-destructive font-semibold">This action cannot be undone.</span> Only project owners can permanently delete files.
-                </>
-              )}
+              Are you sure you want to delete "<strong>{deleteDialog.filename}</strong>"?
+              <br />
+              The file will be moved to trash and can be restored within 90 days.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className={deleteDialog.type === 'permanent' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              className="bg-destructive hover:bg-destructive/90"
             >
-              {deleteDialog.type === 'archive' ? 'Archive' : 'Delete Permanently'}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Share File Dialog */}
+      <ShareFileDialog
+        open={shareDialog.open}
+        onOpenChange={(open) => setShareDialog({ ...shareDialog, open })}
+        projectId={projectId}
+        fileId={shareDialog.fileId}
+        filename={shareDialog.filename}
+        onShareComplete={handleShareComplete}
+      />
+
+      {/* Manage Shared Files Dialog */}
+      <ManageSharedFilesDialog
+        open={manageDialog.open}
+        onOpenChange={(open) => setManageDialog({ ...manageDialog, open })}
+        projectId={projectId}
+        file={manageDialog.file}
+      />
     </div>
   );
 }
@@ -263,11 +277,12 @@ export function ProjectFilesPanel({ projectId }) {
 /**
  * Individual file item
  */
-function FileItem({ file, onDelete, onPermanentDelete, onRestore, onDownload, onPreview }) {
+function FileItem({ file, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing }) {
   const isPreviewable = file.mimeType.startsWith('image/') || 
                         file.mimeType.startsWith('video/') || 
                         file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
+  const isShared = file.sharedWith && file.sharedWith.length > 0;
 
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
@@ -280,7 +295,13 @@ function FileItem({ file, onDelete, onPermanentDelete, onRestore, onDownload, on
           <div className="flex items-center gap-2">
             <p className="font-medium truncate">{file.filename}</p>
             {isArchived && (
-              <span className="text-xs bg-muted px-2 py-0.5 rounded">Archived</span>
+              <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Deleted</span>
+            )}
+            {isShared && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1">
+                <Share2 className="w-3 h-3" />
+                Shared
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -318,19 +339,23 @@ function FileItem({ file, onDelete, onPermanentDelete, onRestore, onDownload, on
                   Download
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share with Client
+                </DropdownMenuItem>
+                {isShared && (
+                  <DropdownMenuItem onClick={() => onManageSharing(file)}>
+                    <Users className="w-4 h-4 mr-2" />
+                    Manage Sharing
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => onDelete(file.fileId, file.filename)}
-                  className="text-orange-600 focus:text-orange-600"
-                >
-                  <Archive className="w-4 h-4 mr-2" />
-                  Archive
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onPermanentDelete(file.fileId, file.filename)}
                   className="text-destructive focus:text-destructive"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Permanently
+                  Delete
                 </DropdownMenuItem>
               </>
             ) : (
@@ -338,13 +363,6 @@ function FileItem({ file, onDelete, onPermanentDelete, onRestore, onDownload, on
                 <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
                   <ArchiveRestore className="w-4 h-4 mr-2" />
                   Restore
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onPermanentDelete(file.fileId, file.filename)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Permanently
                 </DropdownMenuItem>
               </>
             )}

@@ -531,7 +531,8 @@ export const getFilePreviewUrl = async (req, res) => {
     const previewUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
       filename: file.originalFilename,
       ttl: 600,
-      forceDownload: false  // Allow preview in browser
+      forceDownload: false,  // Allow preview in browser
+      contentType: file.mimeType  // Ensure correct MIME type
     });
 
     res.status(200).json({

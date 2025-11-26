@@ -75,6 +75,7 @@ export default function Trash() {
 
       const data = await response.json();
       console.log('Trash data received:', data);
+      console.log('Files in trash:', data.items?.filter(i => i.type === 'file'));
       setTrashItems(data.items || []);
     } catch (error) {
       console.error('Error fetching trash:', error);
@@ -90,11 +91,14 @@ export default function Trash() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
+      console.log('🔄 Restoring item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
+      
       let endpoint;
       if (item.type === 'invoice') {
         endpoint = `/trash/invoices/${item._id}/restore`;
       } else if (item.type === 'file') {
-        endpoint = `/files/${item._id}/restore`;
+        // Files need project ID and file ID
+        endpoint = `/projects/${item.projectId}/files/${item.fileId}/restore`;
       } else {
         endpoint = `/trash/projects/${item._id}/restore`;
       }
@@ -109,8 +113,12 @@ export default function Trash() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to restore ${item.type}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Restore failed:', errorData);
+        throw new Error(errorData.error || `Failed to restore ${item.type}`);
       }
+
+      console.log('✅ Item restored successfully');
 
       const itemName = item.type === 'invoice' ? 'Invoice' : item.type === 'file' ? 'File' : 'Project';
       toast.success(`${itemName} restored successfully`);
@@ -129,11 +137,14 @@ export default function Trash() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
+      console.log('🗑️ Permanently deleting item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
+      
       let endpoint;
       if (item.type === 'invoice') {
         endpoint = `/trash/invoices/${item._id}`;
       } else if (item.type === 'file') {
-        endpoint = `/files/${item._id}`;
+        // Files need project ID and file ID
+        endpoint = `/projects/${item.projectId}/files/${item.fileId}`;
       } else {
         endpoint = `/trash/projects/${item._id}`;
       }
@@ -306,6 +317,7 @@ export default function Trash() {
                         onClick={() => handleRestore(item)}
                         disabled={actionLoading === item._id}
                         className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        title="Restore"
                       >
                         {actionLoading === item._id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />

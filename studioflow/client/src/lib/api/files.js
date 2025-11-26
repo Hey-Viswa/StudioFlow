@@ -267,25 +267,6 @@ export async function restoreFile(projectId, fileId, token) {
 }
 
 /**
- * Get file preview URL
- */
-export async function getFilePreviewUrl(projectId, fileId, token) {
-  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/preview`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to get preview URL');
-  }
-
-  return response.json();
-}
-
-/**
  * Format file size for display
  */
 export function formatFileSize(bytes) {
@@ -331,4 +312,88 @@ export function validateFile(file, maxSize = 500 * 1024 * 1024) {
   }
 
   return { valid: true };
+}
+
+/**
+ * Share file with client
+ */
+export async function shareFileWithClient(projectId, fileId, clientId, options, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/share`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      clientId,
+      ...options,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to share file');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get shared file by token
+ */
+export async function getSharedFile(shareToken, token) {
+  const response = await fetch(`${API_BASE}/projects/files/shared/${shareToken}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to access shared file');
+  }
+
+  return response.json();
+}
+
+/**
+ * Revoke file share access
+ */
+export async function revokeFileShare(projectId, fileId, clientId, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/revoke`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ clientId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to revoke access');
+  }
+
+  return response.json();
+}
+
+/**
+ * Enable download for shared file
+ */
+export async function enableFileDownload(projectId, fileId, clientId, token) {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/enable-download`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ clientId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to enable download');
+  }
+
+  return response.json();
 }

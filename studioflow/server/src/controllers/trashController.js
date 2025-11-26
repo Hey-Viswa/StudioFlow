@@ -113,15 +113,33 @@ export const restoreProject = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
+    console.log('🔄 Restore project request:', { trashId: id, userId });
+
     const trashEntry = await Trash.findById(id);
 
     if (!trashEntry) {
+      console.error('❌ Trashed project not found:', id);
       return res.status(404).json({ error: 'Trashed project not found' });
     }
 
+    console.log('📋 Trash entry found:', {
+      ownerId: trashEntry.ownerId,
+      deletedBy: trashEntry.deletedBy,
+      requestingUser: userId,
+      canRestore: trashEntry.canRestore(userId)
+    });
+
     // Check if user can restore (owner or deleter)
     if (!trashEntry.canRestore(userId)) {
-      return res.status(403).json({ error: 'You do not have permission to restore this project' });
+      console.error('❌ Permission denied for user:', userId);
+      return res.status(403).json({ 
+        error: 'You do not have permission to restore this project',
+        details: {
+          ownerId: trashEntry.ownerId,
+          deletedBy: trashEntry.deletedBy,
+          userId: userId
+        }
+      });
     }
 
     // Check if project with same ID already exists
@@ -137,13 +155,23 @@ export const restoreProject = async (req, res) => {
     // Remove from trash
     await Trash.findByIdAndDelete(id);
 
+    console.log('✅ Project restored successfully:', restoredProject._id);
+
     res.json({
       message: 'Project restored successfully',
       project: restoredProject
     });
   } catch (error) {
-    console.error('Restore project error:', error);
-    res.status(500).json({ error: 'Failed to restore project' });
+    console.error('❌ Restore project error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    res.status(500).json({ 
+      error: 'Failed to restore project',
+      details: error.message 
+    });
   }
 };
 

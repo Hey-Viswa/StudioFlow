@@ -22,6 +22,7 @@ import Invoices from './pages/Invoices';
 import InvoicesPage from './pages/InvoicesPage';
 import CreateInvoicePage from './pages/CreateInvoicePage';
 import ProjectFilesPage from './pages/ProjectFilesPage';
+import SharedFilePage from './pages/SharedFilePage';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
 
@@ -51,6 +52,16 @@ function App() {
           <Route path="/shipping-delivery" element={<ShippingDelivery />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
+          
+          {/* Shared Files - Protected Route */}
+          <Route
+            path="/shared/files/:shareToken"
+            element={
+              <ProtectedRoute>
+                <SharedFilePage />
+              </ProtectedRoute>
+            }
+          />
           
           {/* Dashboard with nested routes */}
           <Route
