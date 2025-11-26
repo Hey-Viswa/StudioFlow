@@ -21,6 +21,7 @@ import Trash from './pages/Trash';
 import Invoices from './pages/Invoices';
 import InvoicesPage from './pages/InvoicesPage';
 import CreateInvoicePage from './pages/CreateInvoicePage';
+import ProjectFilesPage from './pages/ProjectFilesPage';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
 
@@ -64,6 +65,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="projects/new" element={<CreateProject />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />
+            <Route path="projects/:projectId/files" element={<ProjectFilesPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="invoices/new" element={<CreateInvoicePage />} />
             <Route path="subscription" element={<Subscription />} />

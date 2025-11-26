@@ -69,6 +69,14 @@ export function useProjectSocket(projectId, callbacks = {}) {
       socket.on('task-updated', callbacks.onTaskUpdated);
     }
 
+    if (callbacks.onFileAdded) {
+      socket.on('project:files:added', callbacks.onFileAdded);
+    }
+
+    if (callbacks.onFileDeleted) {
+      socket.on('project:files:deleted', callbacks.onFileDeleted);
+    }
+
     // Cleanup
     return () => {
       socket.emit('leave-project', projectId);
@@ -77,6 +85,8 @@ export function useProjectSocket(projectId, callbacks = {}) {
       socket.off('comment-added');
       socket.off('task-added');
       socket.off('task-updated');
+      socket.off('project:files:added');
+      socket.off('project:files:deleted');
     };
   }, [socket, projectId, callbacks]);
 

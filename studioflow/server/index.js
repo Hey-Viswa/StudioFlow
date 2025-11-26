@@ -18,6 +18,7 @@ import invoiceRoutes from './src/routes/invoices.js';
 import contactRoutes from './src/routes/contact.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
+import fileRoutes from './src/routes/files.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -163,6 +164,7 @@ app.get('/api/test-auth', async (req, res) => {
 
 app.use('/api/protected', protectedRoute);
 app.use('/api/projects', projectRoutes);
+app.use('/api/projects/:id/files', fileRoutes); // File management routes
 app.use('/api/projects', taskCommentRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
@@ -187,6 +189,11 @@ io.on('connection', (socket) => {
   socket.on('leave-project', (projectId) => {
     socket.leave(`project-${projectId}`);
     console.log(`👋 Socket ${socket.id} left project-${projectId}`);
+  });
+
+  // File upload events
+  socket.on('file-upload-progress', ({ projectId, fileId, progress }) => {
+    socket.to(`project-${projectId}`).emit('file-upload-progress', { fileId, progress });
   });
 
   socket.on('disconnect', () => {

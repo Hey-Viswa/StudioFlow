@@ -24,6 +24,7 @@ import {
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
 import ProjectInvoiceList from '../components/ProjectInvoiceList';
+import { ProjectFilesPanel } from '../components/files/ProjectFilesPanel';
 import {
   Select,
   SelectContent,
@@ -836,13 +837,7 @@ export default function ProjectDetail() {
               </TabsContent>
               
               <TabsContent value="files" className="mt-6">
-                <div className="text-center py-12 text-muted-foreground">
-                  <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="font-medium mb-2">File Upload Coming Soon</p>
-                  <p className="text-sm">
-                    You'll be able to upload and manage project files here.
-                  </p>
-                </div>
+                <ProjectFilesPanel projectId={projectId} />
               </TabsContent>
               
               <TabsContent value="comments" className="mt-6">

@@ -1,0 +1,401 @@
+import ProjectFile from '../models/ProjectFile.js';
+import Project from '../models/Project.js';
+import storageAdapter from '../utils/storageAdapter.js';
+import mongoose from 'mongoose';
+
+// File size limits (in bytes)
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_FILE_SIZE_FREE = 100 * 1024 * 1024; // 100MB for free tier
+
+/**
+ * Helper: Check if user is a project collaborator
+ */
+async function isProjectCollaborator(projectId, userId) {
+  const project = await Project.findById(projectId).select('members ownerId').lean();
+  if (!project) return false;
+  
+  // Check if user is owner or in members list
+  if (project.ownerId === userId) return true;
+  return project.members.some(m => m.userId === userId);
+}
+
+/**
+ * @desc    Generate signed upload URL
+ * @route   POST /api/projects/:id/files/sign
+ * @access  Protected (Project Collaborators Only)
+ */
+export const signUpload = async (req, res) => {
+  try {
+    const { id: projectId } = req.params;
+    const { filename, contentType, size, isNewVersion, baseFileId } = req.body;
+    const userId = req.userId;
+
+    // Validation
+    if (!filename || !contentType || !size) {
+      return res.status(400).json({ error: 'Missing required fields: filename, contentType, size' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    // File size validation (TODO: check user subscription tier)
+    if (size > MAX_FILE_SIZE) {
+      return res.status(400).json({ 
+        error: 'File too large', 
+        message: `Maximum file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`,
+        maxSize: MAX_FILE_SIZE,
+      });
+    }
+
+    // Determine version number
+    let version = 1;
+    if (isNewVersion && baseFileId) {
+      version = await ProjectFile.getNextVersion(projectId, baseFileId);
+    }
+
+    // Generate storage key
+    const storageKey = storageAdapter.generateStorageKey(projectId, filename, version);
+
+    // Get signed upload URL
+    const { uploadUrl, key, provider, bucket } = await storageAdapter.getSignedUploadUrl(
+      storageKey,
+      contentType,
+      900 // 15 minutes TTL
+    );
+
+    // Create file record in "uploading" state
+    const fileRecord = await ProjectFile.create({
+      projectId,
+      uploaderId: userId,
+      filename,
+      originalFilename: filename,
+      mimeType: contentType,
+      size,
+      version,
+      baseFileId: isNewVersion ? baseFileId : null,
+      storageProvider: provider,
+      storageKey: key,
+      bucket,
+      status: 'uploading',
+    });
+
+    res.status(200).json({
+      uploadUrl,
+      fileId: fileRecord.fileId,
+      storageKey: key,
+      version,
+      expiresIn: 900,
+    });
+  } catch (error) {
+    console.error('❌ Error signing upload:', error);
+    res.status(500).json({ error: 'Failed to generate signed upload URL', details: error.message });
+  }
+};
+
+/**
+ * @desc    Confirm upload and save file metadata
+ * @route   POST /api/projects/:id/files/confirm
+ * @access  Protected (Project Collaborators Only)
+ */
+export const confirmUpload = async (req, res) => {
+  try {
+    const { id: projectId } = req.params;
+    const { fileId, storageKey, description, tags } = req.body;
+    const userId = req.userId;
+
+    // Validation
+    if (!fileId || !storageKey) {
+      return res.status(400).json({ error: 'Missing required fields: fileId, storageKey' });
+    }
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    // Find file record
+    const fileRecord = await ProjectFile.findOne({ fileId, projectId });
+    if (!fileRecord) {
+      return res.status(404).json({ error: 'File record not found' });
+    }
+
+    // Verify uploader
+    if (fileRecord.uploaderId !== userId) {
+      return res.status(403).json({ error: 'Only the uploader can confirm this file' });
+    }
+
+    // Verify file exists in storage
+    const verification = await storageAdapter.verifyUpload(storageKey);
+    if (!verification.exists) {
+      return res.status(400).json({ error: 'Upload verification failed. File not found in storage.' });
+    }
+
+    // Update file record with atomic operation to avoid race conditions
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Mark as completed
+      fileRecord.status = 'active';
+      fileRecord.uploadCompletedAt = new Date();
+      if (description) fileRecord.description = description;
+      if (tags) fileRecord.tags = tags;
+
+      // Update actual size from storage (in case client lied)
+      if (verification.size) {
+        fileRecord.size = verification.size;
+      }
+
+      await fileRecord.save({ session });
+
+      // If this is a new version, mark previous version as not final
+      if (fileRecord.baseFileId && fileRecord.version > 1) {
+        await ProjectFile.updateMany(
+          {
+            projectId,
+            baseFileId: fileRecord.baseFileId,
+            version: { $lt: fileRecord.version },
+            status: 'active',
+          },
+          { isFinal: false },
+          { session }
+        );
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // Populate uploader info for response
+      const populatedFile = await ProjectFile.findById(fileRecord._id).lean();
+
+      // Emit Socket.IO event for real-time updates
+      const io = req.app?.get('io');
+      if (io) {
+        io.to(`project-${projectId}`).emit('project:files:added', { file: populatedFile });
+      }
+
+      res.status(200).json({
+        success: true,
+        file: populatedFile,
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error confirming upload:', error);
+    res.status(500).json({ error: 'Failed to confirm upload', details: error.message });
+  }
+};
+
+/**
+ * @desc    Get all files for a project
+ * @route   GET /api/projects/:id/files
+ * @access  Protected (Project Collaborators Only)
+ */
+export const getProjectFiles = async (req, res) => {
+  try {
+    const { id: projectId } = req.params;
+    const userId = req.userId;
+    const { status = 'active', includeArchived = false } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    // Build query
+    const query = { projectId };
+    if (status) {
+      query.status = includeArchived === 'true' ? { $in: ['active', 'archived'] } : status;
+    }
+
+    const files = await ProjectFile.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Group by baseFileId to show version history
+    const fileGroups = {};
+    const standaloneFiles = [];
+
+    files.forEach(file => {
+      if (file.baseFileId) {
+        if (!fileGroups[file.baseFileId]) {
+          fileGroups[file.baseFileId] = [];
+        }
+        fileGroups[file.baseFileId].push(file);
+      } else {
+        standaloneFiles.push(file);
+      }
+    });
+
+    res.status(200).json({
+      files,
+      fileGroups,
+      standaloneFiles,
+      totalCount: files.length,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching project files:', error);
+    res.status(500).json({ error: 'Failed to fetch files', details: error.message });
+  }
+};
+
+/**
+ * @desc    Get single file details with signed download URL
+ * @route   GET /api/projects/:id/files/:fileId
+ * @access  Protected (Project Collaborators Only)
+ */
+export const getFileDetails = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const userId = req.userId;
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Generate signed download URL with original filename for proper download
+    const downloadUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+      filename: file.originalFilename,
+      ttl: 900,
+      forceDownload: true
+    });
+
+    // Record access
+    await file.recordDownload();
+
+    // Get version history if applicable
+    let versionHistory = [];
+    if (file.baseFileId) {
+      versionHistory = await ProjectFile.getVersionHistory(projectId, file.baseFileId);
+    }
+
+    res.status(200).json({
+      file: file.toObject(),
+      downloadUrl,
+      versionHistory,
+      urlExpiresIn: 900,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching file details:', error);
+    res.status(500).json({ error: 'Failed to fetch file details', details: error.message });
+  }
+};
+
+/**
+ * @desc    Delete a file
+ * @route   DELETE /api/projects/:id/files/:fileId
+ * @access  Protected (Project Collaborators Only)
+ */
+export const deleteFile = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const userId = req.userId;
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Only uploader or project owner can delete
+    const project = await Project.findById(projectId).select('ownerId').lean();
+    if (file.uploaderId !== userId && project.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only the uploader or project owner can delete this file' });
+    }
+
+    // Soft delete: mark as deleted
+    file.status = 'deleted';
+    await file.save();
+
+    // Optionally delete from storage (comment out if you want to keep files)
+    try {
+      await storageAdapter.deleteFile(file.storageKey);
+    } catch (storageError) {
+      console.error('⚠️ Failed to delete file from storage:', storageError);
+      // Continue anyway - file is marked deleted in DB
+    }
+
+    // Emit Socket.IO event for real-time updates
+    const io = req.app?.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('project:files:deleted', { fileId });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'File deleted successfully',
+    });
+  } catch (error) {
+    console.error('❌ Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file', details: error.message });
+  }
+};
+
+/**
+ * @desc    Get signed download URL for preview
+ * @route   GET /api/projects/:id/files/:fileId/preview
+ * @access  Protected (Project Collaborators Only)
+ */
+export const getFilePreviewUrl = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const userId = req.userId;
+
+    // RBAC: Check project access
+    const hasAccess = await isProjectCollaborator(projectId, userId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Generate signed URL with shorter TTL for preview (opens in browser)
+    const previewUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+      filename: file.originalFilename,
+      ttl: 600,
+      forceDownload: false  // Allow preview in browser
+    });
+
+    res.status(200).json({
+      previewUrl,
+      mimeType: file.mimeType,
+      filename: file.filename,
+      isPreviewable: file.isPreviewable,
+      expiresIn: 600,
+    });
+  } catch (error) {
+    console.error('❌ Error generating preview URL:', error);
+    res.status(500).json({ error: 'Failed to generate preview URL', details: error.message });
+  }
+};
