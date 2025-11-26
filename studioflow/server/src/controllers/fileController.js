@@ -1,11 +1,15 @@
 import ProjectFile from '../models/ProjectFile.js';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
 import storageAdapter from '../utils/storageAdapter.js';
 import mongoose from 'mongoose';
-
-// File size limits (in bytes)
-const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
-const MAX_FILE_SIZE_FREE = 100 * 1024 * 1024; // 100MB for free tier
+import { 
+  getMaxFileSize, 
+  getMaxTotalStorage, 
+  getMaxFilesPerProject,
+  isFileTypeAllowed,
+  formatBytes 
+} from '../config/fileLimits.js';
 
 /**
  * Helper: Check if user is a project collaborator
@@ -45,12 +49,76 @@ export const signUpload = async (req, res) => {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
     }
 
-    // File size validation (TODO: check user subscription tier)
-    if (size > MAX_FILE_SIZE) {
+    // Get user's subscription plan
+    const user = await User.findOne({ clerkUserId: userId }).select('subscription').lean();
+    const userPlan = user?.subscription?.plan || 'free';
+    const maxFileSize = getMaxFileSize(userPlan);
+    const maxTotalStorage = getMaxTotalStorage(userPlan);
+    const maxFiles = getMaxFilesPerProject(userPlan);
+
+    // File size validation based on subscription
+    if (size > maxFileSize) {
       return res.status(400).json({ 
         error: 'File too large', 
-        message: `Maximum file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`,
-        maxSize: MAX_FILE_SIZE,
+        message: `Your ${userPlan} plan allows files up to ${formatBytes(maxFileSize)}. This file is ${formatBytes(size)}.`,
+        maxSize: maxFileSize,
+        currentPlan: userPlan,
+        upgradeRequired: userPlan === 'free',
+      });
+    }
+
+    // File type validation
+    if (!isFileTypeAllowed(contentType, userPlan)) {
+      return res.status(400).json({ 
+        error: 'File type not allowed', 
+        message: `Your ${userPlan} plan does not support this file type.`,
+        currentPlan: userPlan,
+        upgradeRequired: true,
+      });
+    }
+
+    // Check total storage limit
+    const userFiles = await ProjectFile.aggregate([
+      { 
+        $match: { 
+          uploaderId: userId,
+          status: { $in: ['uploading', 'active', 'archived'] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSize: { $sum: '$size' }
+        }
+      }
+    ]);
+
+    const currentUsage = userFiles[0]?.totalSize || 0;
+    if (currentUsage + size > maxTotalStorage) {
+      return res.status(400).json({ 
+        error: 'Storage limit exceeded', 
+        message: `Your ${userPlan} plan allows ${formatBytes(maxTotalStorage)} total storage. Current usage: ${formatBytes(currentUsage)}. This file would exceed your limit.`,
+        currentUsage,
+        maxStorage: maxTotalStorage,
+        currentPlan: userPlan,
+        upgradeRequired: true,
+      });
+    }
+
+    // Check files per project limit
+    const projectFileCount = await ProjectFile.countDocuments({
+      projectId,
+      status: { $in: ['uploading', 'active'] }
+    });
+
+    if (projectFileCount >= maxFiles) {
+      return res.status(400).json({ 
+        error: 'Project file limit exceeded', 
+        message: `Your ${userPlan} plan allows ${maxFiles} files per project. This project has ${projectFileCount} files.`,
+        currentCount: projectFileCount,
+        maxFiles,
+        currentPlan: userPlan,
+        upgradeRequired: true,
       });
     }
 

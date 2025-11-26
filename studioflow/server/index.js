@@ -20,6 +20,7 @@ import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
 import fileRoutes from './src/routes/files.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
+import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -217,6 +218,9 @@ const startServer = async () => {
         
         // Start subscription checker for automatic downgrades
         startSubscriptionChecker();
+        
+        // Start file cleanup scheduler
+        initializeCleanupScheduler();
         
         httpServer.listen(PORT, () => {
             console.log(`🚀 Server is running on port ${PORT}`);
