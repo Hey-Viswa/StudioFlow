@@ -129,7 +129,7 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, filenam
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-5 h-5 text-primary" />
             Share File
           </DialogTitle>
           <DialogDescription>

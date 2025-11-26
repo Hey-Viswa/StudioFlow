@@ -16,13 +16,33 @@ export function generateShareToken() {
 
 export const shareFileWithClient = async (req, res) => {
   try {
+    console.log('[ShareFile] Request:', {
+      params: req.params,
+      body: req.body,
+      userId: req.userId
+    });
+
     const { id: projectId, fileId } = req.params;
     const { clientId, allowDownload = false, expiresInDays = 7 } = req.body;
     const userId = req.userId;
 
+    if (!clientId) {
+      console.log('[ShareFile] Missing clientId');
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+
+    console.log('[ShareFile] Finding project:', projectId);
     // Only project owner can share files
-    const project = await Project.findById(projectId).select('ownerId members').lean();
-    if (!project || project.ownerId !== userId) {
+    const project = await Project.findById(projectId).select('ownerId members');
+    
+    if (!project) {
+      console.log('[ShareFile] Project not found:', projectId);
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    console.log('[ShareFile] Project found. Owner:', project.ownerId, 'UserId:', userId);
+    
+    if (project.ownerId.toString() !== userId.toString()) {
       return res.status(403).json({ error: 'Only project owner can share files' });
     }
 
@@ -30,14 +50,22 @@ export const shareFileWithClient = async (req, res) => {
     const isClient = project.members.some(
       m => m.userId === clientId && m.role === 'client'
     );
+    
+    console.log('[ShareFile] Is client member:', isClient, 'Members:', project.members);
+    
     if (!isClient) {
       return res.status(400).json({ error: 'User is not a client on this project' });
     }
 
+    console.log('[ShareFile] Finding file:', { fileId, projectId });
     const file = await ProjectFile.findOne({ fileId, projectId });
+    
     if (!file) {
+      console.log('[ShareFile] File not found');
       return res.status(404).json({ error: 'File not found' });
     }
+    
+    console.log('[ShareFile] File found:', file.filename);
 
     // Generate share token
     const shareToken = generateShareToken();
@@ -152,12 +180,13 @@ export const getSharedFile = async (req, res) => {
  */
 export const revokeFileShare = async (req, res) => {
   try {
+    console.log('[RevokeShare] Request:', { params: req.params, body: req.body });
     const { id: projectId, fileId } = req.params;
     const { clientId } = req.body;
     const userId = req.userId;
 
-    const project = await Project.findById(projectId).select('ownerId').lean();
-    if (!project || project.ownerId !== userId) {
+    const project = await Project.findById(projectId).select('ownerId');
+    if (!project || project.ownerId.toString() !== userId.toString()) {
       return res.status(403).json({ error: 'Only project owner can revoke access' });
     }
 
@@ -185,12 +214,13 @@ export const revokeFileShare = async (req, res) => {
  */
 export const enableFileDownload = async (req, res) => {
   try {
+    console.log('[EnableDownload] Request:', { params: req.params, body: req.body });
     const { id: projectId, fileId } = req.params;
     const { clientId } = req.body;
     const userId = req.userId;
 
-    const project = await Project.findById(projectId).select('ownerId').lean();
-    if (!project || project.ownerId !== userId) {
+    const project = await Project.findById(projectId).select('ownerId');
+    if (!project || project.ownerId.toString() !== userId.toString()) {
       return res.status(403).json({ error: 'Only project owner can enable download' });
     }
 

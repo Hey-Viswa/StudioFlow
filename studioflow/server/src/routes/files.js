@@ -39,7 +39,4 @@ router.post('/:fileId/share', shareFileWithClient);     // Share file with clien
 router.post('/:fileId/revoke', revokeFileShare);        // Revoke file access
 router.post('/:fileId/enable-download', enableFileDownload); // Enable download after payment
 
-// Public shared file access (still requires auth to verify client)
-router.get('/shared/:shareToken', getSharedFile);       // Access shared file
-
 export default router;

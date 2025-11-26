@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, Trash2, Download, Eye } from 'lucide-react';
+import { Loader2, Trash2, Download, Eye, Users } from 'lucide-react';
 import { format } from 'date-fns';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -107,25 +107,30 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Manage File Sharing</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
+            Manage File Sharing
+          </DialogTitle>
           <DialogDescription>
             View and manage who has access to "{file?.filename}"
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
+        <div className="flex-1 overflow-y-auto py-4">
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
           ) : sharedWith.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Eye className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>This file is not shared with any clients yet.</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <Eye className="w-16 h-16 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">No shares yet</p>
+              <p className="text-sm">This file hasn't been shared with any clients.</p>
             </div>
           ) : (
+            <div className="border rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -150,21 +155,22 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
                     </TableCell>
                     <TableCell>
                       <Button
-                        variant={share.allowDownload ? 'default' : 'outline'}
+                        variant={share.allowDownload ? 'default' : 'secondary'}
                         size="sm"
                         onClick={() => handleToggleDownload(share.userId, share.allowDownload)}
                         disabled={toggling === share.userId}
+                        className="min-w-[130px]"
                       >
                         {toggling === share.userId ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : share.allowDownload ? (
                           <>
-                            <Download className="w-4 h-4 mr-1" />
+                            <Download className="w-4 h-4 mr-1.5" />
                             Enabled
                           </>
                         ) : (
                           <>
-                            <Eye className="w-4 h-4 mr-1" />
+                            <Eye className="w-4 h-4 mr-1.5" />
                             Preview Only
                           </>
                         )}
@@ -176,7 +182,7 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
                         size="sm"
                         onClick={() => handleRevokeAccess(share.userId)}
                         disabled={revoking === share.userId}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
                         {revoking === share.userId ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -192,6 +198,7 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
       </DialogContent>

@@ -318,6 +318,8 @@ export function validateFile(file, maxSize = 500 * 1024 * 1024) {
  * Share file with client
  */
 export async function shareFileWithClient(projectId, fileId, clientId, options, token) {
+  console.log('[ShareFile] Request:', { projectId, fileId, clientId, options });
+  
   const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/share`, {
     method: 'POST',
     headers: {
@@ -330,9 +332,20 @@ export async function shareFileWithClient(projectId, fileId, clientId, options, 
     }),
   });
 
+  console.log('[ShareFile] Response status:', response.status);
+  console.log('[ShareFile] Response headers:', Object.fromEntries(response.headers.entries()));
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to share file');
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType && contentType.includes('application/json')) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to share file');
+    } else {
+      const text = await response.text();
+      console.error('[ShareFile] HTML response:', text.substring(0, 500));
+      throw new Error('Server error: Failed to share file');
+    }
   }
 
   return response.json();
