@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useProjectSocket } from '../hooks/useSocket';
@@ -23,6 +23,8 @@ import {
 } from '../components/ui/breadcrumb';
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
+import CommentThread from '../components/CommentThread';
+import { useComments } from '../hooks/useComments';
 import ProjectInvoiceList from '../components/ProjectInvoiceList';
 import { ProjectFilesPanel } from '../components/files/ProjectFilesPanel';
 import {
@@ -57,10 +59,24 @@ import {
 export default function ProjectDetail() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
+  const { user } = useUser();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Comment System 2.0 integration
+  const {
+    comments,
+    loading: commentsLoading,
+    addComment,
+    replyToComment,
+    editComment,
+    deleteComment,
+    reactToComment,
+    resolveComment
+  } = useComments(projectId);
+  
   const [inviteLink, setInviteLink] = useState(null);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -440,8 +456,8 @@ export default function ProjectDetail() {
   if (!project) return null;
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Breadcrumb Navigation */}
         <Breadcrumb>
           <BreadcrumbList>
@@ -837,11 +853,25 @@ export default function ProjectDetail() {
               </TabsContent>
               
               <TabsContent value="files" className="mt-6">
-                <ProjectFilesPanel projectId={projectId} />
+                <ProjectFilesPanel projectId={projectId} project={project} />
               </TabsContent>
               
               <TabsContent value="comments" className="mt-6">
-                <CommentsTab projectId={projectId} project={project} />
+                <CommentThread
+                  comments={comments}
+                  projectMembers={project.members || []}
+                  currentUserId={userId}
+                  currentUser={user}
+                  onAddComment={addComment}
+                  onReply={replyToComment}
+                  onEdit={editComment}
+                  onDelete={deleteComment}
+                  onReact={reactToComment}
+                  onResolve={resolveComment}
+                  canModerate={project.owner === userId || project.members?.some(m => m.userId === userId && m.role === 'owner')}
+                  loading={commentsLoading}
+                  maxNestingLevel={3}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>

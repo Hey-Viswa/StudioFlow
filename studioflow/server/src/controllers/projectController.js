@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
+import ProjectFile from '../models/ProjectFile.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -127,10 +128,10 @@ export const createProject = async (req, res) => {
 export const listProjects = async (req, res) => {
   try {
     const userId = req.userId;
+    const { status, search, clientId, dateRange } = req.query;
 
-    // Find projects where user is owner OR member, and NOT deleted
-    // Use lean() for better performance and select only necessary fields
-    const projects = await Project.find({
+    // Build query filters
+    const query = {
       $and: [
         { deletedAt: null }, // Exclude soft-deleted projects
         {
@@ -140,8 +141,60 @@ export const listProjects = async (req, res) => {
           ]
         }
       ]
-    })
-    .select('title brief status progress ownerId members createdAt updatedAt dueDate') // Only needed fields
+    };
+
+    // Add status filter
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Add search filter (title or brief)
+    if (search && search.trim() !== '') {
+      query.$and.push({
+        $or: [
+          { title: { $regex: search, $options: 'i' } },
+          { brief: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+
+    // Add client filter
+    if (clientId && clientId !== 'all') {
+      query['members.userId'] = clientId;
+      query['members.role'] = 'client';
+    }
+
+    // Add date range filter
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      let startDate;
+      
+      switch(dateRange) {
+        case 'today':
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+          break;
+        case 'week':
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case 'month':
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case 'quarter':
+          startDate = new Date(now.setMonth(now.getMonth() - 3));
+          break;
+        default:
+          startDate = null;
+      }
+      
+      if (startDate) {
+        query.createdAt = { $gte: startDate };
+      }
+    }
+
+    // Find projects where user is owner OR member, and NOT deleted
+    // Use lean() for better performance and select only necessary fields
+    const projects = await Project.find(query)
+    .select('title brief status progress ownerId members createdAt updatedAt dueDate comments') // Only needed fields
     .lean() // Return plain objects for better performance
     .sort({ createdAt: -1 }); // Most recent first
 
@@ -181,6 +234,37 @@ export const listProjects = async (req, res) => {
       }));
     }
 
+    // Get counts for invoices, files, and comments for all projects at once
+    const projectIds = projects.map(p => p._id);
+    
+    // Batch fetch counts
+    const [invoiceCounts, fileCounts] = await Promise.all([
+      ProjectInvoice.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        {
+          $group: {
+            _id: '$projectId',
+            total: { $sum: 1 },
+            paid: {
+              $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      ProjectFile.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: '$projectId', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Create lookup maps for O(1) access
+    const invoiceMap = new Map(
+      invoiceCounts.map(item => [item._id.toString(), { paid: item.paid, total: item.total }])
+    );
+    const fileMap = new Map(
+      fileCounts.map(item => [item._id.toString(), item.count])
+    );
+
     // Enhance projects with cached user data (NO MORE API CALLS)
     const enhancedProjects = projects.map((project) => {
       // Determine if this is user's own project or shared project
@@ -211,13 +295,22 @@ export const listProjects = async (req, res) => {
         const member = project.members.find(m => String(m.userId) === String(userId));
         userRole = member ? member.role : null;
       }
+
+      // Get counts from maps
+      const projectIdStr = project._id.toString();
+      const invoiceStats = invoiceMap.get(projectIdStr) || { paid: 0, total: 0 };
+      const filesCount = fileMap.get(projectIdStr) || 0;
+      const commentsCount = project.comments?.length || 0;
       
       return {
         ...project,
         ownerName,
         members: enhancedMembers,
         userRole,
-        isShared: !isOwner // Flag to indicate if this is a shared project
+        isShared: !isOwner, // Flag to indicate if this is a shared project
+        invoiceStats,
+        filesCount,
+        commentsCount
       };
     });
 
@@ -404,12 +497,13 @@ export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
-    const { title, brief, status, dueDate, progress, tasks } = req.body;
+    const userName = req.userName || '';
+    const { title, brief, status, dueDate, progress, tasks, revisionNotes, finalizedAt } = req.body;
 
     console.log('📊 Update project request:', { 
       projectId: id, 
       userId, 
-      updates: { title, brief, status, dueDate, progress, hasTasks: !!tasks } 
+      updates: { title, brief, status, dueDate, progress, hasTasks: !!tasks, revisionNotes, finalizedAt } 
     });
 
     const project = await Project.findById(id);
@@ -448,6 +542,28 @@ export const updateProject = async (req, res) => {
     // Manual status override (only if not letting auto-calc handle it)
     if (status !== undefined && !tasks) {
       project.status = status;
+      
+      // Add system comment for status changes
+      if (status === 'needs-revision' && revisionNotes) {
+        project.comments.push({
+          userId,
+          userName,
+          text: `Revision requested: ${revisionNotes}`,
+          isSystemMessage: true,
+          createdAt: new Date()
+        });
+      } else if (status === 'finalized') {
+        project.comments.push({
+          userId,
+          userName,
+          text: `✅ Project approved and finalized by ${userName || 'client'}`,
+          isSystemMessage: true,
+          createdAt: new Date()
+        });
+        if (finalizedAt) {
+          project.finalizedAt = new Date(finalizedAt);
+        }
+      }
     }
     
     // Manual progress override (only if no tasks update)

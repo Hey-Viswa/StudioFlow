@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { getProjectFiles, getFileDetails, deleteFile, archiveFile, restoreFile, getFilePreviewUrl, formatFileSize, getFileIcon } from '@/lib/api/files';
 import { useProjectSocket } from '@/hooks/useSocket';
+import { hasPermission, PERMISSIONS, ROLES, getPermissionErrorMessage, canViewFile, canDownloadFile } from '@/utils/rbac';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,14 +35,19 @@ import { cn } from '@/lib/utils';
  * ProjectFilesPanel Component
  * Displays and manages files for a project with real-time updates
  */
-export function ProjectFilesPanel({ projectId }) {
+export function ProjectFilesPanel({ projectId, project }) {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [deleteDialog, setDeleteDialog] = useState({ open: false, fileId: null, filename: '', type: 'archive' });
   const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, filename: '' });
   const [manageDialog, setManageDialog] = useState({ open: false, file: null });
+  
+  // Get user's role in the project
+  const userRole = project?.userRole || ROLES.CLIENT;
+  const isOwner = userRole === ROLES.OWNER;
 
   // Real-time updates via Socket.IO
   useProjectSocket(projectId, {
@@ -82,6 +88,11 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleDelete = async (fileId, filename) => {
+    // RBAC: Only owner can delete files
+    if (!hasPermission(userRole, PERMISSIONS.FILE_DELETE)) {
+      toast.error(getPermissionErrorMessage(PERMISSIONS.FILE_DELETE));
+      return;
+    }
     setDeleteDialog({ open: true, fileId, filename, type: 'archive' });
   };
 
@@ -102,6 +113,12 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleRestore = async (fileId, filename) => {
+    // RBAC: Only owner can restore files
+    if (!hasPermission(userRole, PERMISSIONS.FILE_DELETE)) {
+      toast.error(getPermissionErrorMessage(PERMISSIONS.FILE_DELETE));
+      return;
+    }
+    
     try {
       const token = await getToken();
       await restoreFile(projectId, fileId, token);
@@ -114,6 +131,17 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleDownload = async (fileId, filename) => {
+    // RBAC: Check download permission
+    const file = files.find(f => f.fileId === fileId);
+    if (!canDownloadFile(file, user?.id, userRole)) {
+      if (userRole === ROLES.CLIENT) {
+        toast.error('This file has not been shared with you, or download permission has not been granted');
+      } else {
+        toast.error('You do not have permission to download this file');
+      }
+      return;
+    }
+    
     try {
       const token = await getToken();
       const response = await getFileDetails(projectId, fileId, token);
@@ -142,10 +170,20 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const handleShare = (fileId, filename) => {
+    // RBAC: Only owner can share files
+    if (!hasPermission(userRole, PERMISSIONS.FILE_SHARE)) {
+      toast.error(getPermissionErrorMessage(PERMISSIONS.FILE_SHARE));
+      return;
+    }
     setShareDialog({ open: true, fileId, filename });
   };
 
   const handleManageSharing = (file) => {
+    // RBAC: Only owner can manage file sharing
+    if (!hasPermission(userRole, PERMISSIONS.FILE_MANAGE_SHARING)) {
+      toast.error(getPermissionErrorMessage(PERMISSIONS.FILE_MANAGE_SHARING));
+      return;
+    }
     setManageDialog({ open: true, file });
   };
 
@@ -154,6 +192,11 @@ export function ProjectFilesPanel({ projectId }) {
   };
 
   const filteredFiles = files.filter((file) => {
+    // RBAC: Clients can only see files shared with them
+    if (userRole === ROLES.CLIENT && !canViewFile(file, user?.id, userRole)) {
+      return false;
+    }
+    
     // Filter out archived files unless specifically viewing archived tab
     if (activeTab !== 'archived' && file.status === 'archived') return false;
     if (activeTab === 'archived') return file.status === 'archived';
@@ -166,13 +209,15 @@ export function ProjectFilesPanel({ projectId }) {
 
   return (
     <div className="space-y-6">
-      {/* Upload Area */}
-      <FileUploadDropzone
-        projectId={projectId}
-        onUploadComplete={handleUploadComplete}
-        maxSize={500 * 1024 * 1024}
-        multiple
-      />
+      {/* Upload Area - Owner Only */}
+      {isOwner && (
+        <FileUploadDropzone
+          projectId={projectId}
+          onUploadComplete={handleUploadComplete}
+          maxSize={500 * 1024 * 1024}
+          multiple
+        />
+      )}
 
       {/* Files List */}
       <Card>
@@ -213,6 +258,8 @@ export function ProjectFilesPanel({ projectId }) {
                     <FileItem
                       key={file.fileId}
                       file={file}
+                      userRole={userRole}
+                      userId={user?.id}
                       onDelete={handleDelete}
                       onRestore={handleRestore}
                       onDownload={handleDownload}
@@ -277,12 +324,15 @@ export function ProjectFilesPanel({ projectId }) {
 /**
  * Individual file item
  */
-function FileItem({ file, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing }) {
   const isPreviewable = file.mimeType.startsWith('image/') || 
                         file.mimeType.startsWith('video/') || 
                         file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
   const isShared = file.sharedWith && file.sharedWith.length > 0;
+  const isOwner = userRole === ROLES.OWNER;
+  const canDownload = canDownloadFile(file, userId, userRole);
+  const canView = canViewFile(file, userId, userRole);
 
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
@@ -328,42 +378,56 @@ function FileItem({ file, onDelete, onRestore, onDownload, onPreview, onShare, o
           <DropdownMenuContent align="end">
             {!isArchived ? (
               <>
-                {isPreviewable && (
+                {/* Preview - Available to all if file type supports it and user can view */}
+                {isPreviewable && canView && (
                   <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
                     <Eye className="w-4 h-4 mr-2" />
                     Preview
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share with Client
-                </DropdownMenuItem>
-                {isShared && (
-                  <DropdownMenuItem onClick={() => onManageSharing(file)}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Manage Sharing
+                
+                {/* Download - Only if explicitly allowed */}
+                {canDownload && (
+                  <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onDelete(file.fileId, file.filename)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
+                
+                {/* Owner-only actions */}
+                {isOwner && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share with Client
+                    </DropdownMenuItem>
+                    {isShared && (
+                      <DropdownMenuItem onClick={() => onManageSharing(file)}>
+                        <Users className="w-4 h-4 mr-2" />
+                        Manage Sharing
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onDelete(file.fileId, file.filename)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
               </>
             ) : (
               <>
-                <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
-                  <ArchiveRestore className="w-4 h-4 mr-2" />
-                  Restore
-                </DropdownMenuItem>
+                {/* Restore - Owner only */}
+                {isOwner && (
+                  <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
+                    <ArchiveRestore className="w-4 h-4 mr-2" />
+                    Restore
+                  </DropdownMenuItem>
+                )}
               </>
             )}
           </DropdownMenuContent>

@@ -111,6 +111,41 @@ const ProjectSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    parentId: {
+      type: String,
+      default: null
+    },
+    reactions: {
+      type: Map,
+      of: [String],
+      default: () => new Map()
+    },
+    attachments: [{
+      filename: String,
+      url: String,
+      mimeType: String,
+      size: Number
+    }],
+    mentions: [{
+      userId: String,
+      userName: String
+    }],
+    isResolved: {
+      type: Boolean,
+      default: false
+    },
+    resolvedBy: {
+      type: String,
+      default: null
+    },
+    resolvedAt: {
+      type: Date,
+      default: null
+    },
+    isSystemMessage: {
+      type: Boolean,
+      default: false
+    },
     edited: {
       type: Boolean,
       default: false

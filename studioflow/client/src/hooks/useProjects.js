@@ -1,0 +1,182 @@
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useAuth } from '@clerk/clerk-react'
+import { toast } from 'sonner'
+
+export function useProjects(filters = {}) {
+  const { getToken } = useAuth()
+  const [projects, setProjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Memoize filter values to prevent unnecessary rerenders
+  const filterKey = useMemo(() => 
+    JSON.stringify({
+      status: filters.status || 'all',
+      search: filters.search || '',
+      clientId: filters.clientId || 'all',
+      dateRange: filters.dateRange || 'all'
+    }), 
+    [filters.status, filters.search, filters.clientId, filters.dateRange]
+  )
+
+  const fetchProjects = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const token = await getToken()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      
+      const queryParams = new URLSearchParams()
+      if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status)
+      if (filters.search) queryParams.append('search', filters.search)
+      if (filters.clientId && filters.clientId !== 'all') queryParams.append('clientId', filters.clientId)
+      if (filters.dateRange && filters.dateRange !== 'all') queryParams.append('dateRange', filters.dateRange)
+      
+      const url = `${apiUrl}/projects${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects')
+      }
+
+      const data = await response.json()
+      setProjects(data.projects || [])
+    } catch (err) {
+      console.error('Fetch projects error:', err)
+      setError(err.message)
+      toast.error('Failed to load projects')
+    } finally {
+      setLoading(false)
+    }
+  }, [getToken, filterKey])
+
+  // Debounce filter changes (especially search)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchProjects()
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [fetchProjects])
+
+  const updateProject = useCallback(async (projectId, updates) => {
+    try {
+      const token = await getToken()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      
+      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(updates)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update project')
+      }
+
+      const data = await response.json()
+      
+      // Optimistically update local state
+      setProjects(prev => prev.map(p => 
+        p._id === projectId ? { ...p, ...updates } : p
+      ))
+      
+      toast.success('Project updated successfully')
+      return data
+    } catch (err) {
+      console.error('Update project error:', err)
+      toast.error('Failed to update project')
+      throw err
+    }
+  }, [getToken])
+
+  const requestRevision = useCallback(async (projectId, notes) => {
+    return updateProject(projectId, { 
+      status: 'needs-revision',
+      revisionNotes: notes
+    })
+  }, [updateProject])
+
+  const approveFinal = useCallback(async (projectId) => {
+    return updateProject(projectId, { 
+      status: 'finalized',
+      finalizedAt: new Date().toISOString()
+    })
+  }, [updateProject])
+
+  return {
+    projects,
+    loading,
+    error,
+    refetch: fetchProjects,
+    updateProject,
+    requestRevision,
+    approveFinal
+  }
+}
+
+export function useProjectMetrics() {
+  const { getToken } = useAuth()
+  const [metrics, setMetrics] = useState({
+    totalProjects: 0,
+    activeProjects: 0,
+    completedProjects: 0,
+    totalBilled: 0,
+    totalPaid: 0,
+    outstanding: 0,
+    overdue: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [lastFetch, setLastFetch] = useState(0)
+
+  const fetchMetrics = useCallback(async () => {
+    // Prevent fetching more than once every 30 seconds
+    const now = Date.now()
+    if (now - lastFetch < 30000) {
+      return
+    }
+    
+    try {
+      const token = await getToken()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      
+      const response = await fetch(`${apiUrl}/dashboard/metrics`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setMetrics(data.metrics || metrics)
+        setLastFetch(now)
+      }
+    } catch (err) {
+      console.error('Fetch metrics error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [getToken])
+
+  useEffect(() => {
+    fetchMetrics()
+  }, [fetchMetrics])
+
+  return { metrics, loading, refetch: fetchMetrics }
+}

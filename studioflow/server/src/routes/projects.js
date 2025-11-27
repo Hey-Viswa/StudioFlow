@@ -14,6 +14,14 @@ import {
   permanentlyDeleteProject,
   getProjectMetrics
 } from '../controllers/projectController.js';
+import {
+  getComments,
+  addComment,
+  updateComment,
+  deleteComment,
+  reactToComment,
+  resolveComment
+} from '../controllers/commentController.js';
 
 const router = express.Router();
 
@@ -37,5 +45,13 @@ router.delete('/:id/permanent', permanentlyDeleteProject); // Permanently delete
 
 // Invite generation
 router.post('/:id/invite', generateInvite);               // Generate invite link (owner only)
+
+// Comment endpoints (enhanced with threading, reactions, mentions)
+router.get('/:id/comments', getComments);                 // Get all comments for project
+router.post('/:id/comments', addComment);                 // Add comment or reply
+router.patch('/:id/comments/:commentId', updateComment);  // Edit comment
+router.delete('/:id/comments/:commentId', deleteComment); // Delete comment
+router.post('/:id/comments/:commentId/react', reactToComment); // Add/remove reaction
+router.post('/:id/comments/:commentId/resolve', resolveComment); // Resolve comment
 
 export default router;

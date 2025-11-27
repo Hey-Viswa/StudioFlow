@@ -276,44 +276,66 @@ export const useInvoices = () => {
     const stats = {
       totalBilled: 0,
       totalPaid: 0,
-      totalPending: 0,
+      totalSent: 0,
       totalOverdue: 0,
+      totalCancelled: 0,
       countPaid: 0,
-      countPending: 0,
+      countSent: 0,
       countOverdue: 0,
-      countDraft: 0
+      countDraft: 0,
+      countCancelled: 0
     };
 
     const today = new Date();
 
     invoices.forEach(invoice => {
       const amount = invoice.total || 0;
-      stats.totalBilled += amount;
+      
+      // Only add to totalBilled if not cancelled or draft
+      if (invoice.status !== 'cancelled' && invoice.status !== 'draft') {
+        stats.totalBilled += amount;
+      }
 
       switch (invoice.status) {
         case 'paid':
           stats.totalPaid += amount;
           stats.countPaid++;
           break;
-        case 'pending':
-          if (new Date(invoice.dueDate) < today) {
+        case 'sent':
+          // Check if sent invoice is overdue
+          if (invoice.dueDate && new Date(invoice.dueDate) < today) {
             stats.totalOverdue += amount;
             stats.countOverdue++;
           } else {
-            stats.totalPending += amount;
-            stats.countPending++;
+            stats.totalSent += amount;
+            stats.countSent++;
+          }
+          break;
+        case 'pending':
+          // Check if pending invoice is overdue
+          if (invoice.dueDate && new Date(invoice.dueDate) < today) {
+            stats.totalOverdue += amount;
+            stats.countOverdue++;
+          } else {
+            stats.totalSent += amount;
+            stats.countSent++;
           }
           break;
         case 'overdue':
           stats.totalOverdue += amount;
           stats.countOverdue++;
           break;
+        case 'cancelled':
+        case 'canceled':
+          stats.totalCancelled += amount;
+          stats.countCancelled++;
+          break;
         case 'draft':
           stats.countDraft++;
           break;
         default:
-          stats.totalPending += amount;
-          stats.countPending++;
+          stats.totalSent += amount;
+          stats.countSent++;
       }
     });
 

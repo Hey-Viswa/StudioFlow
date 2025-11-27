@@ -25,6 +25,7 @@ import ProjectFilesPage from './pages/ProjectFilesPage';
 import SharedFilePage from './pages/SharedFilePage';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
+import ClientDashboard from './pages/ClientDashboard';
 
 function ProtectedRoute({ children }) {
   return (
@@ -72,7 +73,7 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<DashboardHome />} />
+            <Route index element={<ClientDashboard />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/new" element={<CreateProject />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />

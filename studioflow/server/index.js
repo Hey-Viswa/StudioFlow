@@ -19,6 +19,7 @@ import contactRoutes from './src/routes/contact.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
 import fileRoutes from './src/routes/files.js';
+import dashboardRoutes from './src/routes/dashboard.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -167,6 +168,7 @@ app.get('/api/test-auth', async (req, res) => {
 
 app.use('/api/protected', protectedRoute);
 app.get('/api/projects/files/shared/:shareToken', verifyClerk, getSharedFile); // Shared file access
+app.use('/api/dashboard', dashboardRoutes); // Dashboard analytics routes
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects/:id/files', fileRoutes); // File management routes
 app.use('/api/projects', taskCommentRoutes);

@@ -4,8 +4,9 @@ import { formatINR, formatCompactNumber } from '../../utils/currency';
 import { 
   DollarSign, 
   CheckCircle2, 
-  Clock, 
+  Send, 
   AlertTriangle,
+  XCircle,
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
@@ -13,8 +14,8 @@ import {
 export default function InvoicesKPI({ stats, loading }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
           <Card key={i} className="p-6 bg-card border-border">
             <Skeleton className="h-4 w-24 mb-2" />
             <Skeleton className="h-8 w-32 mb-2" />
@@ -29,7 +30,7 @@ export default function InvoicesKPI({ stats, loading }) {
     {
       label: 'Total Billed',
       value: stats.totalBilled,
-      count: stats.countPaid + stats.countPending + stats.countOverdue,
+      count: stats.countPaid + stats.countSent + stats.countOverdue,
       icon: DollarSign,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
@@ -48,9 +49,9 @@ export default function InvoicesKPI({ stats, loading }) {
     },
     {
       label: 'Sent',
-      value: stats.totalPending,
-      count: stats.countPending,
-      icon: Clock,
+      value: stats.totalSent,
+      count: stats.countSent,
+      icon: Send,
       color: 'text-orange-500',
       bgColor: 'bg-orange-500/10',
       iconColor: 'rgb(249 115 22)',
@@ -61,15 +62,25 @@ export default function InvoicesKPI({ stats, loading }) {
       value: stats.totalOverdue,
       count: stats.countOverdue,
       icon: AlertTriangle,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-500/10',
-      iconColor: 'rgb(147 51 234)',
+      color: 'text-red-500',
+      bgColor: 'bg-red-500/10',
+      iconColor: 'rgb(239 68 68)',
       trend: stats.countOverdue > 0 ? 'down' : null
+    },
+    {
+      label: 'Cancelled',
+      value: stats.totalCancelled,
+      count: stats.countCancelled,
+      icon: XCircle,
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-500/10',
+      iconColor: 'rgb(107 114 128)',
+      trend: null
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {kpis.map((kpi) => {
         const Icon = kpi.icon;
         const TrendIcon = kpi.trend === 'up' ? TrendingUp : TrendingDown;
@@ -108,3 +119,4 @@ export default function InvoicesKPI({ stats, loading }) {
     </div>
   );
 }
+
