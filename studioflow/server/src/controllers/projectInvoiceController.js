@@ -245,6 +245,31 @@ export const generateProjectInvoice = async (req, res) => {
     console.log('✓ Invoice created:', invoice.invoiceNumber);
     console.log('  Total:', invoice.total);
 
+    // Notify client about new invoice
+    if (clientInfo.userId) {
+      try {
+        await createNotification({
+          userId: clientInfo.userId,
+          type: 'invoice-generated',
+          title: '📄 New Invoice',
+          message: `Invoice ${invoice.invoiceNumber} for ₹${invoice.total.toFixed(2)} has been generated for ${project.title}`,
+          link: `/dashboard/invoices`,
+          priority: 'high',
+          category: 'invoice',
+          sendEmail: true,
+          metadata: {
+            invoiceId: invoice._id.toString(),
+            invoiceNumber: invoice.invoiceNumber,
+            amount: invoice.total,
+            projectId: project._id.toString(),
+            projectTitle: project.title
+          }
+        });
+      } catch (notifError) {
+        console.error('Error sending invoice notification:', notifError);
+      }
+    }
+
     res.status(201).json({
       success: true,
       invoice: {
@@ -788,6 +813,28 @@ export const verifyProjectInvoicePayment = async (req, res) => {
     await invoice.save();
 
     console.log('✓ Invoice marked as paid');
+
+    // Notify invoice creator about payment
+    try {
+      await createNotification({
+        userId: invoice.userId,
+        type: 'payment-received',
+        title: '💰 Payment Received',
+        message: `Payment of $${invoice.total.toFixed(2)} received for Invoice ${invoice.invoiceNumber}`,
+        link: `/dashboard/invoices`,
+        priority: 'high',
+        category: 'payment',
+        sendEmail: true,
+        metadata: {
+          invoiceId: invoice._id.toString(),
+          invoiceNumber: invoice.invoiceNumber,
+          amount: invoice.total,
+          paidBy: invoice.client.name
+        }
+      });
+    } catch (notifError) {
+      console.error('Error sending payment notification:', notifError);
+    }
 
     res.json({
       success: true,

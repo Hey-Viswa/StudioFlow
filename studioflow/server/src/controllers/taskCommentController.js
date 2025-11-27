@@ -1,6 +1,7 @@
 import Project from '../models/Project.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
+import { createNotification } from '../services/notificationService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -157,6 +158,30 @@ export const createTask = async (req, res) => {
       });
     }
 
+    // Notify assigned user if different from creator
+    if (assignedTo && assignedTo !== userId) {
+      try {
+        await createNotification({
+          userId: assignedTo,
+          type: 'task-assigned',
+          title: '📋 New Task Assigned',
+          message: `You've been assigned to "${title}" in ${project.title}`,
+          link: `/dashboard/projects/${projectId}`,
+          priority: 'high',
+          category: 'task',
+          sendEmail: true,
+          metadata: {
+            projectId,
+            taskId: createdTask._id.toString(),
+            taskTitle: title,
+            assignedBy: userName
+          }
+        });
+      } catch (notifError) {
+        console.error('Error sending task assignment notification:', notifError);
+      }
+    }
+
     res.status(201).json({ 
       message: 'Task created successfully',
       task: createdTask,
@@ -193,6 +218,9 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    // Track status change for notifications
+    const wasCompleted = task.status === 'completed';
+    
     // Update task fields
     if (updates.title !== undefined) task.title = updates.title;
     if (updates.description !== undefined) task.description = updates.description;
@@ -207,6 +235,8 @@ export const updateTask = async (req, res) => {
     if (updates.assignedTo !== undefined) task.assignedTo = updates.assignedTo;
     if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
     if (updates.googleCalendarEventId !== undefined) task.googleCalendarEventId = updates.googleCalendarEventId;
+    
+    const nowCompleted = task.status === 'completed';
 
     // Calculate and update progress based on tasks
     await updateProjectProgress(project);
@@ -222,6 +252,28 @@ export const updateTask = async (req, res) => {
         projectId,
         progress: project.progress
       });
+    }
+
+    // Notify project owner when task is completed
+    if (!wasCompleted && nowCompleted && project.ownerId !== userId) {
+      try {
+        await createNotification({
+          userId: project.ownerId,
+          type: 'task-completed',
+          title: '✅ Task Completed',
+          message: `Task "${task.title}" has been completed in ${project.title}`,
+          link: `/dashboard/projects/${projectId}`,
+          priority: 'medium',
+          category: 'task',
+          metadata: {
+            projectId,
+            taskId: task._id.toString(),
+            taskTitle: task.title
+          }
+        });
+      } catch (notifError) {
+        console.error('Error sending task completion notification:', notifError);
+      }
     }
 
     res.json({ 

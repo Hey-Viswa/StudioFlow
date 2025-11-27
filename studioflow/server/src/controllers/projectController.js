@@ -6,6 +6,7 @@ import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
+import { createNotification, createBulkNotifications } from '../services/notificationService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -713,6 +714,26 @@ export const deleteProject = async (req, res) => {
         ownerId: project.ownerId
       });
       console.log('📡 Socket.IO: Emitted project-deleted event globally');
+    }
+
+    // Notify all project members
+    try {
+      const memberUserIds = project.members
+        .map(m => m.userId)
+        .filter(uid => uid !== userId); // Don't notify the person who deleted it
+      
+      if (memberUserIds.length > 0) {
+        await createBulkNotifications({
+          userIds: memberUserIds,
+          type: 'project-deleted',
+          title: '🗑️ Project Deleted',
+          message: `Project "${project.title}" has been moved to trash by ${userName}`,
+          priority: 'high',
+          category: 'project'
+        });
+      }
+    } catch (notifError) {
+      console.error('Error sending deletion notifications:', notifError);
     }
 
     res.json({ 

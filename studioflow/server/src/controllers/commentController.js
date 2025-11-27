@@ -1,4 +1,5 @@
 import Project from '../models/Project.js';
+import { createNotification, createBulkNotifications } from '../services/notificationService.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
@@ -100,6 +101,52 @@ export const addComment = async (req, res) => {
         projectId,
         comment: commentObj
       });
+    }
+
+    // Notify project owner and mentioned users
+    try {
+      const notifyUserIds = [];
+      
+      // Notify project owner if not the commenter
+      if (project.ownerId !== userId) {
+        notifyUserIds.push(project.ownerId);
+      }
+      
+      // Notify mentioned users
+      if (mentions && mentions.length > 0) {
+        mentions.forEach(mentionedUserId => {
+          if (mentionedUserId !== userId && !notifyUserIds.includes(mentionedUserId)) {
+            notifyUserIds.push(mentionedUserId);
+          }
+        });
+      }
+      
+      // Notify parent comment author if replying
+      if (parentId) {
+        const parentComment = project.comments.id(parentId);
+        if (parentComment && parentComment.userId !== userId && !notifyUserIds.includes(parentComment.userId)) {
+          notifyUserIds.push(parentComment.userId);
+        }
+      }
+      
+      if (notifyUserIds.length > 0) {
+        await createBulkNotifications({
+          userIds: notifyUserIds,
+          type: mentions && mentions.length > 0 ? 'comment-mentioned' : 'comment-added',
+          title: mentions && mentions.length > 0 ? '🔔 You were mentioned' : '💬 New Comment',
+          message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+          link: `/dashboard/projects/${projectId}`,
+          priority: mentions && mentions.length > 0 ? 'high' : 'medium',
+          category: 'comment',
+          metadata: {
+            projectId,
+            commentId: commentObj._id,
+            commenterName: userName
+          }
+        });
+      }
+    } catch (notifError) {
+      console.error('Error sending comment notifications:', notifError);
     }
 
     res.status(201).json({ comment: commentObj });

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import { createClerkClient } from '@clerk/backend';
+import { createNotification } from '../services/notificationService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -88,6 +89,26 @@ export const acceptInvite = async (req, res) => {
           role: role || 'client'
         }
       });
+    }
+
+    // Notify project owner
+    try {
+      await createNotification({
+        userId: project.ownerId,
+        type: 'project-invitation',
+        title: '✉️ New Member Joined',
+        message: `${userName} has joined your project "${project.title}"`,
+        link: `/dashboard/projects/${projectId}`,
+        priority: 'medium',
+        category: 'project',
+        metadata: {
+          projectId,
+          newMemberUserId: userId,
+          newMemberName: userName
+        }
+      });
+    } catch (notifError) {
+      console.error('Error sending join notification:', notifError);
     }
 
     res.status(200).json({
