@@ -62,6 +62,24 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     enum: ['low', 'normal', 'high', 'urgent'],
     default: 'normal'
+  },
+  category: {
+    type: String,
+    enum: ['project', 'task', 'comment', 'invoice', 'payment', 'subscription', 'system', 'general'],
+    default: 'general'
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  idempotencyKey: {
+    type: String,
+    sparse: true, // Allow null but create index for non-null values
+    index: true
+  },
+  readAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -71,6 +89,7 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
 notificationSchema.index({ type: 1, createdAt: -1 });
+notificationSchema.index({ idempotencyKey: 1, createdAt: -1 }, { sparse: true });
 
 // Auto-delete old read notifications after 90 days
 notificationSchema.index(

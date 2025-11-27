@@ -5,6 +5,7 @@ import { razorpay } from '../config/razorpay.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { createClerkClient } from '@clerk/backend';
+import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY

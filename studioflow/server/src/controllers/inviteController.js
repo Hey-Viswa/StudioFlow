@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import { createClerkClient } from '@clerk/backend';
-import { createNotification } from '../services/notificationService.js';
+import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY

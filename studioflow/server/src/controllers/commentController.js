@@ -1,5 +1,5 @@
 import Project from '../models/Project.js';
-import { createNotification, createBulkNotifications } from '../services/notificationService.js';
+import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions

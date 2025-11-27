@@ -21,11 +21,13 @@ import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
 import fileRoutes from './src/routes/files.js';
 import dashboardRoutes from './src/routes/dashboard.js';
+import messageRoutes from './src/routes/messages.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
 import { initializeSocket } from './src/config/socket.js';
+import { initializeAppwrite } from './src/config/appwrite.js';
 import './src/config/queue.js'; // Initialize email queue
 
 const __filename = fileURLToPath(import.meta.url);
@@ -161,6 +163,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/notifications', notificationRoutes); // Notification system
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
+app.use('/api/projects', messageRoutes); // Message/chat routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -202,6 +205,9 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     try{
         await connectDB();
+        
+        // Initialize Appwrite (optional - falls back to Socket.IO)
+        initializeAppwrite();
         
         // Check Razorpay environment variables
         console.log('\n=== Razorpay Configuration Check ===');

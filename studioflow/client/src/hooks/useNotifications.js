@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { io } from 'socket.io-client';
 
 // Remove /api from VITE_API_URL since it already includes it
@@ -8,6 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http:
 let socket = null;
 
 export const useNotifications = () => {
+  const { getToken } = useAuth();
   const { user } = useUser();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -52,7 +53,24 @@ export const useNotifications = () => {
 
     try {
       setLoading(true);
-      const token = await user.getSessionToken();
+      
+      // Use Clerk's getToken() method - defensive check
+      let token;
+      try {
+        token = await getToken();
+      } catch (authError) {
+        console.warn('⚠️ Failed to get auth token:', authError.message);
+        setError('Authentication failed');
+        setLoading(false);
+        return;
+      }
+
+      if (!token) {
+        console.warn('⚠️ No auth token available');
+        setError('Not authenticated');
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/notifications?limit=20`, {
         headers: {
@@ -72,14 +90,18 @@ export const useNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, getToken]);
 
   // Fetch unread count
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.id) return;
 
     try {
-      const token = await user.getSessionToken();
+      const token = await getToken();
+      if (!token) {
+        console.warn('⚠️ No auth token for unread count');
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
         headers: {
@@ -94,7 +116,7 @@ export const useNotifications = () => {
     } catch (err) {
       console.error('Error fetching unread count:', err);
     }
-  }, [user]);
+  }, [user?.id, getToken]);
 
   // Mark notification as read
   const markAsRead = useCallback(
@@ -102,7 +124,11 @@ export const useNotifications = () => {
       if (!user?.id) return;
 
       try {
-        const token = await user.getSessionToken();
+        const token = await getToken();
+        if (!token) {
+          console.warn('⚠️ No auth token for mark as read');
+          return;
+        }
 
         const response = await fetch(
           `${API_BASE_URL}/api/notifications/${notificationId}/read`,
@@ -125,7 +151,7 @@ export const useNotifications = () => {
         console.error('Error marking notification as read:', err);
       }
     },
-    [user]
+    [user?.id, getToken]
   );
 
   // Mark all as read
@@ -133,7 +159,11 @@ export const useNotifications = () => {
     if (!user?.id) return;
 
     try {
-      const token = await user.getSessionToken();
+      const token = await getToken();
+      if (!token) {
+        console.warn('⚠️ No auth token for mark all as read');
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
         method: 'PATCH',
@@ -150,7 +180,7 @@ export const useNotifications = () => {
     } catch (err) {
       console.error('Error marking all notifications as read:', err);
     }
-  }, [user]);
+  }, [user?.id, getToken]);
 
   // Delete notification
   const deleteNotification = useCallback(
@@ -158,7 +188,11 @@ export const useNotifications = () => {
       if (!user?.id) return;
 
       try {
-        const token = await user.getSessionToken();
+        const token = await getToken();
+        if (!token) {
+          console.warn('⚠️ No auth token for delete notification');
+          return;
+        }
 
         const response = await fetch(
           `${API_BASE_URL}/api/notifications/${notificationId}`,
@@ -178,7 +212,7 @@ export const useNotifications = () => {
         console.error('Error deleting notification:', err);
       }
     },
-    [user]
+    [user?.id, getToken]
   );
 
   // Listen for real-time notifications

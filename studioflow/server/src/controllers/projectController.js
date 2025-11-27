@@ -6,7 +6,7 @@ import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
-import { createNotification, createBulkNotifications } from '../services/notificationService.js';
+import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -723,13 +723,20 @@ export const deleteProject = async (req, res) => {
         .filter(uid => uid !== userId); // Don't notify the person who deleted it
       
       if (memberUserIds.length > 0) {
-        await createBulkNotifications({
-          userIds: memberUserIds,
+        await createNotificationWithIdempotency({
+          projectId: project._id.toString(),
+          recipients: memberUserIds,
           type: 'project-deleted',
           title: '🗑️ Project Deleted',
           message: `Project "${project.title}" has been moved to trash by ${userName}`,
+          link: `/dashboard/trash`,
           priority: 'high',
-          category: 'project'
+          category: 'project',
+          eventType: 'project-deleted',
+          metadata: {
+            projectTitle: project.title,
+            deletedBy: userName
+          }
         });
       }
     } catch (notifError) {
