@@ -11,8 +11,10 @@ import {
   Plus, 
   Trash2,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  Bell
 } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -21,6 +23,7 @@ export default function DashboardLayout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Notifications', path: '/dashboard/notifications', icon: Bell },
     { name: 'Projects', path: '/dashboard/projects', icon: FolderKanban },
     { name: 'Invoices', path: '/dashboard/invoices', icon: Receipt },
     { name: 'Subscription', path: '/dashboard/subscription', icon: CreditCard },
@@ -167,10 +170,13 @@ export default function DashboardLayout() {
               }}
             />
             {!sidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">Account</p>
-                <p className="text-xs text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors">Manage profile</p>
-              </div>
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-sidebar-foreground truncate">Account</p>
+                  <p className="text-xs text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors">Manage profile</p>
+                </div>
+                <NotificationBell />
+              </>
             )}
           </div>
         </div>
@@ -188,13 +194,16 @@ export default function DashboardLayout() {
             <Menu className="w-5 h-5" />
           </Button>
           <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-6 w-auto" />
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: 'w-8 h-8',
-              },
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: 'w-8 h-8',
+                },
+              }}
+            />
+          </div>
         </header>
 
         {/* Page Content */}

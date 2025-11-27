@@ -15,7 +15,8 @@ export default function ContactUs() {
     name: '',
     email: '',
     subject: '',
-    message: ''
+    message: '',
+    honeypot: '' // Anti-spam field
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -128,6 +129,17 @@ export default function ContactUs() {
                   </Alert>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Honeypot field - hidden from users */}
+                    <input
+                      type="text"
+                      name="honeypot"
+                      value={formData.honeypot}
+                      onChange={handleChange}
+                      style={{ display: 'none' }}
+                      tabIndex={-1}
+                      autoComplete="off"
+                    />
+
                     <div className="space-y-2">
                       <Label htmlFor="name">Name *</Label>
                       <Input
@@ -139,6 +151,7 @@ export default function ContactUs() {
                         onChange={handleChange}
                         required
                         disabled={loading}
+                        maxLength={100}
                       />
                     </div>
 
@@ -167,6 +180,7 @@ export default function ContactUs() {
                         onChange={handleChange}
                         required
                         disabled={loading}
+                        maxLength={200}
                       />
                     </div>
 
@@ -181,9 +195,10 @@ export default function ContactUs() {
                         onChange={handleChange}
                         required
                         disabled={loading}
+                        maxLength={2000}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {formData.message.length}/1000 characters
+                        {formData.message.length}/2000 characters
                       </p>
                     </div>
 

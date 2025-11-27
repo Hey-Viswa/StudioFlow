@@ -26,6 +26,7 @@ import SharedFilePage from './pages/SharedFilePage';
 import Subscription from './pages/Subscription';
 import Settings from './pages/Settings';
 import ClientDashboard from './pages/ClientDashboard';
+import NotificationsPage from './pages/NotificationsPage';
 
 function ProtectedRoute({ children }) {
   return (
@@ -74,6 +75,7 @@ function App() {
             }
           >
             <Route index element={<ClientDashboard />} />
+            <Route path="notifications" element={<NotificationsPage />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/new" element={<CreateProject />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />

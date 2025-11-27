@@ -16,6 +16,7 @@ import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
 import invoiceRoutes from './src/routes/invoices.js';
 import contactRoutes from './src/routes/contact.js';
+import notificationRoutes from './src/routes/notifications.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
 import fileRoutes from './src/routes/files.js';
@@ -24,6 +25,8 @@ import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
+import { initializeSocket } from './src/config/socket.js';
+import './src/config/queue.js'; // Initialize email queue
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,31 +42,8 @@ app.get('/api/health', (req, res) => {
     res.status(200).json({ ok: true, status: 'alive' });
 });
 
-// Setup Socket.IO with CORS
-const io = new Server(httpServer, {
-  cors: {
-    origin: (origin, callback) => {
-      // Allow requests with no origin
-      if (!origin) return callback(null, true);
-      
-      const allowedOrigins = (process.env.CLERK_ALLOWED_ORIGINS || 'http://localhost:5173')
-        .split(',')
-        .map((o) => o.trim())
-        .filter(Boolean);
-      
-      if (process.env.FRONTEND_URL) {
-        allowedOrigins.push(process.env.FRONTEND_URL);
-      }
-      
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      if (origin.includes('.vercel.app')) return callback(null, true);
-      if (origin.includes('localhost')) return callback(null, true);
-      
-      callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true
-  }
-});
+// Setup Socket.IO with CORS (using our centralized config)
+const io = initializeSocket(httpServer);
 
 // Make io accessible to routes
 app.set('io', io);
@@ -178,12 +158,22 @@ app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/subscription-invoices', invoiceRoutes); // Changed: subscription invoices now at /api/subscription-invoices
 app.use('/api/contact', contactRoutes);
+app.use('/api/notifications', notificationRoutes); // Notification system
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('✅ Client connected:', socket.id);
+
+  // Authenticate user and join their personal room
+  socket.on('authenticate', (userId) => {
+    if (userId) {
+      socket.join(`user:${userId}`);
+      console.log(`👤 User ${userId} authenticated and joined personal room`);
+      socket.emit('authenticated', { userId, room: `user:${userId}` });
+    }
+  });
 
   // Join project room
   socket.on('join-project', (projectId) => {
