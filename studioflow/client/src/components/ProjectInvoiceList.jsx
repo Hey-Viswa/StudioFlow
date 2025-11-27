@@ -93,7 +93,12 @@ export default function ProjectInvoiceList({ projectId, clients }) {
                       </Badge>
                     </div>
 
-                    <Button size="sm" variant="ghost">
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => navigate(`/dashboard/invoices/${invoice._id}`)}
+                      title="View Invoice"
+                    >
                       <Eye className="w-4 h-4" />
                     </Button>
                   </div>
