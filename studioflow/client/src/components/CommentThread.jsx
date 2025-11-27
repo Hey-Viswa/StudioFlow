@@ -522,8 +522,8 @@ const CommentThread = React.forwardRef(({
   }, [comments.length])
 
   return (
-    <div ref={ref} className={cn("space-y-4", className)} {...props}>
-      <div className="flex items-center justify-between">
+    <div ref={ref} className={cn("flex flex-col h-full max-h-[calc(100vh-300px)]", className)} {...props}>
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
           Comments
@@ -533,13 +533,15 @@ const CommentThread = React.forwardRef(({
         </span>
       </div>
 
-      <CommentComposer
-        projectMembers={projectMembers}
-        onSubmit={onAddComment}
-      />
+      <div className="mb-4 flex-shrink-0">
+        <CommentComposer
+          projectMembers={projectMembers}
+          onSubmit={onAddComment}
+        />
+      </div>
 
-      <div className="relative">
-        <ScrollArea ref={scrollRef} className="h-[500px] pr-4">
+      <div className="relative flex-1 min-h-0">
+        <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden pr-4 scroll-smooth">
           {loading ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               Loading comments...
@@ -550,7 +552,7 @@ const CommentThread = React.forwardRef(({
               <p className="text-sm">No comments yet. Start the conversation!</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 pb-4">
               {comments.map((comment) => (
                 <CommentItem
                   key={comment._id}
@@ -569,12 +571,12 @@ const CommentThread = React.forwardRef(({
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {showNewIndicator && (
           <Button
             onClick={scrollToBottom}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-lg"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-lg z-10"
             size="sm"
           >
             <ChevronDown className="h-4 w-4 mr-1" />

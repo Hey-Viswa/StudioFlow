@@ -856,7 +856,7 @@ export default function ProjectDetail() {
                 <ProjectFilesPanel projectId={projectId} project={project} />
               </TabsContent>
               
-              <TabsContent value="comments" className="mt-6">
+              <TabsContent value="comments" className="mt-6 h-[calc(100vh-400px)]">
                 <CommentThread
                   comments={comments}
                   projectMembers={project.members || []}
