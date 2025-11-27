@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Calendar } from './ui/calendar';
 import { 
   Plus, 
   Loader2, 
@@ -20,8 +22,11 @@ import {
   Circle, 
   Clock,
   Trash2,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Users
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '../lib/utils';
 import { useProjectSocket } from '../hooks/useSocket';
 
 export default function TasksTab({ projectId, project }) {
@@ -310,13 +315,29 @@ export default function TasksTab({ projectId, project }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="taskDueDate">Due Date</Label>
-                <Input
-                  id="taskDueDate"
-                  type="date"
-                  value={newTask.dueDate}
-                  onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                  className="mt-1"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal mt-1',
+                        !newTask.dueDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {newTask.dueDate ? format(new Date(newTask.dueDate), 'PPP') : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={newTask.dueDate ? new Date(newTask.dueDate) : undefined}
+                      onSelect={(date) => setNewTask({ ...newTask, dueDate: date ? date.toISOString().split('T')[0] : '' })}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label htmlFor="taskStatus">Status</Label>
