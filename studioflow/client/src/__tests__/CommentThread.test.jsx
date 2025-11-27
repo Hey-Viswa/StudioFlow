@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { CommentComposer, CommentThread } from '../CommentThread'
+import { CommentComposer, CommentThread } from '../components/CommentThread'
 
 // Mock dependencies
 vi.mock('@clerk/clerk-react', () => ({

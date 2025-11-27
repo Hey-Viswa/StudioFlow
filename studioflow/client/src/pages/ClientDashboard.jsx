@@ -25,7 +25,7 @@ import { useProjects, useProjectMetrics } from '../hooks/useProjects'
 import { 
   Search, 
   Filter, 
-  DollarSign, 
+  IndianRupee, 
   CheckCircle2, 
   Clock, 
   AlertCircle,
@@ -212,7 +212,7 @@ export default function ClientDashboard() {
             title="Total Billed"
             value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
             description="Total amount invoiced"
-            icon={DollarSign}
+            icon={IndianRupee}
             trend="up"
             trendValue="+12.5%"
           />
@@ -370,7 +370,7 @@ export default function ClientDashboard() {
                   <div 
                     key={invoice._id} 
                     className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/dashboard/invoices/${invoice._id}`)}
+                    onClick={() => navigate('/dashboard/invoices')}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{invoice.title || `Invoice #${invoice.invoiceNumber}`}</div>
@@ -392,7 +392,7 @@ export default function ClientDashboard() {
                           className="h-8 w-8" 
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/dashboard/invoices/${invoice._id}`);
+                            navigate('/dashboard/invoices');
                           }}
                         >
                           <Eye className="h-4 w-4" />
@@ -403,8 +403,8 @@ export default function ClientDashboard() {
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-                            window.open(`${apiUrl}/invoices/${invoice._id}/download`, '_blank');
+                            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                            window.open(`${apiUrl}/api/invoices/${invoice.invoiceNumber || invoice._id}/download`, '_blank');
                           }}
                         >
                           <Download className="h-4 w-4" />

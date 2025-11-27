@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useAuth, useUser } from "@clerk/clerk-react"
+import { useUser } from "@clerk/clerk-react"
 import { toast } from "sonner"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
@@ -43,7 +43,9 @@ const formatTime = (dateString) => {
 }
 
 const ReactionBar = ({ reactions = {}, currentUserId, onReact }) => {
-  const reactionEntries = Object.entries(reactions).filter(([_, users]) => users.length > 0)
+  const reactionEntries = Object.entries(reactions).filter(([emoji, users]) => 
+    users.length > 0 && emoji !== 'null' && emoji !== 'undefined' && emoji !== null
+  )
 
   if (reactionEntries.length === 0) return null
 
@@ -73,6 +75,19 @@ const ReactionBar = ({ reactions = {}, currentUserId, onReact }) => {
   )
 }
 
+const getInitials = (raw = "") => {
+  if (!raw) return "?"
+  const cleaned = raw.replace(/[^a-zA-Z\s]/g, " ").trim()
+  if (!cleaned) return "?"
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+  const first = parts[0][0]
+  const last = parts[parts.length - 1][0]
+  return `${first}${last}`.toUpperCase()
+}
+
 const CommentComposer = React.forwardRef(({ 
   projectMembers = [],
   placeholder = "Write a comment...",
@@ -81,29 +96,47 @@ const CommentComposer = React.forwardRef(({
   initialValue = "",
   autoFocus = false,
   showCancel = false,
+  variant = "full",
   className,
   ...props 
 }, ref) => {
   const textareaRef = React.useRef(null)
+  const { user } = useUser()
   const [text, setText] = React.useState(initialValue)
   const [mentionQuery, setMentionQuery] = React.useState("")
   const [mentionPos, setMentionPos] = React.useState({ top: 0, left: 0 })
   const [showMentions, setShowMentions] = React.useState(false)
   const [attachedFiles, setAttachedFiles] = React.useState([])
+  const [isFocused, setIsFocused] = React.useState(false)
+  const isInline = variant === "inline"
+  const maxChars = 2000
+  const displayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || "You"
+  const initials = getInitials(displayName)
+  // Use a unique ID for draft persistence if provided, otherwise fallback to variant
+  const composerId = props.id || `comment-composer-${variant}`
+  const draftKey = React.useMemo(() => `comment-draft-${composerId}`, [composerId])
 
   React.useEffect(() => {
-    // Save draft to localStorage
-    const draftKey = `comment-draft-${Date.now()}`
+    if (!initialValue) {
+      const savedDraft = localStorage.getItem(draftKey)
+      if (savedDraft) {
+        setText(savedDraft)
+      }
+    }
+  }, [draftKey, initialValue])
+
+  React.useEffect(() => {
     if (text.trim()) {
       localStorage.setItem(draftKey, text)
+    } else {
+      localStorage.removeItem(draftKey)
     }
-  }, [text])
+  }, [text, draftKey])
 
   const handleTextChange = (e) => {
     const value = e.target.value
     setText(value)
 
-    // Detect @ mention
     const cursorPos = e.target.selectionStart
     const textBeforeCursor = value.slice(0, cursorPos)
     const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
@@ -111,8 +144,6 @@ const CommentComposer = React.forwardRef(({
     if (mentionMatch) {
       setMentionQuery(mentionMatch[1])
       setShowMentions(true)
-      
-      // Calculate position
       const textarea = textareaRef.current
       if (textarea) {
         const rect = textarea.getBoundingClientRect()
@@ -163,6 +194,7 @@ const CommentComposer = React.forwardRef(({
     onSubmit?.({ text: text.trim(), files: attachedFiles })
     setText("")
     setAttachedFiles([])
+    localStorage.removeItem(draftKey)
   }
 
   const handleKeyDown = (e) => {
@@ -173,74 +205,147 @@ const CommentComposer = React.forwardRef(({
   }
 
   return (
-    <div ref={ref} className={cn("space-y-2", className)} {...props}>
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          autoFocus={autoFocus}
-          className="min-h-[80px] resize-none pr-20"
-          aria-label="Comment text"
-        />
-        
-        <MentionAutocomplete
-          members={projectMembers}
-          query={mentionQuery}
-          visible={showMentions}
-          position={mentionPos}
-          onSelect={handleMentionSelect}
-        />
-      </div>
-
-      {attachedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {attachedFiles.map((file, idx) => (
-            <Badge key={idx} variant="outline" className="gap-1">
-              {file.name}
-              <button
-                onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
-                className="ml-1 hover:text-destructive"
-              >
-                ×
-              </button>
-            </Badge>
-          ))}
-        </div>
+    <div
+      ref={ref}
+      className={cn(
+        "space-y-3 transition-all",
+        isInline
+          ? "rounded-xl border border-border/60 bg-muted/30 p-3"
+          : "rounded-2xl border border-border/60 bg-background/95 p-4 sm:p-5 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+        className
       )}
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-            <label>
-              <Paperclip className="h-4 w-4" />
-              <input
-                type="file"
-                multiple
-                onChange={handleFileAttach}
-                className="sr-only"
-                aria-label="Attach files"
-              />
-            </label>
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {showCancel && (
-            <Button variant="ghost" size="sm" onClick={onCancel}>
-              Cancel
-            </Button>
+      {...props}
+    >
+      <div className={cn("flex gap-3", isInline && "gap-2")}
+      >
+        {!isInline && (
+          <Avatar className="h-11 w-11 border border-border/40 bg-background shadow-sm">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        )}
+        <div className="flex-1 space-y-3">
+          {!isInline && (
+            <div className="flex flex-wrap items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
+              <span className="font-medium text-foreground normal-case">
+                Comment as <span className="text-foreground/90 font-semibold">{displayName}</span>
+              </span>
+              <span className="text-muted-foreground/80">{text.length}/{maxChars}</span>
+            </div>
           )}
-          <Button size="sm" onClick={handleSubmit}>
-            <Send className="h-4 w-4 mr-2" />
-            Send
-          </Button>
+
+          <div
+            className={cn(
+              "relative rounded-2xl border bg-muted/20 transition-all focus-within:ring-1 focus-within:ring-primary/30",
+              isInline && "rounded-xl",
+              isFocused ? "border-primary/60 bg-background" : "border-border/60"
+            )}
+          >
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder={placeholder}
+              autoFocus={autoFocus}
+              className={cn(
+                "w-full resize-none border-0 bg-transparent px-4 py-3 text-base shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/70",
+                isInline && "min-h-[70px] px-3 py-2 text-sm"
+              )}
+              aria-label="Comment text"
+            />
+            
+            <MentionAutocomplete
+              members={projectMembers}
+              query={mentionQuery}
+              visible={showMentions}
+              position={mentionPos}
+              onSelect={handleMentionSelect}
+            />
+          </div>
+
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {attachedFiles.map((file, idx) => (
+                <Badge key={idx} variant="outline" className="gap-1 rounded-full border-dashed border-border/60 bg-background/50 px-3 py-1 text-xs">
+                  {file.name}
+                  <button
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                    className="ml-1 text-muted-foreground hover:text-destructive"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-2",
+              isInline ? "pt-1" : "border-t border-border/60 pt-3"
+            )}
+          >
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <EmojiPicker
+                onEmojiSelect={handleEmojiSelect}
+                className={cn(
+                  "h-9 w-9",
+                  isInline && "h-8 w-8"
+                )}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "rounded-full border border-dashed border-border/70 text-muted-foreground hover:text-foreground",
+                  isInline ? "h-8 w-8" : "h-9 w-9"
+                )}
+                asChild
+              >
+                <label className="cursor-pointer">
+                  <Paperclip className="h-4 w-4" />
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileAttach}
+                    className="sr-only"
+                    aria-label="Attach files"
+                  />
+                </label>
+              </Button>
+              {!isInline && (
+                <span className="hidden md:inline text-[11px] text-muted-foreground/80">
+                  Attach screenshots or documents (max 5)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {showCancel && (
+                <Button variant="ghost" size="sm" onClick={onCancel}>
+                  Cancel
+                </Button>
+              )}
+              <Button
+                size={isInline ? "sm" : "default"}
+                className="gap-2 shadow-sm"
+                onClick={handleSubmit}
+              >
+                <Send className="h-4 w-4" />
+                Send
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="text-xs text-muted-foreground">
+
+      <div className={cn("text-[11px] text-muted-foreground", isInline ? "pt-1" : "px-1")}
+      >
         Press Ctrl+Enter to send • Type @ to mention
       </div>
     </div>
@@ -273,8 +378,8 @@ const CommentItem = ({
   const canReply = nestLevel < maxNestLevel
 
   const authorInitials = comment.userName 
-    ? comment.userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    : comment.userEmail?.[0]?.toUpperCase() || '?'
+    ? getInitials(comment.userName)
+    : getInitials(comment.userEmail || "")
 
   const handleReplySubmit = (data) => {
     onReply?.(comment._id, data)
@@ -377,6 +482,7 @@ const CommentItem = ({
               onCancel={() => setIsEditing(false)}
               showCancel
               autoFocus
+              variant="inline"
             />
           ) : (
             <>
@@ -403,15 +509,15 @@ const CommentItem = ({
                 />
                 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Button
+                  <EmojiPicker
+                    onEmojiSelect={(emoji) => onReact?.(comment._id, emoji)}
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2"
-                    onClick={() => onReact?.(comment._id, null)}
+                    className="h-7 px-2 rounded-md border-0 bg-transparent hover:bg-accent w-auto"
                   >
                     <Smile className="h-3 w-3 mr-1" />
                     React
-                  </Button>
+                  </EmojiPicker>
                   
                   {canReply && (
                     <Button
@@ -438,6 +544,7 @@ const CommentItem = ({
                 onCancel={() => setShowReplyBox(false)}
                 showCancel
                 autoFocus
+                variant="inline"
               />
             </div>
           )}
@@ -505,27 +612,78 @@ const CommentThread = React.forwardRef(({
   ...props 
 }, ref) => {
   const scrollRef = React.useRef(null)
+  const composerRef = React.useRef(null)
+  const panelRef = React.useRef(null)
   const [showNewIndicator, setShowNewIndicator] = React.useState(false)
+  const wasAtBottomRef = React.useRef(true)
+
+  const setRef = React.useCallback((node) => {
+    panelRef.current = node
+    if (typeof ref === 'function') ref(node)
+    else if (ref) ref.current = node
+  }, [ref])
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     setShowNewIndicator(false)
   }
 
-  React.useEffect(() => {
+  const handleScroll = () => {
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50
+      wasAtBottomRef.current = isNearBottom
       
-      if (!isNearBottom) {
-        setShowNewIndicator(true)
+      if (isNearBottom) {
+        setShowNewIndicator(false)
       }
+    }
+  }
+
+  React.useEffect(() => {
+    const logRects = () => {
+      if (panelRef.current && scrollRef.current && composerRef.current) {
+        console.log('Layout Debug:', {
+          panelRect: panelRef.current.getBoundingClientRect(),
+          listRect: scrollRef.current.getBoundingClientRect(),
+          composerRect: composerRef.current.getBoundingClientRect()
+        })
+      }
+    }
+    
+    logRects()
+    window.addEventListener('resize', logRects)
+    return () => window.removeEventListener('resize', logRects)
+  }, [])
+
+  React.useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const { scrollHeight, clientHeight, scrollTop } = scrollEl
+    const previousWasAtBottom = wasAtBottomRef.current
+
+    console.log('On append comment:', {
+      previousScrollHeight: scrollHeight,
+      clientHeight,
+      scrollTop,
+      wasAtBottom: previousWasAtBottom,
+      newCommentCount: comments.length
+    })
+
+    if (previousWasAtBottom) {
+      console.log('Auto-scrolling to bottom')
+      const timer = setTimeout(scrollToBottom, 50)
+      return () => clearTimeout(timer)
+    } else {
+      console.log('Not auto-scrolling (user not at bottom)')
+      setShowNewIndicator(true)
     }
   }, [comments.length])
 
   return (
-    <div ref={ref} className={cn("flex flex-col", className)} {...props}>
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+    <div ref={setRef} className={cn("flex flex-col h-full relative", className)} {...props}>
+      <div className="flex items-center justify-between mb-4 flex-shrink-0 px-1">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
           Comments
@@ -535,15 +693,13 @@ const CommentThread = React.forwardRef(({
         </span>
       </div>
 
-      <div className="mb-4 flex-shrink-0">
-        <CommentComposer
-          projectMembers={projectMembers}
-          onSubmit={onAddComment}
-        />
-      </div>
-
-      <div className="relative">
-        <div ref={scrollRef} className="max-h-[600px] overflow-y-auto overflow-x-hidden pr-4 scroll-smooth">
+      <div className="relative flex-1 min-h-0">
+        <div 
+          ref={scrollRef} 
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto overflow-x-hidden pr-4 scroll-smooth"
+          style={{ maxHeight: 'calc(100vh - 250px)' }}
+        >
           {loading ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               Loading comments...
@@ -585,6 +741,14 @@ const CommentThread = React.forwardRef(({
             New comments
           </Button>
         )}
+      </div>
+
+      <div ref={composerRef} className="mt-6 flex-shrink-0 sticky bottom-0 z-30 border-t border-border/60 bg-background/95 px-1 pb-2 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <CommentComposer
+          projectMembers={projectMembers}
+          onSubmit={onAddComment}
+          className="w-full"
+        />
       </div>
     </div>
   )

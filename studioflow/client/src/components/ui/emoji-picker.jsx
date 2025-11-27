@@ -3,6 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { Button } from "./button"
 import { ScrollArea } from "./scroll-area"
 import { Smile } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const EMOJI_CATEGORIES = {
   "Smileys": ["😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘"],
@@ -11,7 +12,7 @@ const EMOJI_CATEGORIES = {
   "Objects": ["🎉", "🎊", "🎈", "🎁", "🏆", "🥇", "🥈", "🥉", "⭐", "✨", "💫", "🔥", "💯", "✅", "❌", "⚠️"]
 }
 
-const EmojiPicker = React.forwardRef(({ onEmojiSelect, className, ...props }, ref) => {
+const EmojiPicker = React.forwardRef(({ onEmojiSelect, className, variant = "ghost", size = "icon", children, ...props }, ref) => {
   const [open, setOpen] = React.useState(false)
 
   const handleEmojiClick = (emoji) => {
@@ -24,13 +25,13 @@ const EmojiPicker = React.forwardRef(({ onEmojiSelect, className, ...props }, re
       <PopoverTrigger asChild>
         <Button
           ref={ref}
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
+          variant={variant}
+          size={size}
+          className={cn("h-8 w-8 rounded-full border border-border/60 bg-background/80 hover:bg-background hover:border-primary/60", className)}
           aria-label="Add emoji"
           {...props}
         >
-          <Smile className="h-4 w-4" />
+          {children || <Smile className="h-4 w-4" />}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="start">

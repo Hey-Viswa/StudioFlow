@@ -108,7 +108,7 @@ export default function Invoices() {
               <DollarSign className="h-4 w-4 text-slate-400" />
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-white">${totalBilled.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">₹{totalBilled.toLocaleString()}</p>
               <p className="text-xs text-slate-500">
                 {invoices.length} invoices
               </p>
@@ -123,7 +123,7 @@ export default function Invoices() {
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-white">${totalPaid.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">₹{totalPaid.toLocaleString()}</p>
               <p className="text-xs text-slate-500 flex items-center gap-1">
                 <TrendingUp className="w-3 h-3 text-emerald-400" />
                 <span className="text-emerald-400">+12.5%</span>
@@ -140,7 +140,7 @@ export default function Invoices() {
               <Clock className="h-4 w-4 text-yellow-400" />
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-white">${totalPending.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">₹{totalPending.toLocaleString()}</p>
               <p className="text-xs text-slate-500">
                 {invoices.filter(i => i.status === 'Pending').length} invoices awaiting
               </p>
@@ -155,7 +155,7 @@ export default function Invoices() {
               <AlertCircle className="h-4 w-4 text-red-400" />
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-white">${totalOverdue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">₹{totalOverdue.toLocaleString()}</p>
               <p className="text-xs text-slate-500">
                 {invoices.filter(i => i.status === 'Overdue').length} need attention
               </p>
@@ -236,6 +236,10 @@ export default function Invoices() {
                           size="sm" 
                           variant="ghost" 
                           className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                          onClick={() => {
+                            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                            window.open(`${apiUrl}/api/invoices/${invoice.id}/view`, '_blank');
+                          }}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -243,6 +247,10 @@ export default function Invoices() {
                           size="sm" 
                           variant="ghost" 
                           className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                          onClick={() => {
+                            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                            window.open(`${apiUrl}/api/invoices/${invoice.id}/download`, '_blank');
+                          }}
                         >
                           <Download className="w-4 h-4" />
                         </Button>
@@ -251,6 +259,10 @@ export default function Invoices() {
                             size="sm" 
                             variant="ghost" 
                             className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                            onClick={() => {
+                              // TODO: Implement send invoice functionality
+                              console.log('Send invoice:', invoice.id);
+                            }}
                           >
                             <Send className="w-4 h-4" />
                           </Button>
