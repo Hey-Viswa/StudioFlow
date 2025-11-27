@@ -1,4 +1,5 @@
 import Contact from '../models/Contact.js';
+import { sendEmail, isMessagingAvailable } from '../config/appwriteMessaging.js';
 import { emailQueue } from '../config/queue.js';
 
 // @desc    Submit contact form
@@ -46,21 +47,80 @@ export const submitContactForm = async (req, res) => {
 
     console.log(`✓ Contact saved: ${contact._id}`);
 
-    // Send notification email to admin (non-blocking)
+    // Send notification email to admin
     try {
-      await emailQueue.add('send-contact-notification', {
-        contactId: contact._id.toString(),
-        name: contact.name,
-        email: contact.email,
-        subject: contact.subject,
-        message: contact.message
-      }, {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 }
-      });
-      console.log('📧 Contact notification email queued');
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@studioflow.com';
+      const emailBody = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+            .content { background: #f9fafb; padding: 20px; margin-top: 20px; }
+            .field { margin-bottom: 15px; }
+            .label { font-weight: bold; color: #4F46E5; }
+            .value { margin-top: 5px; }
+            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 New Contact Form Submission</h1>
+            </div>
+            <div class="content">
+              <div class="field">
+                <div class="label">From:</div>
+                <div class="value">${contact.name} &lt;${contact.email}&gt;</div>
+              </div>
+              <div class="field">
+                <div class="label">Subject:</div>
+                <div class="value">${contact.subject}</div>
+              </div>
+              <div class="field">
+                <div class="label">Message:</div>
+                <div class="value">${contact.message}</div>
+              </div>
+              <div class="field">
+                <div class="label">Contact ID:</div>
+                <div class="value">${contact._id}</div>
+              </div>
+            </div>
+            <div class="footer">
+              <p>StudioFlow Contact System</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      if (isMessagingAvailable()) {
+        // Use Appwrite Messaging
+        await sendEmail({
+          to: [adminEmail],
+          subject: `New Contact: ${contact.subject}`,
+          body: emailBody,
+          isHtml: true
+        });
+        console.log('✅ Contact notification sent via Appwrite');
+      } else {
+        // Fallback to BullMQ + SendGrid
+        await emailQueue.add('send-contact-notification', {
+          contactId: contact._id.toString(),
+          name: contact.name,
+          email: contact.email,
+          subject: contact.subject,
+          message: contact.message
+        }, {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 }
+        });
+        console.log('📧 Contact notification email queued (fallback)');
+      }
     } catch (emailError) {
-      console.warn('⚠️  Could not queue admin notification:', emailError.message);
+      console.warn('⚠️  Could not send admin notification:', emailError.message);
     }
 
     res.json({

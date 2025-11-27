@@ -28,6 +28,7 @@ import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
 import { initializeSocket } from './src/config/socket.js';
 import { initializeAppwrite } from './src/config/appwrite.js';
+import { initializeMessaging } from './src/config/appwriteMessaging.js';
 import './src/config/queue.js'; // Initialize email queue
 
 const __filename = fileURLToPath(import.meta.url);
@@ -208,6 +209,9 @@ const startServer = async () => {
         
         // Initialize Appwrite (optional - falls back to Socket.IO)
         initializeAppwrite();
+        
+        // Initialize Appwrite Messaging (for email and push notifications)
+        initializeMessaging();
         
         // Check Razorpay environment variables
         console.log('\n=== Razorpay Configuration Check ===');
