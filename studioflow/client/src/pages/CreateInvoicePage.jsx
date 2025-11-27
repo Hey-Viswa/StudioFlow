@@ -330,7 +330,7 @@ export default function CreateInvoicePage() {
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Due Date *</FormLabel>
-                      <Popover modal={true}>
+                      <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -346,7 +346,7 @@ export default function CreateInvoicePage() {
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-[9999]" align="start" sideOffset={4}>
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={field.value}
