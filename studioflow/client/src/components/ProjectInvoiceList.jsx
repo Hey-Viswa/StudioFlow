@@ -7,12 +7,15 @@ import { Badge } from './ui/badge';
 import { Plus, FileText, Clock, CheckCircle2, XCircle, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProjectInvoices } from '../lib/projectInvoiceApi';
+import InvoiceDetailModal from './invoices/InvoiceDetailModal';
 
 export default function ProjectInvoiceList({ projectId, clients }) {
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -39,6 +42,16 @@ export default function ProjectInvoiceList({ projectId, clients }) {
   };
 
   const formatCurrency = (amount) => `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+  const handleViewInvoice = (invoice) => {
+    setSelectedInvoice(invoice);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDetailModal(false);
+    setSelectedInvoice(null);
+  };
 
   if (loading) {
     return <div className="text-slate-400">Loading invoices...</div>;
@@ -96,7 +109,7 @@ export default function ProjectInvoiceList({ projectId, clients }) {
                     <Button 
                       size="sm" 
                       variant="ghost"
-                      onClick={() => navigate(`/dashboard/invoices/${invoice._id}`)}
+                      onClick={() => handleViewInvoice(invoice)}
                       title="View Invoice"
                     >
                       <Eye className="w-4 h-4" />
@@ -107,6 +120,16 @@ export default function ProjectInvoiceList({ projectId, clients }) {
             );
           })}
         </div>
+      )}
+
+      {/* Invoice Detail Modal */}
+      {selectedInvoice && (
+        <InvoiceDetailModal
+          invoice={selectedInvoice}
+          open={showDetailModal}
+          onClose={handleCloseModal}
+          mode="view"
+        />
       )}
     </div>
   );
