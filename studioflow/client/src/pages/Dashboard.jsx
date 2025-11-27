@@ -116,7 +116,8 @@ export default function Dashboard() {
       active: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30',
       completed: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
       'on-hold': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
-      archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30'
+      archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30',
+      'needs-revision': 'bg-red-500/20 text-red-500 border-red-500/30'
     };
     return colors[status] || colors.active;
   };
@@ -290,8 +291,17 @@ export default function Dashboard() {
                       <Card
                         key={project._id}
                         onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                        className="cursor-pointer transition-all duration-300 border border-slate-700 group relative overflow-hidden bg-slate-800/80 hover:bg-slate-800 hover:border-primary/50 hover:shadow-lg"
+                        className={`cursor-pointer transition-all duration-300 border group relative overflow-hidden bg-slate-800/80 hover:bg-slate-800 hover:shadow-lg ${
+                          project.status === 'needs-revision' 
+                            ? 'border-red-500/50 hover:border-red-500' 
+                            : 'border-slate-700 hover:border-primary/50'
+                        }`}
                       >
+                        {project.status === 'needs-revision' && project.userRole === 'owner' && (
+                          <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                            🔔 Revision Requested
+                          </div>
+                        )}
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <h3 className="font-bold text-lg text-white line-clamp-1 flex-1">
@@ -300,6 +310,7 @@ export default function Dashboard() {
                             <div className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(project.status)} whitespace-nowrap flex-shrink-0`}>
                               {project.status === 'active' ? 'In Progress' : 
                                project.status === 'on-hold' ? 'On Hold' :
+                               project.status === 'needs-revision' ? 'Needs Revision' :
                                project.status.charAt(0).toUpperCase() + project.status.slice(1)}
                             </div>
                           </div>

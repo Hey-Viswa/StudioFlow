@@ -472,6 +472,8 @@ const CommentItem = ({
                       onDelete={onDelete}
                       onReact={onReact}
                       onResolve={onResolve}
+                      onRequestRevision={onRequestRevision}
+                      onApproveFinal={onApproveFinal}
                       canModerate={canModerate}
                     />
                   ))}
@@ -522,7 +524,7 @@ const CommentThread = React.forwardRef(({
   }, [comments.length])
 
   return (
-    <div ref={ref} className={cn("flex flex-col h-full max-h-[calc(100vh-300px)]", className)} {...props}>
+    <div ref={ref} className={cn("flex flex-col", className)} {...props}>
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
@@ -540,8 +542,8 @@ const CommentThread = React.forwardRef(({
         />
       </div>
 
-      <div className="relative flex-1 min-h-0">
-        <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden pr-4 scroll-smooth">
+      <div className="relative">
+        <div ref={scrollRef} className="max-h-[600px] overflow-y-auto overflow-x-hidden pr-4 scroll-smooth">
           {loading ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               Loading comments...

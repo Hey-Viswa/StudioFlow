@@ -513,10 +513,22 @@ export const updateProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Only owner can update
-    if (!project.isOwner(userId)) {
+    // Check if user is a member of the project
+    const isMember = project.members.some(m => m.userId === userId);
+    const isOwner = project.isOwner(userId);
+
+    if (!isMember && !isOwner) {
+      console.log('❌ User is not a member:', { userId, ownerId: project.ownerId });
+      return res.status(403).json({ error: 'You are not a member of this project' });
+    }
+
+    // Allow clients to request revision or approve final
+    const isClientAction = status === 'needs-revision' || status === 'completed';
+    
+    // Only owner can update project details (except client revision/approval)
+    if (!isOwner && !isClientAction) {
       console.log('❌ User is not owner:', { userId, ownerId: project.ownerId });
-      return res.status(403).json({ error: 'Only project owner can update' });
+      return res.status(403).json({ error: 'Only project owner can update project details' });
     }
 
     // Validate character limits

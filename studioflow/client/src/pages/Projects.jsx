@@ -146,6 +146,11 @@ export default function Projects() {
       label: 'Completed', 
       badge: 'Completed' 
     },
+    'needs-revision': { 
+      color: 'bg-red-500/10 text-red-600 border-red-500/20', 
+      label: 'Needs Revision', 
+      badge: 'Needs Revision' 
+    },
     'on-hold': { 
       color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
       label: 'On Hold', 

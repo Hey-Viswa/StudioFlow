@@ -35,6 +35,14 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
   ArrowLeft,
   Loader2,
   Share2,
@@ -53,7 +61,8 @@ import {
   MessageSquare,
   Upload,
   Home,
-  MoreVertical
+  MoreVertical,
+  RefreshCw
 } from 'lucide-react';
 
 export default function ProjectDetail() {
@@ -94,6 +103,10 @@ export default function ProjectDetail() {
   const [progressValue, setProgressValue] = useState(0);
   const [updatingProgress, setUpdatingProgress] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [revisionNotes, setRevisionNotes] = useState('');
+  const [submittingRevision, setSubmittingRevision] = useState(false);
 
   // Fetch project function that can be called from socket listeners
   const fetchProject = useCallback(async () => {
@@ -355,6 +368,75 @@ export default function ProjectDetail() {
     }
   };
 
+  const requestRevision = async () => {
+    if (!revisionNotes.trim()) {
+      toast.error('Please provide revision notes');
+      return;
+    }
+    
+    setSubmittingRevision(true);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ 
+          status: 'needs-revision',
+          revisionNotes: revisionNotes
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to request revision');
+      }
+
+      toast.success('Revision requested successfully!');
+      setShowRevisionModal(false);
+      setRevisionNotes('');
+      await fetchProject();
+    } catch (err) {
+      console.error('Request revision error:', err);
+      toast.error(err.message || 'Failed to request revision');
+    } finally {
+      setSubmittingRevision(false);
+    }
+  };
+
+  const approveFinal = async () => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ 
+          status: 'completed',
+          finalizedAt: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve project');
+      }
+
+      toast.success('Project approved successfully! 🎉');
+      setShowApproveModal(false);
+      await fetchProject();
+    } catch (err) {
+      console.error('Approve final error:', err);
+      toast.error(err.message || 'Failed to approve project');
+    }
+  };
+
   const updateProjectProgress = async () => {
     setUpdatingProgress(true);
     try {
@@ -409,7 +491,8 @@ export default function ProjectDetail() {
       active: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30',
       completed: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
       'on-hold': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
-      archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30'
+      archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30',
+      'needs-revision': 'bg-red-500/20 text-red-500 border-red-500/30'
     };
     return colors[status] || colors.active;
   };
@@ -456,8 +539,8 @@ export default function ProjectDetail() {
   if (!project) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-background overflow-y-auto">
+      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-12">
         {/* Breadcrumb Navigation */}
         <Breadcrumb>
           <BreadcrumbList>
@@ -607,7 +690,7 @@ export default function ProjectDetail() {
                   </>
                 )}
               </div>
-              {!isEditing && project.isOwner && (
+              {!isEditing && (
                 <div className="relative">
                   <Button 
                     variant="ghost" 
@@ -629,36 +712,63 @@ export default function ProjectDetail() {
                       
                       {/* Dropdown menu */}
                       <div className="absolute right-0 top-10 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
-                        <button
-                          onClick={() => {
-                            setShowDropdown(false);
-                            startEditing();
-                          }}
-                          className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                        >
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit Project
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowDropdown(false);
-                            openDeleteConfirm();
-                          }}
-                          disabled={deleting}
-                          className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {deleting ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete Project
-                            </>
-                          )}
-                        </button>
+                        {project.isOwner ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowDropdown(false);
+                                startEditing();
+                              }}
+                              className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit Project
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDropdown(false);
+                                openDeleteConfirm();
+                              }}
+                              disabled={deleting}
+                              className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deleting ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Project
+                                </>
+                              )}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowDropdown(false);
+                                setShowRevisionModal(true);
+                              }}
+                              className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                            >
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Request Revision
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDropdown(false);
+                                setShowApproveModal(true);
+                              }}
+                              className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Approve Final
+                            </button>
+                          </>
+                        )}
                       </div>
                     </>
                   )}
@@ -856,7 +966,7 @@ export default function ProjectDetail() {
                 <ProjectFilesPanel projectId={projectId} project={project} />
               </TabsContent>
               
-              <TabsContent value="comments" className="mt-6 h-[calc(100vh-400px)]">
+              <TabsContent value="comments">
                 <CommentThread
                   comments={comments}
                   projectMembers={project.members || []}
@@ -927,6 +1037,107 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Request Revision Modal */}
+      {showRevisionModal && (
+        <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
+          <DialogContent className="max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-orange-500" />
+                Request Revision
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Explain what needs to be changed or improved in this project.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <Textarea
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                placeholder="Describe the changes you'd like to see..."
+                className="min-h-[120px] bg-background border-border focus:ring-orange-500"
+                maxLength={500}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {revisionNotes.length}/500 characters
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowRevisionModal(false);
+                  setRevisionNotes('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={requestRevision}
+                disabled={!revisionNotes.trim() || submittingRevision}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {submittingRevision ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Submit Request
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Approve Final Modal */}
+      {showApproveModal && (
+        <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
+          <DialogContent className="max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                Approve Final Version
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Confirm that you approve the final version of {project?.title}. This will mark the project as completed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="p-4 rounded-lg bg-muted/30 border border-emerald-500/20 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  <span className="font-medium text-emerald-500">Final Approval</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  By approving, you confirm that all requirements have been met and the project is complete.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setShowApproveModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={approveFinal}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Approve Final
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
