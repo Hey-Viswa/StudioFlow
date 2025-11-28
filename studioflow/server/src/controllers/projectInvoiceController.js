@@ -63,15 +63,30 @@ export const getAllUserInvoices = async (req, res) => {
     console.log('User:', userId);
     console.log('Status filter:', status);
 
+    // Get all projects user has access to (owner or member)
+    const projects = await Project.find({
+      $and: [
+        { deletedAt: null },
+        {
+          $or: [
+            { ownerId: userId },
+            { 'members.userId': userId }
+          ]
+        }
+      ]
+    }).select('_id title');
+
+    const projectIds = projects.map(p => p._id);
+
     // Build query
     const query = {
       $or: [
         { userId }, // Creator
-        { 'client.userId': userId } // Client
-      ],
-      deletedAt: null // Exclude soft-deleted
+        { 'client.userId': userId }, // Client
+        { projectId: { $in: projectIds } } // Project Member
+      ]
     };
-    
+
     if (status && status !== 'all') {
       if (status === 'sent') {
         query.status = 'pending';
@@ -89,9 +104,6 @@ export const getAllUserInvoices = async (req, res) => {
         } else {
           query.$and = [overdueClause];
         }
-
-        console.log('🔍 Overdue query clause:', JSON.stringify(overdueClause, null, 2));
-        console.log('🔍 Current date:', now);
       } else {
         query.status = status;
       }
@@ -100,7 +112,11 @@ export const getAllUserInvoices = async (req, res) => {
     // Add search functionality
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
-      query.$and = [
+      // Ensure $and exists or create it
+      if (!query.$and) {
+        query.$and = [];
+      }
+      query.$and.push(
         {
           $or: [
             { invoiceNumber: searchRegex }, // Search by invoice number
@@ -109,8 +125,7 @@ export const getAllUserInvoices = async (req, res) => {
             { notes: searchRegex } // Search in notes
           ]
         }
-      ];
-      console.log('🔍 Search term:', search);
+      );
     }
 
     // Fetch invoices with pagination
@@ -123,8 +138,6 @@ export const getAllUserInvoices = async (req, res) => {
       .lean();
 
     const total = await ProjectInvoice.countDocuments(query);
-
-    console.log(`✓ Found ${invoices.length} invoices (${total} total)`);
 
     const now = new Date();
     const invoicesWithDerivedStatus = invoices.map(inv => {
@@ -140,7 +153,7 @@ export const getAllUserInvoices = async (req, res) => {
 
       return invoice;
     });
-    
+
     // Debug: Show invoice statuses and due dates for overdue filter
     if (status === 'overdue') {
       console.log('📋 Overdue invoices details:');
@@ -181,7 +194,7 @@ export const generateProjectInvoice = async (req, res) => {
 
     // Validate project exists and user is owner
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -206,7 +219,7 @@ export const generateProjectInvoice = async (req, res) => {
 
     // Find client details
     let clientInfo = { userId: null, name: 'Client', email: '' };
-    
+
     if (clientUserId) {
       const client = project.members.find(m => m.userId === clientUserId && m.role === 'client');
       if (client) {
@@ -249,8 +262,9 @@ export const generateProjectInvoice = async (req, res) => {
     // Notify client about new invoice
     if (clientInfo.userId) {
       try {
-        await createNotification({
-          userId: clientInfo.userId,
+        await createNotificationWithIdempotency({
+          projectId: project._id.toString(),
+          recipients: [clientInfo.userId],
           type: 'invoice-generated',
           title: '📄 New Invoice',
           message: `Invoice ${invoice.invoiceNumber} for ₹${invoice.total.toFixed(2)} has been generated for ${project.title}`,
@@ -258,6 +272,7 @@ export const generateProjectInvoice = async (req, res) => {
           priority: 'high',
           category: 'invoice',
           sendEmail: true,
+          eventType: 'invoice-generated',
           metadata: {
             invoiceId: invoice._id.toString(),
             invoiceNumber: invoice.invoiceNumber,
@@ -285,9 +300,9 @@ export const generateProjectInvoice = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Generate invoice error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate invoice',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -302,7 +317,7 @@ export const getProjectInvoices = async (req, res) => {
 
     // Validate project access
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -540,8 +555,8 @@ export const deleteProjectInvoice = async (req, res) => {
     let userName = '';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
       console.log('✓ User details fetched:', userName);
     } catch (err) {
@@ -585,8 +600,8 @@ export const deleteProjectInvoice = async (req, res) => {
 
     console.log('✅ Invoice successfully moved to trash:', invoice.invoiceNumber);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Invoice deleted successfully',
       trashId: deletedEntry._id,
       expiresIn: '30 days'
@@ -594,9 +609,9 @@ export const deleteProjectInvoice = async (req, res) => {
   } catch (error) {
     console.error('❌ Delete invoice error:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to delete invoice',
-      message: error.message 
+      message: error.message
     });
   }
 };
@@ -764,9 +779,9 @@ export const createPaymentOrder = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Create payment order error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create payment order',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -777,10 +792,10 @@ export const createPaymentOrder = async (req, res) => {
 export const verifyProjectInvoicePayment = async (req, res) => {
   try {
     const { invoiceId } = req.params;
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
-      razorpay_signature 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
     } = req.body;
 
     console.log('=== VERIFY PAYMENT ===');
@@ -817,15 +832,17 @@ export const verifyProjectInvoicePayment = async (req, res) => {
 
     // Notify invoice creator about payment
     try {
-      await createNotification({
-        userId: invoice.userId,
+      await createNotificationWithIdempotency({
+        projectId: invoice.projectId?.toString() || 'general',
+        recipients: [invoice.userId],
         type: 'payment-received',
         title: '💰 Payment Received',
-        message: `Payment of $${invoice.total.toFixed(2)} received for Invoice ${invoice.invoiceNumber}`,
+        message: `Payment of ₹${invoice.total.toFixed(2)} received for Invoice ${invoice.invoiceNumber}`,
         link: `/dashboard/invoices`,
         priority: 'high',
         category: 'payment',
         sendEmail: true,
+        eventType: 'payment-received',
         metadata: {
           invoiceId: invoice._id.toString(),
           invoiceNumber: invoice.invoiceNumber,
@@ -850,9 +867,9 @@ export const verifyProjectInvoicePayment = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Verify payment error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Payment verification failed',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -898,7 +915,7 @@ export const cancelProjectInvoice = async (req, res) => {
 // @access  Public (Signature Verified)
 export const handleProjectInvoiceWebhook = async (req, res) => {
   const timestamp = new Date().toISOString();
-  
+
   try {
     // Verify webhook signature
     const signature = req.headers['x-razorpay-signature'];
@@ -971,26 +988,26 @@ async function handlePaymentCaptured(payment, timestamp) {
       await invoice.save();
 
       console.log(`[${timestamp}] ✓ Invoice ${invoice.invoiceNumber} marked as paid`);
-      
+
       // Generate PDF automatically after payment success
       try {
         console.log(`[${timestamp}] 📄 Generating PDF for invoice ${invoice.invoiceNumber}...`);
-        
+
         const { generateInvoicePDF } = await import('../utils/pdfGenerator.js');
         const user = {
           email: invoice.client.email || 'client@example.com',
           name: invoice.client.name || 'Client'
         };
-        
+
         const pdfPath = await generateInvoicePDF(invoice, user);
-        
+
         // Update invoice with PDF URL
         invoice.pdfUrl = `/api/invoices/project/${invoice.invoiceNumber}/download`;
         invoice.pdfGenerated = true;
         await invoice.save();
-        
+
         console.log(`[${timestamp}] ✅ PDF generated: ${pdfPath}`);
-        
+
         // Send email with PDF if client has email
         if (invoice.client.email) {
           try {
@@ -1001,11 +1018,11 @@ async function handlePaymentCaptured(payment, timestamp) {
               invoice: invoice,
               pdfPath: pdfPath
             });
-            
+
             invoice.emailSent = true;
             invoice.emailSentAt = new Date();
             await invoice.save();
-            
+
             console.log(`[${timestamp}] ✅ Invoice email sent to ${invoice.client.email}`);
           } catch (emailError) {
             console.error(`[${timestamp}] ⚠️  Failed to send email:`, emailError.message);
@@ -1081,26 +1098,26 @@ export const downloadProjectInvoicePDF = async (req, res) => {
 
     // Check if PDF exists or generate it
     const { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } = await import('../utils/pdfGenerator.js');
-    
+
     let pdfPath = getInvoicePDFPath(invoice.invoiceNumber);
 
     if (!invoicePDFExists(invoice.invoiceNumber)) {
       console.log('PDF not found, generating...');
-      
+
       // Generate PDF for project invoice
       const user = {
         email: invoice.client.email || 'client@example.com',
         name: invoice.client.name || 'Client'
       };
-      
+
       try {
         pdfPath = await generateInvoicePDF(invoice, user);
-        
+
         // Update invoice with PDF URL
         invoice.pdfUrl = `/api/invoices/project/${invoice.invoiceNumber}/download`;
         invoice.pdfGenerated = true;
         await invoice.save();
-        
+
         console.log('✓ PDF generated:', pdfPath);
       } catch (pdfError) {
         console.error('❌ PDF generation failed:', pdfError);
@@ -1112,7 +1129,7 @@ export const downloadProjectInvoicePDF = async (req, res) => {
 
     // Send PDF file
     const fs = await import('fs');
-    
+
     if (!fs.existsSync(pdfPath)) {
       return res.status(404).json({ error: 'PDF file not found' });
     }
@@ -1122,7 +1139,7 @@ export const downloadProjectInvoicePDF = async (req, res) => {
 
     const fileStream = fs.createReadStream(pdfPath);
     fileStream.pipe(res);
-    
+
     console.log('✓ PDF sent to client');
 
   } catch (error) {

@@ -24,7 +24,9 @@ import {
   Loader2,
   CreditCard,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Shield,
+  Rocket
 } from 'lucide-react';
 
 const STATUS_META = {
@@ -100,7 +102,7 @@ export default function Subscription() {
     {
       id: 'free',
       name: 'Starter',
-      subtitle: 'Free Forever',
+      subtitle: 'Perfect for getting started',
       price: 0,
       currency: '₹',
       period: '/month',
@@ -111,7 +113,8 @@ export default function Subscription() {
         'Email support (48h response)'
       ],
       color: 'slate',
-      popular: false
+      popular: false,
+      icon: Rocket
     },
     {
       id: 'pro',
@@ -129,7 +132,8 @@ export default function Subscription() {
         'Advanced analytics'
       ],
       color: 'primary',
-      popular: true
+      popular: true,
+      icon: Zap
     },
     {
       id: 'studio',
@@ -147,7 +151,8 @@ export default function Subscription() {
         'Dedicated support (12h response)'
       ],
       color: 'purple',
-      popular: false
+      popular: false,
+      icon: Crown
     }
   ];
 
@@ -167,16 +172,6 @@ export default function Subscription() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Subscription Data Received:', {
-          plan: data.subscription?.plan,
-          status: data.subscription?.status,
-          trialEnd: data.subscription?.trialEnd,
-          subscriptionEndDate: data.subscription?.subscriptionEndDate,
-          autoRenew: data.subscription?.autoRenew,
-          updatedAt: data.subscription?.updatedAt,
-          previousPlan: data.subscription?.previousPlan,
-          razorpaySubscriptionId: data.subscription?.razorpaySubscriptionId
-        });
         setCurrentSubscription(data);
       }
     } catch (error) {
@@ -208,9 +203,6 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log('Creating subscription for plan:', planId);
-
-      // Create subscription (backend will handle trial logic)
       const response = await fetch(`${apiUrl}/subscriptions/create`, {
         method: 'POST',
         headers: {
@@ -223,82 +215,29 @@ export default function Subscription() {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Subscription creation failed:', data);
-        toast.error(data.error || 'Failed to create subscription', {
-          description: data.details || 'Please try again'
-        });
-        setProcessingPlan(null);
-        return;
+        throw new Error(data.error || 'Failed to create subscription');
       }
 
-      console.log('✅ Subscription response:', data);
-
-      // Handle regular subscription (requires payment)
       const { subscriptionId, amount, currency } = data;
-      
-      // Load Razorpay script
+
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
-        toast.error('Failed to load payment gateway');
-        setProcessingPlan(null);
-        return;
+        throw new Error('Failed to load payment gateway');
       }
 
-      // Check if Razorpay key is configured
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      console.log('🔑 Razorpay Key check:', razorpayKey ? 'Found' : 'Missing');
-      console.log('🔑 Full env check:', import.meta.env);
-      
       if (!razorpayKey) {
-        console.error('❌ VITE_RAZORPAY_KEY_ID is missing');
-        toast.error('Payment gateway not configured');
-        setProcessingPlan(null);
-        return;
+        throw new Error('Payment gateway not configured');
       }
 
-      console.log('💳 Initializing Razorpay with subscription:', subscriptionId);
-      
-      // Initialize Razorpay with all payment methods
       const options = {
         key: razorpayKey,
         subscription_id: subscriptionId,
         name: 'StudioFlow',
         description: `${planId.toUpperCase()} Plan Subscription`,
         currency: currency,
-        
-        // Enable all payment methods
-        config: {
-          display: {
-            blocks: {
-              banks: {
-                name: 'All payment methods',
-                instruments: [
-                  {
-                    method: 'upi'
-                  },
-                  {
-                    method: 'card'
-                  },
-                  {
-                    method: 'netbanking'
-                  },
-                  {
-                    method: 'wallet'
-                  }
-                ]
-              }
-            },
-            sequence: ['block.banks'],
-            preferences: {
-              show_default_blocks: true
-            }
-          }
-        },
-        
         handler: async function (response) {
           try {
-            console.log('Payment successful, verifying...');
-            // Verify payment
             const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
               method: 'POST',
               headers: {
@@ -316,27 +255,20 @@ export default function Subscription() {
               toast.success('Subscription activated successfully!');
               fetchCurrentSubscription();
             } else {
-              const errorData = await verifyResponse.json().catch(() => ({}));
-              console.error('Payment verification failed:', errorData);
-              toast.error(errorData.error || 'Payment verification failed');
+              const errorData = await verifyResponse.json();
+              throw new Error(errorData.error || 'Verification failed');
             }
           } catch (error) {
-            console.error('Verification error:', error);
-            toast.error('Error verifying payment');
+            toast.error(error.message);
           } finally {
             setProcessingPlan(null);
           }
-        },
-        prefill: {
-          email: currentSubscription?.email || '',
-          name: currentSubscription?.name || ''
         },
         theme: {
           color: '#6366f1'
         },
         modal: {
-          ondismiss: function() {
-            console.log('Payment modal closed');
+          ondismiss: function () {
             setProcessingPlan(null);
           }
         }
@@ -345,34 +277,25 @@ export default function Subscription() {
       const razorpay = new window.Razorpay(options);
       razorpay.open();
 
-      razorpay.on('payment.failed', function (response) {
-        console.error('Payment failed:', response.error);
-        toast.error(`Payment failed: ${response.error.description}`);
-        setProcessingPlan(null);
-      });
-
     } catch (error) {
       console.error('Upgrade error:', error);
-      toast.error(error.message || 'Failed to process upgrade');
+      toast.error(error.message);
       setProcessingPlan(null);
     }
   };
 
   const handleChangePlan = async (planId) => {
-    // Check if this is an upgrade or downgrade
     const currentPlanPrice = plans.find(p => p.id === currentPlan)?.price || 0;
     const targetPlanPrice = plans.find(p => p.id === planId)?.price || 0;
     const isDowngrade = targetPlanPrice < currentPlanPrice;
-    
+
     if (isDowngrade) {
-      // Show confirmation dialog for downgrades
       setSelectedPlan(planId);
       setShowDowngradeDialog(true);
       return;
     }
 
-    // Proceed with upgrade
-    await executePlanChange(planId);
+    executePlanChange(planId);
   };
 
   const executePlanChange = async (planId) => {
@@ -386,9 +309,6 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log('Changing plan to:', planId);
-
-      // Call change plan endpoint
       const response = await fetch(`${apiUrl}/subscriptions/change-plan`, {
         method: 'POST',
         headers: {
@@ -401,61 +321,30 @@ export default function Subscription() {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Plan change failed:', data);
-        toast.error(data.error || 'Failed to change plan', {
-          description: data.details || 'Please try again'
-        });
-        setProcessingPlan(null);
-        return;
+        throw new Error(data.error || 'Failed to change plan');
       }
 
-      console.log('✅ Plan change response:', data);
-
-      // Handle downgrade (no payment required)
       if (isDowngrade) {
-        const endDate = new Date(data.subscription.effectiveDate);
-        const formattedDate = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        toast.success(`Downgrade scheduled for ${formattedDate}`, {
-          description: data.accessInfo.message
-        });
+        toast.success('Downgrade scheduled successfully');
         fetchCurrentSubscription();
         setProcessingPlan(null);
         return;
       }
 
-      // Handle upgrade (requires payment)
       if (data.requiresPayment) {
-        // Load Razorpay script
         const scriptLoaded = await loadRazorpayScript();
-        if (!scriptLoaded) {
-          toast.error('Failed to load payment gateway');
-          setProcessingPlan(null);
-          return;
-        }
+        if (!scriptLoaded) throw new Error('Failed to load payment gateway');
 
         const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-        if (!razorpayKey) {
-          console.error('❌ VITE_RAZORPAY_KEY_ID is missing');
-          toast.error('Payment gateway not configured');
-          setProcessingPlan(null);
-          return;
-        }
-
-        console.log('💳 Initializing Razorpay for upgrade payment');
-        
-        // Initialize Razorpay for upgrade payment
         const options = {
           key: razorpayKey,
-          amount: Math.round(data.amount * 100), // Convert to paise
+          amount: Math.round(data.amount * 100),
           currency: data.currency || 'INR',
           name: 'StudioFlow',
           description: data.description,
           order_id: data.orderId,
-          
           handler: async function (response) {
             try {
-              console.log('Payment successful, verifying upgrade...');
-              // Verify upgrade payment
               const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify-upgrade`, {
                 method: 'POST',
                 headers: {
@@ -473,61 +362,44 @@ export default function Subscription() {
                 toast.success('Upgrade completed successfully!');
                 fetchCurrentSubscription();
               } else {
-                const errorData = await verifyResponse.json().catch(() => ({}));
-                console.error('Payment verification failed:', errorData);
-                toast.error(errorData.error || 'Payment verification failed');
+                throw new Error('Verification failed');
               }
             } catch (error) {
-              console.error('Verification error:', error);
-              toast.error('Error verifying payment');
+              toast.error(error.message);
             } finally {
               setProcessingPlan(null);
             }
           },
-          prefill: {
-            email: currentSubscription?.email || '',
-            name: currentSubscription?.name || ''
-          },
-          theme: {
-            color: '#6366f1'
-          },
-          modal: {
-            ondismiss: function() {
-              console.log('Payment modal closed');
-              setProcessingPlan(null);
-            }
-          }
+          theme: { color: '#6366f1' },
+          modal: { ondismiss: () => setProcessingPlan(null) }
         };
 
         const razorpay = new window.Razorpay(options);
         razorpay.open();
-
-        razorpay.on('payment.failed', function (response) {
-          console.error('Payment failed:', response.error);
-          toast.error(`Payment failed: ${response.error.description}`);
-          setProcessingPlan(null);
-        });
       } else {
-        // No payment required, plan changed immediately
-        toast.success(data.message || 'Plan changed successfully');
+        toast.success('Plan changed successfully');
         fetchCurrentSubscription();
         setProcessingPlan(null);
       }
 
     } catch (error) {
-      console.error('Change plan error:', error);
-      toast.error(error.message || 'Failed to change plan');
+      toast.error(error.message);
       setProcessingPlan(null);
     }
   };
 
   const handleCancelSubscription = async () => {
+    if (!showCancelDialog) {
+      setShowCancelDialog(true);
+      return;
+    }
+
     setShowCancelDialog(false);
 
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       const response = await fetch(`${apiUrl}/subscriptions/cancel`, {
         method: 'POST',
         headers: {
@@ -537,42 +409,22 @@ export default function Subscription() {
         body: JSON.stringify({ reason: 'User requested cancellation' })
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        const accessDate = data.subscription?.accessUntil 
-          ? new Date(data.subscription.accessUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          : 'the end of your billing period';
-        toast.success('Subscription cancelled', {
-          description: `You keep access until ${accessDate}`
-        });
+        toast.success('Subscription cancelled successfully');
         fetchCurrentSubscription();
       } else {
-        console.error('Cancel failed:', data);
-        toast.error(data.error || 'Failed to cancel subscription', {
-          description: data.details || 'Please try again or contact support'
-        });
+        throw new Error('Failed to cancel subscription');
       }
     } catch (error) {
-      console.error('Cancel error:', error);
-      toast.error('Error cancelling subscription', {
-        description: error.message || 'Please check your connection and try again'
-      });
+      toast.error(error.message);
     }
   };
 
   const formatDate = (value) => {
     if (!value) return null;
     const date = new Date(value);
-    // Check for invalid dates (1970 or before 2000)
-    if (Number.isNaN(date.getTime()) || date.getFullYear() < 2000 || date.getFullYear() === 1970) {
-      return null;
-    }
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    if (Number.isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   if (loading) {
@@ -593,166 +445,119 @@ export default function Subscription() {
   const primaryDate = subscriptionStatus === 'trial' ? trialEndDate : renewalDate;
   const dateLabel = statusMeta.dateLabel;
   const autoRenewEnabled = currentSubscription?.subscription?.autoRenew ?? true;
-  const referenceUpdatedAt = formatDate(currentSubscription?.subscription?.updatedAt);
 
   return (
-    <div className="flex-1 space-y-6 p-8">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Subscription</h2>
-        <p className="text-muted-foreground text-slate-400">
-          Start free, scale as you grow. No hidden fees.
-        </p>
+    <div className="min-h-screen bg-background/50">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-12 pt-10 px-8">
+        <div className="max-w-6xl mx-auto text-center">
+          <h1 className="text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+            Choose the Perfect Plan
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Unlock the full potential of StudioFlow with our premium plans.
+            Scale your business with advanced features and priority support.
+          </p>
+        </div>
       </div>
 
-      {/* Checkout Pending Warning */}
-      {subscriptionStatus === 'created' && (
-        <Alert className="bg-amber-900/50 border-amber-500 mb-6">
-          <AlertCircle className="h-5 w-5 text-amber-400" />
-          <AlertTitle className="text-amber-300 font-bold text-lg">Payment Pending - Checkout Not Completed</AlertTitle>
-          <AlertDescription className="text-amber-200">
-            You started a subscription but didn't complete the payment. Please complete the checkout below or the subscription will be cancelled.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Current Plan Overview */}
-      <Card className="border-slate-800 bg-slate-900/40 p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-sm uppercase tracking-wide text-slate-400">Current Plan</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                {subscriptionStatus === 'trial' ? (
-                  <Sparkles className="w-5 h-5 text-amber-300" />
-                ) : (
-                  <Crown className="w-5 h-5 text-primary" />
-                )}
-                <h3 className="text-2xl font-semibold text-white">{activePlanMeta.name}</h3>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClass}`}>
-                {statusMeta.label}
-              </span>
-              {currentPlan !== 'free' && (
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 font-semibold">
-                  ✓ SUBSCRIBED
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-slate-300 max-w-2xl">{statusMeta.description}</p>
-            <div className="text-xs text-slate-500">
-              Updated {referenceUpdatedAt || 'just now'} • Auto-renew {autoRenewEnabled ? 'enabled' : 'disabled'}
-            </div>
-          </div>
-          <div className="grid gap-4 w-full lg:w-auto lg:min-w-[320px]">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-              <p className="text-xs uppercase text-slate-500">{dateLabel}</p>
-              <p className="text-lg font-semibold text-white mt-1">{primaryDate || 'Not scheduled yet'}</p>
-              {subscriptionStatus === 'scheduled_downgrade' && renewalDate && (
-                <p className="text-xs text-slate-500 mt-2">
-                  You will stay on {activePlanMeta.name} until {renewalDate}, then move to {currentSubscription?.subscription?.scheduledPlan?.toUpperCase() || 'the next plan'}.
-                </p>
-              )}
-            </div>
-            {subscriptionStatus === 'trial' && trialEndDate && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                <p className="text-xs uppercase text-amber-300">Trial progress</p>
-                <p className="text-sm text-amber-100 mt-1">
-                  Convert before {trialEndDate} to continue without interruption.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-        {subscriptionStatus === 'active' && activePlanMeta.id !== 'free' && (
-          <div className="mt-6">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => setShowCancelDialog(true)}
-              className="border-2 border-red-500 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-600 font-bold text-base shadow-lg"
-            >
-              <AlertCircle className="w-5 h-5 mr-2" />
-              Cancel Auto-Renew
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      {/* Pricing Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {plans.map((plan) => {
-          const isCurrentPlan = currentPlan === plan.id;
-          const subscriptionStatus = currentSubscription?.subscription?.status;
-          const isActive = subscriptionStatus === 'active';
-          const isExpiredOrCancelled = ['expired', 'cancelled', 'inactive'].includes(subscriptionStatus);
-          const isScheduledDowngrade = subscriptionStatus === 'scheduled_downgrade';
-          
-          // Determine if button should be enabled:
-          // - Free plan: always disabled
-          // - Current plan + active: disabled (already have it)
-          // - Current plan + expired/cancelled: enabled (reactivate)
-          // - Different paid plan: enabled (upgrade/downgrade)
-          const isButtonDisabled = plan.id === 'free' || 
-                                   (isCurrentPlan && isActive) || 
-                                   processingPlan === plan.id;
-          
-          // Determine button action and text
-          const isReactivation = isCurrentPlan && isExpiredOrCancelled;
-          const isUpgrade = !isCurrentPlan && (currentPlan === 'free' || plan.id === 'studio');
-          const isDowngrade = !isCurrentPlan && currentPlan === 'studio' && plan.id === 'pro';
-          
-          return (
-            <Card
-              key={plan.id}
-              className={`relative bg-card border-slate-800 ${
-                plan.popular ? 'ring-2 ring-primary' : ''
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <Badge className="bg-primary text-white">POPULAR</Badge>
-                </div>
-              )}
-              
-              <div className="p-6">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
-                  <p className="text-sm text-slate-400">{plan.subtitle}</p>
-                </div>
-
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">
-                      {plan.currency}{plan.price}
-                    </span>
-                    <span className="text-slate-400">{plan.period}</span>
+      <div className="max-w-6xl mx-auto px-8 py-12">
+        {/* Current Subscription Status */}
+        {currentPlan !== 'free' && (
+          <div className="mb-12">
+            <Card className="border-primary/20 bg-primary/5 p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-32 bg-primary/10 blur-3xl rounded-full -mr-16 -mt-16" />
+              <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/20 rounded-xl">
+                    <activePlanMeta.icon className="w-8 h-8 text-primary" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h3 className="text-xl font-bold">{activePlanMeta.name} Plan</h3>
+                      <Badge className={badgeClass}>{statusMeta.label}</Badge>
+                    </div>
+                    <p className="text-muted-foreground">
+                      {statusMeta.description} • {dateLabel} {primaryDate}
+                    </p>
                   </div>
                 </div>
 
-                <ul className="space-y-3 mb-6">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-slate-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                {subscriptionStatus === 'active' && (
+                  <Button
+                    variant="outline"
+                    className="border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={handleCancelSubscription}
+                  >
+                    Cancel Subscription
+                  </Button>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Pricing Cards */}
+        <div className="grid gap-8 md:grid-cols-3">
+          {plans.map((plan) => {
+            const isCurrentPlan = currentPlan === plan.id;
+            const isActive = subscriptionStatus === 'active';
+            const isReactivation = isCurrentPlan && ['expired', 'cancelled'].includes(subscriptionStatus);
+            const isUpgrade = !isCurrentPlan && (currentPlan === 'free' || plan.id === 'studio');
+            const isDowngrade = !isCurrentPlan && currentPlan === 'studio' && plan.id === 'pro';
+            const isButtonDisabled = plan.id === 'free' || (isCurrentPlan && isActive) || processingPlan === plan.id;
+
+            return (
+              <Card
+                key={plan.id}
+                className={`relative flex flex-col p-8 transition-all duration-300 hover:translate-y-[-4px] ${plan.popular
+                  ? 'border-primary shadow-2xl shadow-primary/10 bg-card'
+                  : 'border-border/50 bg-card/50 hover:bg-card hover:border-border'
+                  }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary text-primary-foreground px-4 py-1 text-sm shadow-lg shadow-primary/20">
+                      MOST POPULAR
+                    </Badge>
+                  </div>
+                )}
+
+                <div className="mb-6">
+                  <div className="p-3 w-fit rounded-xl bg-muted/50 mb-4">
+                    <plan.icon className={`w-6 h-6 text-${plan.color}-500`} />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                  <p className="text-muted-foreground text-sm h-10">{plan.subtitle}</p>
+                </div>
+
+                <div className="mb-8">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-bold">{plan.currency}{plan.price}</span>
+                    <span className="text-muted-foreground">{plan.period}</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 mb-8">
+                  <ul className="space-y-4">
+                    {plan.features.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm">
+                        <div className={`mt-1 p-0.5 rounded-full bg-${plan.color}-500/20`}>
+                          <Check className={`w-3 h-3 text-${plan.color}-500`} />
+                        </div>
+                        <span className="text-muted-foreground">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
 
                 <Button
-                  className={`w-full font-bold text-lg py-7 transition-all duration-200 ${
-                    plan.popular
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-2xl shadow-purple-500/50 border-2 border-purple-400'
-                      : isReactivation
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-2xl shadow-green-500/50 border-2 border-green-400'
-                      : isButtonDisabled
-                      ? 'bg-slate-800/50 text-slate-500 border-2 border-slate-700'
-                      : 'bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white shadow-xl border-2 border-slate-500'
-                  }`}
-                  disabled={isButtonDisabled}
+                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${plan.popular
+                    ? 'bg-primary hover:bg-primary/90 shadow-primary/25'
+                    : 'bg-secondary hover:bg-secondary/80'
+                    }`}
+                  disabled={isButtonDisabled || (isReactivation && new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date())}
                   onClick={() => {
-                    // If upgrading from free or reactivating, use handleUpgrade
-                    // Otherwise (switching between paid plans), use handleChangePlan
                     if (currentPlan === 'free' || isReactivation) {
                       handleUpgrade(plan.id);
                     } else {
@@ -765,86 +570,78 @@ export default function Subscription() {
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
                     </>
-                  ) : plan.id === 'free' ? (
-                    'Free Plan'
-                  ) : (isCurrentPlan && isActive) ? (
+                  ) : isCurrentPlan && isActive ? (
                     'Current Plan'
-                  ) : (isCurrentPlan && isScheduledDowngrade) ? (
-                    'Downgrade Scheduled'
                   ) : isReactivation ? (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Reactivate {plan.name}
-                    </>
+                    new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date()
+                      ? `Access until ${new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString()}`
+                      : 'Reactivate Plan'
                   ) : isUpgrade ? (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Upgrade to {plan.name}
-                    </>
+                    'Upgrade Plan'
                   ) : isDowngrade ? (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Downgrade to {plan.name}
-                    </>
+                    'Downgrade Plan'
                   ) : (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Subscribe to {plan.name}
-                    </>
+                    'Get Started'
                   )}
                 </Button>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* FAQ or Trust Section could go here */}
+        <div className="mt-20 text-center">
+          <p className="text-muted-foreground text-sm">
+            Secure payments powered by Razorpay. Cancel anytime.
+          </p>
+        </div>
+        {/* Features Comparison */}
+        <Card className="bg-card border-slate-800 p-6 mt-12">
+          <h3 className="text-lg font-semibold text-white mb-4">All Plans Include</h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-5 h-5 text-primary" />
               </div>
-            </Card>
-          );
-        })}
+              <div>
+                <p className="font-medium text-white">Project Management</p>
+                <p className="text-sm text-slate-400">Organize and track all your projects</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-white">Client Collaboration</p>
+                <p className="text-sm text-slate-400">Work together seamlessly</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-white">Invoicing</p>
+                <p className="text-sm text-slate-400">Professional invoicing tools</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Security Note */}
+        <Card className="bg-slate-900/50 border-slate-800 p-4 mt-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-white">Secure Payment via Razorpay</p>
+              <p className="text-sm text-slate-400">
+                All payments are processed securely through Razorpay. We never store your card details.
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
-
-      {/* Features Comparison */}
-      <Card className="bg-card border-slate-800 p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">All Plans Include</h3>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium text-white">Project Management</p>
-              <p className="text-sm text-slate-400">Organize and track all your projects</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium text-white">Client Collaboration</p>
-              <p className="text-sm text-slate-400">Work together seamlessly</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium text-white">Invoicing</p>
-              <p className="text-sm text-slate-400">Professional invoicing tools</p>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Security Note */}
-      <Card className="bg-slate-900/50 border-slate-800 p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-white">Secure Payment via Razorpay</p>
-            <p className="text-sm text-slate-400">
-              All payments are processed securely through Razorpay. We never store your card details.
-            </p>
-          </div>
-        </div>
-      </Card>
 
       {/* Cancel Subscription Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
@@ -852,7 +649,7 @@ export default function Subscription() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Cancel Subscription?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              Your subscription will be cancelled and you will be downgraded to the Free plan. 
+              Your subscription will be cancelled and you will be downgraded to the Free plan.
               Any remaining subscription time will be lost, and premium features will be revoked immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -876,14 +673,14 @@ export default function Subscription() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Downgrade Plan?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              You are downgrading to {plans.find(p => p.id === selectedPlan)?.name} plan. 
+              You are downgrading to {plans.find(p => p.id === selectedPlan)?.name} plan.
               Your current plan will remain active until{' '}
-              {new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                year: 'numeric' 
+              {new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
               })}, after which you'll be charged ₹{plans.find(p => p.id === selectedPlan)?.price}/month.
-              <br/><br/>
+              <br /><br />
               <strong>No payment required now.</strong> You'll keep access to your current plan features until the end of your billing period.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -7,25 +7,37 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Switch } from '../components/ui/switch';
 import { toast } from 'sonner';
 import BillingDetails from '../components/BillingDetails';
 import BillingHistory from '../components/BillingHistory';
 import SubscriptionAlert from '../components/SubscriptionAlert';
-import { getSubscriptionStatusMessage, getStatusBadgeVariant } from '../lib/subscriptionUtils';
-import { 
-  Settings as SettingsIcon, 
-  User, 
-  Bell, 
+import {
+  Settings as SettingsIcon,
+  User,
+  Bell,
   Shield,
   CreditCard,
   Loader2,
   Check,
-  Crown,
   Mail,
   Calendar,
-  Receipt
+  Receipt,
+  ChevronRight,
+  LogOut,
+  Smartphone,
+  Globe
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 export default function Settings() {
   const { user } = useUser();
@@ -33,6 +45,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [subscription, setSubscription] = useState(null);
   const [activeSection, setActiveSection] = useState('account');
   const [preferences, setPreferences] = useState({
@@ -57,12 +70,6 @@ export default function Settings() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Settings - Subscription Data:', {
-          plan: data.subscription?.plan,
-          status: data.subscription?.status,
-          autoRenew: data.subscription?.autoRenew,
-          subscriptionEndDate: data.subscription?.subscriptionEndDate
-        });
         setSubscription(data);
       }
     } catch (error) {
@@ -72,18 +79,17 @@ export default function Settings() {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    const confirmed = window.confirm(
-      'Are you sure you want to cancel your subscription? A prorated refund will be issued, and Pro features will be revoked immediately. You will be downgraded to the Free plan.'
-    );
+  const handleCancelSubscription = () => {
+    setShowCancelDialog(true);
+  };
 
-    if (!confirmed) return;
-
+  const executeCancellation = async () => {
+    setShowCancelDialog(false);
     setIsCancelling(true);
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       const response = await fetch(`${apiUrl}/subscriptions/cancel`, {
         method: 'POST',
         headers: {
@@ -96,17 +102,15 @@ export default function Settings() {
 
       if (response.ok) {
         const refundInfo = data.refund;
-        
+
         toast.success('Subscription cancelled successfully', {
-          description: refundInfo.amount > 0 
+          description: refundInfo.amount > 0
             ? `A refund of ₹${refundInfo.amount} will be processed. You have been downgraded to the Free plan.`
             : 'You have been downgraded to the Free plan.'
         });
-        
-        // Refresh subscription data to show updated status
+
         await fetchSubscription();
-        
-        // Optionally reload the page to refresh all data
+
         setTimeout(() => {
           window.location.reload();
         }, 2000);
@@ -128,12 +132,8 @@ export default function Settings() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
-      // Get current plan to reactivate
       const currentPlan = subscription?.plan?.id || 'pro';
-      
-      console.log('Reactivating subscription for plan:', currentPlan);
-      
+
       const response = await fetch(`${apiUrl}/subscriptions/reactivate`, {
         method: 'POST',
         headers: {
@@ -146,15 +146,11 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
-        // Check if immediate payment is required
         if (data.noImmediateCharge || data.alreadyPaid) {
-          // Subscription reactivated without payment - auto-renew enabled or already paid
-          console.log('Subscription reactivated without immediate charge');
-          
-          const messageDetails = data.alreadyPaid 
+          const messageDetails = data.alreadyPaid
             ? `You already paid for this period. Access restored until ${new Date(data.subscription.subscriptionEndDate).toLocaleDateString()}`
             : `Auto-renew enabled. Next billing: ${new Date(data.subscription.nextBillingDate).toLocaleDateString()}`;
-          
+
           toast.success(data.message || 'Subscription reactivated successfully!', {
             description: messageDetails
           });
@@ -162,10 +158,8 @@ export default function Settings() {
           setIsCancelling(false);
           return;
         }
-        
-        // Check if trial was started
+
         if (data.trial) {
-          console.log('Trial started, no payment required');
           const trialEndDate = new Date(data.subscription.trialEnd).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -178,10 +172,7 @@ export default function Settings() {
           setIsCancelling(false);
           return;
         }
-        
-        // Payment required - load Razorpay
-        console.log('Payment required for reactivation, loading Razorpay...');
-        
+
         const loadScript = () => {
           return new Promise((resolve) => {
             const script = document.createElement('script');
@@ -196,17 +187,13 @@ export default function Settings() {
         if (!scriptLoaded) {
           throw new Error('Failed to load payment gateway');
         }
-        
-        console.log('Razorpay script loaded, opening payment modal');
-        console.log('Subscription ID:', data.subscriptionId);
-        
-        // Initialize Razorpay for payment
+
         const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-        
+
         if (!razorpayKey) {
           throw new Error('Payment gateway not configured');
         }
-        
+
         const options = {
           key: razorpayKey,
           subscription_id: data.subscriptionId,
@@ -214,8 +201,6 @@ export default function Settings() {
           description: `Reactivate ${currentPlan.toUpperCase()} Plan`,
           handler: async function (response) {
             try {
-              console.log('Payment successful, verifying...');
-              // Verify payment
               const verifyResponse = await fetch(`${apiUrl}/subscriptions/verify`, {
                 method: 'POST',
                 headers: {
@@ -244,8 +229,7 @@ export default function Settings() {
             }
           },
           modal: {
-            ondismiss: function() {
-              console.log('Payment modal closed');
+            ondismiss: function () {
               setIsCancelling(false);
             }
           },
@@ -275,7 +259,6 @@ export default function Settings() {
   const savePreferences = async () => {
     setSaving(true);
     try {
-      // Simulate API call - implement actual endpoint later
       await new Promise(resolve => setTimeout(resolve, 1000));
       toast.success('Preferences saved successfully');
     } catch (error) {
@@ -285,349 +268,303 @@ export default function Settings() {
     }
   };
 
-  const getPlanBadge = (plan) => {
-    const badges = {
-      free: { color: 'bg-muted text-muted-foreground border-border', label: 'Free' },
-      pro: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', label: 'Pro' },
-      studio: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', label: 'Studio' }
-    };
-    return badges[plan] || badges.free;
-  };
-
-  const currentPlan = subscription?.subscription?.plan || 'free';
-  const planBadge = getPlanBadge(currentPlan);
+  const navItems = [
+    { id: 'account', label: 'Account', icon: User, description: 'Profile & personal details' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email & push alerts' },
+    { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Plan & payment history' },
+    { id: 'security', label: 'Security', icon: Shield, description: 'Password & 2FA' },
+  ];
 
   return (
-    <div className="flex-1 space-y-6 p-8">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Settings</h2>
-        <p className="text-muted-foreground text-slate-400">
-          Manage your account settings and preferences
-        </p>
+    <div className="min-h-screen bg-background/50">
+      {/* Header Section */}
+      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-8 pt-10 px-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <SettingsIcon className="w-6 h-6 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          </div>
+          <p className="text-muted-foreground text-lg ml-14">
+            Manage your account settings, preferences, and subscription
+          </p>
+        </div>
       </div>
 
-      {/* Subscription Alert */}
-      {subscription && <SubscriptionAlert subscription={subscription.subscription} />}
+      <div className="max-w-6xl mx-auto px-8 py-8">
+        {subscription && <SubscriptionAlert subscription={subscription.subscription} />}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Sidebar Navigation */}
-          <div className="md:col-span-1">
-            <Card className="bg-card border-slate-800 sticky top-6">
-              <CardContent className="p-4">
-                <nav className="space-y-1">
-                  <button 
-                    onClick={() => setActiveSection('account')}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      activeSection === 'account' 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <User className="w-4 h-4" />
-                    <span className="font-medium">Account</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveSection('notifications')}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      activeSection === 'notifications' 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <Bell className="w-4 h-4" />
-                    <span className="font-medium">Notifications</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveSection('billing')}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      activeSection === 'billing' 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span className="font-medium">Billing</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveSection('security')}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                      activeSection === 'security' 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <Shield className="w-4 h-4" />
-                    <span className="font-medium">Security</span>
-                  </button>
-                </nav>
-              </CardContent>
-            </Card>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-
-          {/* Main Content */}
-          <div className="md:col-span-2 space-y-6">
-            {/* Account Information */}
-            {activeSection === 'account' && (
-            <Card className="bg-card border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white">Account Information</CardTitle>
-                <CardDescription>Your personal account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={user?.imageUrl || '/default-avatar.png'} 
-                    alt={user?.fullName || 'User'} 
-                    className="w-16 h-16 rounded-full border-2 border-slate-700"
-                  />
-                  <div>
-                    <p className="font-semibold text-white">{user?.fullName || 'User'}</p>
-                    <p className="text-sm text-slate-400">{user?.primaryEmailAddress?.emailAddress}</p>
-                  </div>
-                </div>
-
-                <Separator className="bg-slate-800" />
-
-                <div className="grid gap-4">
-                  <div>
-                    <Label className="text-slate-300">Full Name</Label>
-                    <Input 
-                      value={user?.fullName || ''} 
-                      disabled
-                      className="mt-1.5 bg-slate-900 border-slate-700 text-slate-400"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Managed by Clerk authentication</p>
-                  </div>
-
-                  <div>
-                    <Label className="text-slate-300">Email Address</Label>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <Input 
-                        value={user?.primaryEmailAddress?.emailAddress || ''} 
-                        disabled
-                        className="bg-slate-900 border-slate-700 text-slate-400"
-                      />
-                      {user?.primaryEmailAddress?.verification?.status === 'verified' && (
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                          <Check className="w-3 h-3 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-slate-300">Member Since</Label>
-                    <div className="mt-1.5 flex items-center gap-2 text-slate-400">
-                      <Calendar className="w-4 h-4" />
-                      <span>{new Date(user?.createdAt).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            )}
-
-            {/* Billing & Subscription */}
-            {activeSection === 'billing' && (
-            <div>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CreditCard className="w-5 h-5" />
-                Billing & Subscription
-              </h2>
-              
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="overview" className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4" />
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger value="history" className="flex items-center gap-2">
-                    <Receipt className="w-4 h-4" />
-                    Payment History
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview">
-                  <BillingDetails 
-                    subscription={subscription}
-                    onCancel={handleCancelSubscription}
-                    onReactivate={handleReactivateSubscription}
-                    loading={isCancelling}
-                  />
-                </TabsContent>
-
-                <TabsContent value="history">
-                  <BillingHistory />
-                </TabsContent>
-              </Tabs>
-            </div>
-            )}
-
-            {/* Notification Preferences */}
-            {activeSection === 'notifications' && (
-            <Card className="bg-card border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Notifications
-                </CardTitle>
-                <CardDescription>Manage your notification preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-white">Email Notifications</Label>
-                      <p className="text-sm text-slate-400">Receive email updates about your projects</p>
-                    </div>
-                    <button
-                      onClick={() => handlePreferenceChange('emailNotifications', !preferences.emailNotifications)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        preferences.emailNotifications ? 'bg-primary' : 'bg-slate-700'
+        ) : (
+          <div className="grid grid-cols-12 gap-8">
+            {/* Sidebar Navigation */}
+            <div className="col-span-12 md:col-span-3 space-y-2">
+              <div className="sticky top-6 space-y-1">
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left ${activeSection === item.id
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                      : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'
                       }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          preferences.emailNotifications ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <Separator className="bg-slate-800" />
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-white">Project Updates</Label>
-                      <p className="text-sm text-slate-400">Get notified when projects are updated</p>
-                    </div>
-                    <button
-                      onClick={() => handlePreferenceChange('projectUpdates', !preferences.projectUpdates)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        preferences.projectUpdates ? 'bg-primary' : 'bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          preferences.projectUpdates ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <Separator className="bg-slate-800" />
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-white">Marketing Emails</Label>
-                      <p className="text-sm text-slate-400">Receive updates about new features</p>
-                    </div>
-                    <button
-                      onClick={() => handlePreferenceChange('marketingEmails', !preferences.marketingEmails)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        preferences.marketingEmails ? 'bg-primary' : 'bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          preferences.marketingEmails ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-4">
-                  <Button 
-                    onClick={savePreferences}
-                    disabled={saving}
-                    className="w-full bg-primary hover:bg-primary/90"
                   >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Preferences'
+                    <item.icon className={`w-5 h-5 ${activeSection === item.id ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-accent-foreground'}`} />
+                    <div>
+                      <div className="font-medium text-sm">{item.label}</div>
+                    </div>
+                    {activeSection === item.id && (
+                      <ChevronRight className="w-4 h-4 ml-auto opacity-50" />
                     )}
-                  </Button>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="col-span-12 md:col-span-9 space-y-6">
+              {/* Account Section */}
+              {activeSection === 'account' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Card className="border-border/50 shadow-sm">
+                    <CardHeader>
+                      <CardTitle>Profile Information</CardTitle>
+                      <CardDescription>Update your photo and personal details</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8">
+                      <div className="flex items-center gap-6">
+                        <div className="relative group">
+                          <img
+                            src={user?.imageUrl || '/default-avatar.png'}
+                            alt={user?.fullName || 'User'}
+                            className="w-24 h-24 rounded-full border-4 border-background shadow-xl"
+                          />
+                          <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                            <span className="text-xs text-white font-medium">Change</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-xl font-semibold">{user?.fullName || 'User'}</h3>
+                          <p className="text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</p>
+                          <Badge variant="secondary" className="mt-2">
+                            Member since {new Date(user?.createdAt).getFullYear()}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="grid gap-6 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Full Name</Label>
+                          <Input
+                            value={user?.fullName || ''}
+                            disabled
+                            className="bg-muted/50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Email Address</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={user?.primaryEmailAddress?.emailAddress || ''}
+                              disabled
+                              className="bg-muted/50"
+                            />
+                            {user?.primaryEmailAddress?.verification?.status === 'verified' && (
+                              <div className="flex items-center justify-center w-10 bg-emerald-500/10 rounded-md border border-emerald-500/20">
+                                <Check className="w-4 h-4 text-emerald-500" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
-            )}
+              )}
 
-            {/* Security Section */}
-            {activeSection === 'security' && (
-            <Card className="bg-card border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  Security
-                </CardTitle>
-                <CardDescription>Manage your account security settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-white">Password</Label>
-                    <p className="text-sm text-slate-400 mb-3">Your password is managed by Clerk authentication</p>
-                    <Button 
-                      variant="outline" 
-                      className="border-slate-700 text-white hover:bg-slate-800"
-                      onClick={() => user?.openManageAccount()}
-                    >
-                      Change Password
-                    </Button>
-                  </div>
+              {/* Notifications Section */}
+              {activeSection === 'notifications' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Card className="border-border/50 shadow-sm">
+                    <CardHeader>
+                      <CardTitle>Notification Preferences</CardTitle>
+                      <CardDescription>Choose how you want to be notified</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-primary" />
+                            <Label className="text-base">Email Notifications</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground pl-6">Receive email updates about your projects</p>
+                        </div>
+                        <Switch
+                          checked={preferences.emailNotifications}
+                          onCheckedChange={(checked) => handlePreferenceChange('emailNotifications', checked)}
+                        />
+                      </div>
 
-                  <Separator className="bg-slate-800" />
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-primary" />
+                            <Label className="text-base">Project Updates</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground pl-6">Get notified when projects are updated</p>
+                        </div>
+                        <Switch
+                          checked={preferences.projectUpdates}
+                          onCheckedChange={(checked) => handlePreferenceChange('projectUpdates', checked)}
+                        />
+                      </div>
 
-                  <div>
-                    <Label className="text-white">Two-Factor Authentication</Label>
-                    <p className="text-sm text-slate-400 mb-3">Add an extra layer of security to your account</p>
-                    <Button 
-                      variant="outline" 
-                      className="border-slate-700 text-white hover:bg-slate-800"
-                      onClick={() => user?.openManageAccount({ section: 'mfa' })}
-                    >
-                      Manage 2FA
-                    </Button>
-                  </div>
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-primary" />
+                            <Label className="text-base">Marketing Emails</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground pl-6">Receive updates about new features</p>
+                        </div>
+                        <Switch
+                          checked={preferences.marketingEmails}
+                          onCheckedChange={(checked) => handlePreferenceChange('marketingEmails', checked)}
+                        />
+                      </div>
 
-                  <Separator className="bg-slate-800" />
-
-                  <div>
-                    <Label className="text-white">Active Sessions</Label>
-                    <p className="text-sm text-slate-400 mb-3">Manage devices where you're currently logged in</p>
-                    <Button 
-                      variant="outline" 
-                      className="border-slate-700 text-white hover:bg-slate-800"
-                      onClick={() => user?.openManageAccount({ section: 'sessions' })}
-                    >
-                      View Sessions
-                    </Button>
-                  </div>
+                      <div className="pt-4 flex justify-end">
+                        <Button
+                          onClick={savePreferences}
+                          disabled={saving}
+                          className="min-w-[120px]"
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            'Save Changes'
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
-            )}
+              )}
 
+              {/* Billing Section */}
+              {activeSection === 'billing' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Tabs defaultValue="overview" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 mb-6">
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="history">Payment History</TabsTrigger>
+                    </TabsList>
 
+                    <TabsContent value="overview" className="space-y-6">
+                      <BillingDetails
+                        subscription={subscription}
+                        onCancel={handleCancelSubscription}
+                        onReactivate={handleReactivateSubscription}
+                        loading={isCancelling}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="history">
+                      <BillingHistory />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              )}
+
+              {/* Security Section */}
+              {activeSection === 'security' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Card className="border-border/50 shadow-sm">
+                    <CardHeader>
+                      <CardTitle>Security Settings</CardTitle>
+                      <CardDescription>Manage your account security and sessions</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid gap-4">
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-primary/10 rounded-full">
+                              <Shield className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Password</p>
+                              <p className="text-sm text-muted-foreground">Last changed via Clerk</p>
+                            </div>
+                          </div>
+                          <Button variant="outline" onClick={() => user?.openManageAccount()}>
+                            Change
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-primary/10 rounded-full">
+                              <Smartphone className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Two-Factor Authentication</p>
+                              <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
+                            </div>
+                          </div>
+                          <Button variant="outline" onClick={() => user?.openManageAccount({ section: 'mfa' })}>
+                            Manage
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-primary/10 rounded-full">
+                              <LogOut className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Active Sessions</p>
+                              <p className="text-sm text-muted-foreground">Manage logged-in devices</p>
+                            </div>
+                          </div>
+                          <Button variant="outline" onClick={() => user?.openManageAccount({ section: 'sessions' })}>
+                            View All
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel your subscription? A prorated refund will be issued, and Pro features will be revoked immediately. You will be downgraded to the Free plan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+            <AlertDialogAction onClick={executeCancellation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, Cancel Subscription
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

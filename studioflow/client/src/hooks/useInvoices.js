@@ -31,14 +31,14 @@ export const useInvoices = () => {
 
     try {
       await invoicesApi.setAuthToken(getToken);
-      
+
       // Build query parameters
       const queryParams = {
         status: filters.status,
         search: filters.search,
         ...options
       };
-      
+
       const response = await invoicesApi.getInvoices(queryParams);
 
       console.log('Fetched invoices response:', response);
@@ -55,7 +55,7 @@ export const useInvoices = () => {
       const errorMessage = err.message || 'Unknown error occurred';
       setError(errorMessage);
       setInvoices([]);
-      
+
       // Only show toast for non-network errors to avoid duplicate error UI
       if (!errorMessage.toLowerCase().includes('network') && !errorMessage.toLowerCase().includes('fetch')) {
         toast.error('Failed to load invoices', {
@@ -74,15 +74,15 @@ export const useInvoices = () => {
   const createInvoice = useCallback(async (invoiceData) => {
     try {
       console.log('Creating invoice with payload:', invoiceData);
-      
+
       await invoicesApi.setAuthToken(getToken);
       const response = await invoicesApi.createInvoice(invoiceData);
-      
+
       console.log('Invoice created successfully:', response);
-      
+
       // Refresh list so InvoiceTable includes the new invoice
       await fetchInvoices();
-      
+
       toast.success('Invoice created successfully');
       return response;
     } catch (err) {
@@ -101,7 +101,7 @@ export const useInvoices = () => {
     try {
       await invoicesApi.setAuthToken(getToken);
       const response = await invoicesApi.sendInvoice(invoiceId, emailData);
-      
+
       toast.success('Invoice sent successfully');
       return response;
     } catch (err) {
@@ -120,7 +120,7 @@ export const useInvoices = () => {
     try {
       await invoicesApi.setAuthToken(getToken);
       const response = await invoicesApi.createPaymentOrder(invoiceId);
-      
+
       return response;
     } catch (err) {
       console.error('Failed to create payment order:', err);
@@ -138,10 +138,10 @@ export const useInvoices = () => {
     try {
       await invoicesApi.setAuthToken(getToken);
       const response = await invoicesApi.verifyInvoicePayment(invoiceId, paymentData);
-      
+
       // Refresh invoices to show updated status
       await fetchInvoices();
-      
+
       toast.success('Payment verified successfully');
       return response;
     } catch (err) {
@@ -159,9 +159,11 @@ export const useInvoices = () => {
   const downloadInvoice = useCallback(async (invoiceId, invoiceNumber) => {
     try {
       await invoicesApi.setAuthToken(getToken);
-      await invoicesApi.downloadInvoicePdf(invoiceId, invoiceNumber);
-      
-      toast.success('Invoice downloaded');
+      // Use the project invoice download endpoint
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
+      window.open(`${apiUrl}/api/invoices/project/${invoiceNumber}/download`, '_blank');
+
+      toast.success('Download started');
     } catch (err) {
       console.error('Failed to download invoice:', err);
       toast.error('Download failed', {
@@ -290,7 +292,7 @@ export const useInvoices = () => {
 
     invoices.forEach(invoice => {
       const amount = invoice.total || 0;
-      
+
       // Only add to totalBilled if not cancelled or draft
       if (invoice.status !== 'cancelled' && invoice.status !== 'draft') {
         stats.totalBilled += amount;

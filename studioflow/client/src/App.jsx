@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Toaster } from './components/ui/sonner';
 import ErrorBoundary from './components/ErrorBoundary';
+import NetworkError from './pages/NetworkError';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
@@ -52,9 +53,12 @@ function App() {
           <Route path="/terms-conditions" element={<TermsConditions />} />
           <Route path="/cancellation-refund" element={<CancellationRefund />} />
           <Route path="/shipping-delivery" element={<ShippingDelivery />} />
+
+
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
-          
+          <Route path="/network-error" element={<NetworkError />} />
+
           {/* Shared Files - Protected Route */}
           <Route
             path="/shared/files/:shareToken"
@@ -64,7 +68,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           {/* Dashboard with nested routes */}
           <Route
             path="/dashboard"
@@ -86,7 +90,7 @@ function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="trash" element={<Trash />} />
           </Route>
-          
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Analytics />

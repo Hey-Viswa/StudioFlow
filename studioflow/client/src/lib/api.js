@@ -14,12 +14,35 @@ const getToken = async () => {
   return null;
 };
 
+// Helper to handle fetch errors
+const handleFetch = async (url, options) => {
+  try {
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      if (response.status >= 500) {
+        window.location.href = '/network-error';
+        throw new Error(`Server Error: ${response.statusText}`);
+      }
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    // Check if it's a network error (TypeError is often thrown for network issues)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      window.location.href = '/network-error';
+    }
+    throw error;
+  }
+};
+
 // API client with auth
 const api = {
   get: async (endpoint, options = {}) => {
     const url = getApiUrl(endpoint);
     const { getToken: tokenGetter, ...fetchOptions } = options;
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,
@@ -33,23 +56,17 @@ const api = {
       }
     }
 
-    const response = await fetch(url, {
+    return handleFetch(url, {
       ...fetchOptions,
       method: 'GET',
       headers,
     });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    return response.json();
   },
 
   post: async (endpoint, data, options = {}) => {
     const url = getApiUrl(endpoint);
     const { getToken: tokenGetter, ...fetchOptions } = options;
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,
@@ -63,24 +80,18 @@ const api = {
       }
     }
 
-    const response = await fetch(url, {
+    return handleFetch(url, {
       ...fetchOptions,
       method: 'POST',
       headers,
       body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    return response.json();
   },
 
   put: async (endpoint, data, options = {}) => {
     const url = getApiUrl(endpoint);
     const { getToken: tokenGetter, ...fetchOptions } = options;
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,
@@ -93,24 +104,18 @@ const api = {
       }
     }
 
-    const response = await fetch(url, {
+    return handleFetch(url, {
       ...fetchOptions,
       method: 'PUT',
       headers,
       body: JSON.stringify(data),
     });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    return response.json();
   },
 
   delete: async (endpoint, options = {}) => {
     const url = getApiUrl(endpoint);
     const { getToken: tokenGetter, ...fetchOptions } = options;
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,
@@ -123,17 +128,11 @@ const api = {
       }
     }
 
-    const response = await fetch(url, {
+    return handleFetch(url, {
       ...fetchOptions,
       method: 'DELETE',
       headers,
     });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`);
-    }
-
-    return response.json();
   }
 };
 

@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import { getIO } from '../config/socket.js';
-import { sendEmail, sendPushNotification, isMessagingAvailable } from '../config/appwriteMessaging.js';
+import { sendEmail, isMessagingAvailable } from '../config/appwriteMessaging.js';
+import { sendPushNotification as sendFCMPush, isFirebaseAvailable } from '../config/firebase.js';
 import { emailQueue } from '../config/queue.js';
 import crypto from 'crypto';
 
@@ -224,32 +225,58 @@ const sendNotificationEmail = async (userId, notification) => {
 };
 
 /**
- * Send push notification via Appwrite
+ * Send push notification via Firebase Cloud Messaging
  */
 const sendNotificationPush = async (userId, notification) => {
-  if (!isMessagingAvailable()) {
-    console.warn('⚠️  Appwrite Messaging not available for push notifications');
+  if (!isFirebaseAvailable()) {
+    console.warn('⚠️  Firebase not configured - push notifications disabled');
     return;
   }
 
   try {
-    await sendPushNotification({
-      userId,
+    // Get user's FCM token from database (you'll need to store this when user registers device)
+    const fcmToken = await getUserFCMToken(userId);
+    
+    if (!fcmToken) {
+      console.warn(`⚠️  No FCM token found for user ${userId}`);
+      return;
+    }
+
+    await sendFCMPush({
+      token: fcmToken,
       title: notification.title,
       body: notification.message,
       data: {
         notificationId: notification._id.toString(),
         type: notification.type,
-        link: notification.link,
         category: notification.category,
         priority: notification.priority
       },
-      action: notification.link ? `studioflow://notification${notification.link}` : null
+      link: notification.link ? `${process.env.CLIENT_URL || 'http://localhost:3002'}${notification.link}` : null
     });
-    console.log(`✅ Push notification sent to user ${userId}`);
+    
+    console.log(`✅ Push notification sent via FCM to user ${userId}`);
   } catch (error) {
     console.error('❌ Send push notification error:', error);
-    throw error;
+    // Don't throw - push is non-critical
+  }
+};
+
+/**
+ * Get user's FCM token from database
+ * TODO: Implement storage of FCM tokens when users register devices
+ */
+const getUserFCMToken = async (userId) => {
+  try {
+    // For now, you'll need to store FCM tokens in your User model or a separate collection
+    // Example: const user = await User.findOne({ clerkId: userId });
+    // return user?.fcmToken;
+    
+    // Placeholder: return null until you implement FCM token storage
+    return null;
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+    return null;
   }
 };
 

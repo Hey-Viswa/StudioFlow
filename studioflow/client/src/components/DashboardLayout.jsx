@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { Button } from './ui/button';
-import { 
-  LayoutDashboard, 
-  FolderKanban, 
-  Receipt, 
-  CreditCard, 
-  Settings, 
-  Plus, 
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Receipt,
+  CreditCard,
+  Settings,
+  Plus,
   Trash2,
   Menu,
   ChevronLeft,
@@ -23,7 +23,6 @@ export default function DashboardLayout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Notifications', path: '/dashboard/notifications', icon: Bell },
     { name: 'Projects', path: '/dashboard/projects', icon: FolderKanban },
     { name: 'Invoices', path: '/dashboard/invoices', icon: Receipt },
     { name: 'Subscription', path: '/dashboard/subscription', icon: CreditCard },
@@ -36,19 +35,17 @@ export default function DashboardLayout() {
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside 
-        className={`${
-          sidebarCollapsed ? 'w-16' : 'w-64'
-        } ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } fixed lg:relative h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 ease-in-out z-50`}
+      <aside
+        className={`${sidebarCollapsed ? 'w-16' : 'w-64'
+          } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          } fixed lg:relative h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 ease-in-out z-50`}
       >
         {/* Toggle Button - Desktop Only */}
         <Button
@@ -95,22 +92,19 @@ export default function DashboardLayout() {
                     onClick={() => setMobileMenuOpen(false)}
                     title={sidebarCollapsed ? item.name : ''}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center relative ${
-                      sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                    } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                      active
+                    className={`flex items-center relative ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                      } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${active
                         ? 'bg-primary/15 text-primary'
                         : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    }`}
+                      }`}
                   >
                     {/* Pill indicator on the right */}
                     {active && !sidebarCollapsed && (
                       <span className="absolute right-3 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
                     )}
-                    
-                    <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
-                      active ? 'scale-110' : 'group-hover:scale-110'
-                    }`} />
+
+                    <Icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'
+                      }`} />
                     {!sidebarCollapsed && (
                       <span className={active ? 'font-semibold' : ''}>{item.name}</span>
                     )}
@@ -129,26 +123,46 @@ export default function DashboardLayout() {
             )}
             <div className="space-y-1">
               <Link
+                to="/dashboard/notifications"
+                onClick={() => setMobileMenuOpen(false)}
+                title={sidebarCollapsed ? 'Notifications' : ''}
+                aria-current={isActive('/dashboard/notifications') ? 'page' : undefined}
+                className={`flex items-center relative ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                  } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${isActive('/dashboard/notifications')
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }`}
+              >
+                {/* Pill indicator on the right */}
+                {isActive('/dashboard/notifications') && !sidebarCollapsed && (
+                  <span className="absolute right-3 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+                )}
+
+                <Bell className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${isActive('/dashboard/notifications') ? 'scale-110' : 'group-hover:scale-110'
+                  }`} />
+                {!sidebarCollapsed && (
+                  <span className={isActive('/dashboard/notifications') ? 'font-semibold' : ''}>Notifications</span>
+                )}
+              </Link>
+
+              <Link
                 to="/dashboard/trash"
                 onClick={() => setMobileMenuOpen(false)}
                 title={sidebarCollapsed ? 'Trash' : ''}
                 aria-current={isActive('/dashboard/trash') ? 'page' : undefined}
-                className={`flex items-center relative ${
-                  sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                  isActive('/dashboard/trash')
+                className={`flex items-center relative ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                  } py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${isActive('/dashboard/trash')
                     ? 'bg-destructive/15 text-destructive'
                     : 'text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive'
-                }`}
+                  }`}
               >
                 {/* Pill indicator on the right */}
                 {isActive('/dashboard/trash') && !sidebarCollapsed && (
                   <span className="absolute right-3 w-2 h-2 bg-destructive rounded-full animate-pulse"></span>
                 )}
-                
-                <Trash2 className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${
-                  isActive('/dashboard/trash') ? 'scale-110' : 'group-hover:scale-110'
-                }`} />
+
+                <Trash2 className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${isActive('/dashboard/trash') ? 'scale-110' : 'group-hover:scale-110'
+                  }`} />
                 {!sidebarCollapsed && (
                   <span className={isActive('/dashboard/trash') ? 'font-semibold' : ''}>Trash</span>
                 )}
@@ -159,9 +173,8 @@ export default function DashboardLayout() {
 
         {/* User Section */}
         <div className="p-4 border-t border-sidebar-border">
-          <div className={`flex items-center ${
-            sidebarCollapsed ? 'justify-center' : 'gap-3'
-          } px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer group`}>
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'
+            } px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer group`}>
             <UserButton
               appearance={{
                 elements: {

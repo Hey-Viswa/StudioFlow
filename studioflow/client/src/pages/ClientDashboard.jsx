@@ -8,13 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { KpiCard } from '../components/ui/kpi-card'
 import { Badge } from '../components/ui/badge'
-import { 
-  Breadcrumb, 
-  BreadcrumbItem, 
-  BreadcrumbLink, 
-  BreadcrumbList, 
-  BreadcrumbPage, 
-  BreadcrumbSeparator 
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
 } from '../components/ui/breadcrumb'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Textarea } from '../components/ui/textarea'
@@ -22,32 +20,30 @@ import { ProjectCard } from '../components/ProjectCard'
 import { FilesStrip } from '../components/FilesStrip'
 import { DashboardGraphs } from '../components/DashboardGraphs'
 import { useProjects, useProjectMetrics } from '../hooks/useProjects'
-import { 
-  Search, 
-  Filter, 
-  IndianRupee, 
-  CheckCircle2, 
-  Clock, 
+import { DashboardSkeleton } from '../components/DashboardSkeleton'
+import {
+  Search,
+  IndianRupee,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   FileText,
-  TrendingUp,
   Download,
   Eye,
   Loader2
 } from 'lucide-react'
-import { cn } from '../lib/utils'
 import { format } from 'date-fns'
 
 export default function ClientDashboard() {
   const navigate = useNavigate()
   const { getToken } = useAuth()
-  
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [clientFilter, setClientFilter] = useState('all')
   const [dateRange, setDateRange] = useState('all')
-  
+
   // Memoize filters to prevent unnecessary re-renders
   const filters = useMemo(() => ({
     search: searchTerm,
@@ -55,11 +51,11 @@ export default function ClientDashboard() {
     clientId: clientFilter,
     dateRange: dateRange
   }), [searchTerm, statusFilter, clientFilter, dateRange])
-  
+
   // Data
   const { projects, loading: projectsLoading, refetch: refetchProjects, requestRevision, approveFinal } = useProjects(filters)
   const { metrics, loading: metricsLoading } = useProjectMetrics()
-  
+
   // UI State
   const [selectedProject, setSelectedProject] = useState(null)
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
@@ -68,7 +64,7 @@ export default function ClientDashboard() {
   const [recentFiles, setRecentFiles] = useState([])
   const [recentInvoices, setRecentInvoices] = useState([])
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all')
-  
+
   // Chart data
   const [revenueGranularity, setRevenueGranularity] = useState('monthly')
   const [chartData, setChartData] = useState({
@@ -82,7 +78,7 @@ export default function ClientDashboard() {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const [filesRes, invoicesRes, chartsRes] = await Promise.all([
         fetch(`${apiUrl}/dashboard/recent-files`, {
           credentials: 'include',
@@ -116,7 +112,7 @@ export default function ClientDashboard() {
       console.error('Error fetching dashboard data:', error)
     }
   }, [getToken])
-  
+
   // Only fetch dashboard data once on mount
   useEffect(() => {
     fetchDashboardData()
@@ -167,18 +163,79 @@ export default function ClientDashboard() {
   }
 
   const handleExportCharts = () => {
-    toast.success('Chart export feature coming soon!')
+    try {
+      // Prepare data for CSV
+      const csvRows = [];
+
+      // Header
+      csvRows.push(['Dashboard Analytics Export']);
+      csvRows.push([`Generated on: ${new Date().toLocaleString()}`]);
+      csvRows.push([]); // Empty line
+
+      // Revenue Data
+      csvRows.push(['Revenue Data']);
+      csvRows.push(['Date', 'Revenue']);
+      chartData.revenue.forEach(item => {
+        csvRows.push([item.date, item.revenue]);
+      });
+      csvRows.push([]);
+
+      // Invoice Status Data
+      csvRows.push(['Invoice Status Distribution']);
+      csvRows.push(['Status', 'Count']);
+      chartData.invoiceStatus.forEach(item => {
+        csvRows.push([item.status, item.count]);
+      });
+      csvRows.push([]);
+
+      // Project Progress Data
+      csvRows.push(['Project Progress']);
+      csvRows.push(['Week', 'In Progress', 'Completed', 'Needs Revision']);
+      chartData.projectProgress.forEach(item => {
+        csvRows.push([
+          item.week,
+          item['in-progress'] || 0,
+          item.completed || 0,
+          item['needs-revision'] || 0
+        ]);
+      });
+
+      // Convert to CSV string
+      const csvContent = "data:text/csv;charset=utf-8,"
+        + csvRows.map(e => e.join(",")).join("\n");
+
+      // Create download link
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `dashboard_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+
+      // Trigger download
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Analytics exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export analytics');
+    }
   }
 
-  const uniqueClients = [...new Set(projects.flatMap(p => 
+  const uniqueClients = [...new Set(projects.flatMap(p =>
     p.members?.filter(m => m.role === 'client').map(m => ({ id: m.userId, name: m.name || m.email })) || []
   ))]
 
   const filteredProjects = projects
-  
-  const filteredInvoices = recentInvoices.filter(inv => 
+
+  const filteredInvoices = recentInvoices.filter(inv =>
     invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter
   )
+
+  // Loading State - Shimmer Effect
+  if (projectsLoading || metricsLoading) {
+    return <DashboardSkeleton />
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -187,11 +244,7 @@ export default function ClientDashboard() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Home</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Client Dashboard</BreadcrumbPage>
+              <BreadcrumbPage>Dashboard</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -199,7 +252,7 @@ export default function ClientDashboard() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Client Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
               Monitor projects, invoices, and collaborate with your team
             </p>
@@ -257,7 +310,7 @@ export default function ClientDashboard() {
                   className="pl-9"
                 />
               </div>
-              
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="Status" />
@@ -367,10 +420,10 @@ export default function ClientDashboard() {
             ) : (
               <div className="space-y-3">
                 {filteredInvoices.map((invoice) => (
-                  <div 
-                    key={invoice._id} 
+                  <div
+                    key={invoice._id}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                    onClick={() => navigate('/dashboard/invoices')}
+                    onClick={() => navigate(`/dashboard/invoices?id=${invoice._id}`)}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{invoice.title || `Invoice #${invoice.invoiceNumber}`}</div>
@@ -386,25 +439,25 @@ export default function ClientDashboard() {
                         <div className="font-semibold">₹{invoice.total?.toLocaleString()}</div>
                       </div>
                       <div className="flex gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate('/dashboard/invoices');
+                            navigate(`/dashboard/invoices?id=${invoice._id}`);
                           }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                            window.open(`${apiUrl}/api/invoices/${invoice.invoiceNumber || invoice._id}/download`, '_blank');
+                            const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
+                            window.open(`${apiUrl}/api/invoices/project/${invoice.invoiceNumber || invoice._id}/download`, '_blank');
                           }}
                         >
                           <Download className="h-4 w-4" />
@@ -480,7 +533,7 @@ export default function ClientDashboard() {
             <div className="py-4">
               <div className="rounded-lg border border-border bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">
-                  By approving, you confirm that the project meets your requirements and is ready for completion. 
+                  By approving, you confirm that the project meets your requirements and is ready for completion.
                   This action will mark the project as finalized.
                 </p>
               </div>

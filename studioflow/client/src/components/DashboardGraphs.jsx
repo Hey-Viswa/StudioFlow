@@ -3,15 +3,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { Button } from "./ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "./ui/chart"
-import { Line, LineChart, Pie, PieChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Area, AreaChart, ResponsiveContainer, Sector } from "recharts"
-import { Download, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Line, LineChart, Pie, PieChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, Area, AreaChart, ResponsiveContainer, Sector, Label } from "recharts"
+import { Download, RefreshCw, TrendingUp, TrendingDown, Minus, Calendar } from "lucide-react"
 import { cn } from "../lib/utils"
 
-// Chart configuration with proper shadcn/ui chart colors
+// Chart configuration with proper HSL colors
 const revenueChartConfig = {
   revenue: {
     label: "Revenue",
-    color: "var(--chart-1)",
+    color: "hsl(221.2, 83.2%, 53.3%)", // Primary Blue
   },
 }
 
@@ -21,46 +21,46 @@ const invoiceChartConfig = {
   },
   draft: {
     label: "Draft",
-    color: "var(--chart-1)",
+    color: "hsl(215.4, 16.3%, 46.9%)", // Slate
   },
   sent: {
     label: "Sent",
-    color: "var(--chart-2)",
+    color: "hsl(221.2, 83.2%, 53.3%)", // Blue
   },
   paid: {
     label: "Paid",
-    color: "var(--chart-3)",
+    color: "hsl(142.1, 76.2%, 36.3%)", // Green
   },
   overdue: {
     label: "Overdue",
-    color: "var(--chart-4)",
+    color: "hsl(346.8, 77.2%, 49.8%)", // Red
   },
 }
 
 const projectChartConfig = {
   "in-progress": {
     label: "In Progress",
-    color: "var(--chart-1)",
+    color: "hsl(221.2, 83.2%, 53.3%)", // Blue
   },
   completed: {
     label: "Completed",
-    color: "var(--chart-2)",
+    color: "hsl(142.1, 76.2%, 36.3%)", // Green
   },
   "needs-revision": {
     label: "Needs Revision",
-    color: "var(--chart-3)",
+    color: "hsl(47.9, 95.8%, 53.1%)", // Yellow
   },
 }
 
-const RevenueChart = React.forwardRef(({ 
-  data = [], 
+const RevenueChart = React.forwardRef(({
+  data = [],
   granularity = "monthly",
   onGranularityChange,
   className,
-  ...props 
+  ...props
 }, ref) => {
   const hasData = data && data.length > 0
-  const totalRevenue = React.useMemo(() => 
+  const totalRevenue = React.useMemo(() =>
     data.reduce((sum, item) => sum + (item.revenue || 0), 0),
     [data]
   )
@@ -70,9 +70,9 @@ const RevenueChart = React.forwardRef(({
     if (data.length < 2) return { direction: 'neutral', percentage: 0 }
     const first = data[0]?.revenue || 0
     const last = data[data.length - 1]?.revenue || 0
-    
+
     if (first === 0) return { direction: 'neutral', percentage: 0 }
-    
+
     const change = ((last - first) / first) * 100
     return {
       direction: change > 0 ? 'up' : change < 0 ? 'down' : 'neutral',
@@ -99,7 +99,7 @@ const RevenueChart = React.forwardRef(({
           </div>
           {onGranularityChange && (
             <Select value={granularity} onValueChange={onGranularityChange}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-32 h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -130,18 +130,18 @@ const RevenueChart = React.forwardRef(({
               >
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
+                <CartesianGrid
+                  strokeDasharray="3 3"
                   vertical={false}
                   stroke="hsl(var(--border))"
                   opacity={0.3}
                 />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={12}
@@ -149,9 +149,9 @@ const RevenueChart = React.forwardRef(({
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                   tickFormatter={(value) => {
                     const date = new Date(value)
-                    return date.toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric' 
+                    return date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric'
                     })
                   }}
                 />
@@ -182,28 +182,9 @@ const RevenueChart = React.forwardRef(({
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="hsl(var(--chart-1))"
+                  stroke="var(--color-revenue)"
                   strokeWidth={3}
                   fill="url(#colorRevenue)"
-                  animationDuration={1000}
-                  animationEasing="ease-in-out"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="hsl(var(--chart-1))"
-                  strokeWidth={3}
-                  dot={{ 
-                    fill: 'hsl(var(--chart-1))', 
-                    strokeWidth: 2, 
-                    r: 4,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  activeDot={{ 
-                    r: 6, 
-                    strokeWidth: 2,
-                    stroke: 'hsl(var(--background))'
-                  }}
                   animationDuration={1000}
                   animationEasing="ease-in-out"
                 />
@@ -212,7 +193,7 @@ const RevenueChart = React.forwardRef(({
           </ChartContainer>
         )}
       </CardContent>
-      <CardFooter className="flex-col gap-2 text-sm">
+      <CardFooter className="flex-col gap-2 text-sm border-t pt-4">
         {hasData && (
           <>
             <div className="flex w-full items-center justify-between">
@@ -222,7 +203,7 @@ const RevenueChart = React.forwardRef(({
               {trend.direction !== 'neutral' && (
                 <div className={cn(
                   "flex items-center gap-1 text-sm font-medium",
-                  trend.direction === 'up' ? "text-green-500" : "text-red-500"
+                  trend.direction === 'up' ? "text-emerald-500" : "text-rose-500"
                 )}>
                   {trend.direction === 'up' ? (
                     <TrendingUp className="h-4 w-4" />
@@ -233,12 +214,12 @@ const RevenueChart = React.forwardRef(({
                 </div>
               )}
             </div>
-            <div className="text-muted-foreground leading-none w-full text-left">
-              {trend.direction === 'up' 
+            <div className="text-muted-foreground leading-none w-full text-left text-xs">
+              {trend.direction === 'up'
                 ? `Revenue increased by ${trend.percentage}% in this period`
                 : trend.direction === 'down'
-                ? `Revenue decreased by ${trend.percentage}% in this period`
-                : 'Revenue remained stable in this period'}
+                  ? `Revenue decreased by ${trend.percentage}% in this period`
+                  : 'Revenue remained stable in this period'}
             </div>
           </>
         )}
@@ -249,34 +230,27 @@ const RevenueChart = React.forwardRef(({
 
 RevenueChart.displayName = "RevenueChart"
 
-const InvoiceStatusChart = React.forwardRef(({ 
-  data = [], 
+const InvoiceStatusChart = React.forwardRef(({
+  data = [],
   className,
-  ...props 
+  ...props
 }, ref) => {
   const chartData = React.useMemo(() => {
     const transformed = [
-      { status: 'draft', count: data.find(d => d.status === 'draft')?.count || 0, fill: "var(--color-draft)" },
-      { status: 'sent', count: data.find(d => d.status === 'sent')?.count || 0, fill: "var(--color-sent)" },
-      { status: 'paid', count: data.find(d => d.status === 'paid')?.count || 0, fill: "var(--color-paid)" },
-      { status: 'overdue', count: data.find(d => d.status === 'overdue')?.count || 0, fill: "var(--color-overdue)" }
+      { status: 'draft', count: data.find(d => d.status === 'draft')?.count || 0, fill: invoiceChartConfig.draft.color },
+      { status: 'sent', count: data.find(d => d.status === 'sent')?.count || 0, fill: invoiceChartConfig.sent.color },
+      { status: 'paid', count: data.find(d => d.status === 'paid')?.count || 0, fill: invoiceChartConfig.paid.color },
+      { status: 'overdue', count: data.find(d => d.status === 'overdue')?.count || 0, fill: invoiceChartConfig.overdue.color }
     ]
     return transformed.filter(d => d.count > 0)
   }, [data])
 
-  const totalInvoices = React.useMemo(() => 
+  const totalInvoices = React.useMemo(() =>
     chartData.reduce((sum, item) => sum + item.count, 0),
     [chartData]
   )
 
   const hasData = chartData.length > 0
-
-  // Find the status with the highest count for active sector
-  const activeIndex = React.useMemo(() => {
-    if (chartData.length === 0) return 0
-    const maxCount = Math.max(...chartData.map(d => d.count))
-    return chartData.findIndex(d => d.count === maxCount)
-  }, [chartData])
 
   return (
     <Card ref={ref} className={cn("flex flex-col", className)} {...props}>
@@ -290,15 +264,15 @@ const InvoiceStatusChart = React.forwardRef(({
             <p className="text-sm">No invoice data available</p>
           </div>
         ) : (
-          <ChartContainer 
-            config={invoiceChartConfig} 
+          <ChartContainer
+            config={invoiceChartConfig}
             className="mx-auto aspect-square max-h-[300px]"
           >
             <PieChart>
               <ChartTooltip
                 cursor={false}
                 content={
-                  <ChartTooltipContent 
+                  <ChartTooltipContent
                     hideLabel
                     className="w-[160px]"
                     formatter={(value, name) => (
@@ -313,7 +287,7 @@ const InvoiceStatusChart = React.forwardRef(({
                         <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
                           {value}
                           <span className="font-normal text-muted-foreground">
-                            invoices
+                            inv
                           </span>
                         </div>
                       </>
@@ -327,34 +301,55 @@ const InvoiceStatusChart = React.forwardRef(({
                 nameKey="status"
                 innerRadius={60}
                 strokeWidth={5}
-                activeIndex={activeIndex}
-                activeShape={(props) => (
-                  <Sector {...props} outerRadius={props.outerRadius + 10} />
-                )}
-              />
+              >
+                <Label
+                  content={({ viewBox }) => {
+                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                      return (
+                        <text
+                          x={viewBox.cx}
+                          y={viewBox.cy}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
+                          <tspan
+                            x={viewBox.cx}
+                            y={viewBox.cy}
+                            className="fill-foreground text-3xl font-bold"
+                          >
+                            {totalInvoices.toLocaleString()}
+                          </tspan>
+                          <tspan
+                            x={viewBox.cx}
+                            y={(viewBox.cy || 0) + 24}
+                            className="fill-muted-foreground text-xs"
+                          >
+                            Invoices
+                          </tspan>
+                        </text>
+                      )
+                    }
+                  }}
+                />
+              </Pie>
             </PieChart>
           </ChartContainer>
         )}
       </CardContent>
-      <CardFooter className="flex-col gap-2 text-sm">
+      <CardFooter className="flex-col gap-2 text-sm pt-4">
         {hasData && (
-          <>
-            <div className="flex items-center gap-2 leading-none font-semibold text-base">
-              Total: {totalInvoices} {totalInvoices === 1 ? 'invoice' : 'invoices'}
-            </div>
-            <div className="grid grid-cols-2 gap-2 w-full text-xs">
-              {chartData.map((item) => (
-                <div key={item.status} className="flex items-center gap-2">
-                  <div
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: item.fill }}
-                  />
-                  <span className="text-muted-foreground capitalize">{item.status}:</span>
-                  <span className="font-medium ml-auto">{item.count}</span>
-                </div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-2 gap-2 w-full text-xs">
+            {chartData.map((item) => (
+              <div key={item.status} className="flex items-center gap-2">
+                <div
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: item.fill }}
+                />
+                <span className="text-muted-foreground capitalize">{item.status}:</span>
+                <span className="font-medium ml-auto">{item.count}</span>
+              </div>
+            ))}
+          </div>
         )}
       </CardFooter>
     </Card>
@@ -363,10 +358,10 @@ const InvoiceStatusChart = React.forwardRef(({
 
 InvoiceStatusChart.displayName = "InvoiceStatusChart"
 
-const ProjectProgressChart = React.forwardRef(({ 
-  data = [], 
+const ProjectProgressChart = React.forwardRef(({
+  data = [],
   className,
-  ...props 
+  ...props
 }, ref) => {
   const hasData = data && data.length > 0
 
@@ -418,28 +413,14 @@ const ProjectProgressChart = React.forwardRef(({
                   bottom: 10,
                 }}
               >
-                <defs>
-                  <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorInProgress" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorRevision" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
+                <CartesianGrid
+                  strokeDasharray="3 3"
                   vertical={false}
                   stroke="hsl(var(--border))"
                   opacity={0.3}
                 />
-                <XAxis 
-                  dataKey="week" 
+                <XAxis
+                  dataKey="week"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={12}
@@ -459,148 +440,65 @@ const ProjectProgressChart = React.forwardRef(({
                     <ChartTooltipContent
                       className="w-[200px]"
                       labelFormatter={(value) => `Week ${value}`}
-                      formatter={(value, name, item, index) => (
-                        <>
-                          <div
-                            className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
-                            style={{
-                              backgroundColor: `var(--color-${name})`,
-                            }}
-                          />
-                          {projectChartConfig[name]?.label || name}
-                          <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
-                            {value}
-                            <span className="font-normal text-muted-foreground">
-                              {value === 1 ? 'project' : 'projects'}
-                            </span>
-                          </div>
-                          {/* Add total after the last item */}
-                          {index === 2 && (
-                            <div className="mt-1.5 flex basis-full items-center border-t pt-1.5 text-xs font-medium text-foreground">
-                              Total
-                              <div className="ml-auto flex items-baseline gap-0.5 font-mono font-medium tabular-nums text-foreground">
-                                {(item.payload['in-progress'] || 0) + (item.payload.completed || 0) + (item.payload['needs-revision'] || 0)}
-                                <span className="font-normal text-muted-foreground">
-                                  projects
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
                     />
                   }
                 />
-                <Area
-                  type="monotone"
-                  dataKey="completed"
-                  stroke="hsl(var(--chart-2))"
-                  fill="url(#colorCompleted)"
-                  strokeWidth={0}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="in-progress"
-                  stroke="hsl(var(--chart-1))"
-                  fill="url(#colorInProgress)"
-                  strokeWidth={0}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="needs-revision"
-                  stroke="hsl(var(--chart-3))"
-                  fill="url(#colorRevision)"
-                  strokeWidth={0}
-                />
                 <Line
                   type="monotone"
                   dataKey="completed"
-                  stroke="hsl(var(--chart-2))"
+                  stroke="var(--color-completed)"
                   strokeWidth={2.5}
-                  dot={{ 
-                    fill: 'hsl(var(--chart-2))', 
-                    strokeWidth: 2, 
-                    r: 5,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  activeDot={{ 
-                    r: 7, 
-                    strokeWidth: 2,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  animationDuration={800}
-                  animationEasing="ease-in-out"
+                  dot={false}
+                  activeDot={{ r: 6 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="in-progress"
-                  stroke="hsl(var(--chart-1))"
+                  stroke="var(--color-in-progress)"
                   strokeWidth={2.5}
-                  dot={{ 
-                    fill: 'hsl(var(--chart-1))', 
-                    strokeWidth: 2, 
-                    r: 5,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  activeDot={{ 
-                    r: 7, 
-                    strokeWidth: 2,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  animationDuration={800}
-                  animationEasing="ease-in-out"
+                  dot={false}
+                  activeDot={{ r: 6 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="needs-revision"
-                  stroke="hsl(var(--chart-3))"
+                  stroke="var(--color-needs-revision)"
                   strokeWidth={2.5}
-                  dot={{ 
-                    fill: 'hsl(var(--chart-3))', 
-                    strokeWidth: 2, 
-                    r: 5,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  activeDot={{ 
-                    r: 7, 
-                    strokeWidth: 2,
-                    stroke: 'hsl(var(--background))'
-                  }}
-                  animationDuration={800}
-                  animationEasing="ease-in-out"
+                  dot={false}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </ChartContainer>
         )}
       </CardContent>
-      <CardFooter className="flex-col gap-3 text-sm">
+      <CardFooter className="flex-col gap-3 text-sm border-t pt-4">
         {hasData && (
           <>
             <div className="flex w-full items-center justify-between">
               <span className="font-semibold text-base">Total Projects: {grandTotal}</span>
             </div>
             <div className="grid grid-cols-3 gap-3 w-full text-xs">
-              <div className="flex flex-col items-start gap-1 p-3 rounded-lg bg-muted/30 border border-chart-2/20">
+              <div className="flex flex-col items-start gap-1 p-2 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
-                  <span className="text-muted-foreground font-medium">Completed</span>
+                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--chart-2))]" />
+                  <span className="text-muted-foreground font-medium">Done</span>
                 </div>
-                <span className="font-bold text-lg" style={{ color: 'hsl(var(--chart-2))' }}>{totals.completed}</span>
+                <span className="font-bold text-lg text-[hsl(var(--chart-2))]">{totals.completed}</span>
               </div>
-              <div className="flex flex-col items-start gap-1 p-3 rounded-lg bg-muted/30 border border-chart-1/20">
+              <div className="flex flex-col items-start gap-1 p-2 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-1))' }} />
-                  <span className="text-muted-foreground font-medium">In Progress</span>
+                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--chart-1))]" />
+                  <span className="text-muted-foreground font-medium">Active</span>
                 </div>
-                <span className="font-bold text-lg" style={{ color: 'hsl(var(--chart-1))' }}>{totals.inProgress}</span>
+                <span className="font-bold text-lg text-[hsl(var(--chart-1))]">{totals.inProgress}</span>
               </div>
-              <div className="flex flex-col items-start gap-1 p-3 rounded-lg bg-muted/30 border border-chart-3/20">
+              <div className="flex flex-col items-start gap-1 p-2 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-3))' }} />
-                  <span className="text-muted-foreground font-medium">Revision</span>
+                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--chart-3))]" />
+                  <span className="text-muted-foreground font-medium">Revise</span>
                 </div>
-                <span className="font-bold text-lg" style={{ color: 'hsl(var(--chart-3))' }}>{totals.needsRevision}</span>
+                <span className="font-bold text-lg text-[hsl(var(--chart-3))]">{totals.needsRevision}</span>
               </div>
             </div>
           </>
@@ -612,7 +510,7 @@ const ProjectProgressChart = React.forwardRef(({
 
 ProjectProgressChart.displayName = "ProjectProgressChart"
 
-const DashboardGraphs = React.forwardRef(({ 
+const DashboardGraphs = React.forwardRef(({
   revenueData = [],
   invoiceStatusData = [],
   projectProgressData = [],
@@ -621,22 +519,22 @@ const DashboardGraphs = React.forwardRef(({
   onRefresh,
   onExport,
   className,
-  ...props 
+  ...props
 }, ref) => {
   return (
     <div ref={ref} className={cn("space-y-4", className)} {...props}>
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Analytics</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Analytics</h2>
         <div className="flex items-center gap-2">
           {onRefresh && (
-            <Button variant="outline" size="sm" onClick={onRefresh}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={onRefresh} className="h-8">
+              <RefreshCw className="h-3.5 w-3.5 mr-2" />
               Refresh
             </Button>
           )}
           {onExport && (
-            <Button variant="outline" size="sm" onClick={onExport}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={onExport} className="h-8">
+              <Download className="h-3.5 w-3.5 mr-2" />
               Export
             </Button>
           )}
@@ -644,7 +542,7 @@ const DashboardGraphs = React.forwardRef(({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <RevenueChart 
+        <RevenueChart
           data={revenueData}
           granularity={revenueGranularity}
           onGranularityChange={onRevenueGranularityChange}

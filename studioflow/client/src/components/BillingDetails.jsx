@@ -1,25 +1,40 @@
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { 
-  CreditCard, 
-  Calendar, 
+import { Switch } from './ui/switch';
+import {
+  CreditCard,
+  Calendar,
   AlertCircle,
   CheckCircle,
   Clock,
   FileText,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 export default function BillingDetails({ subscription, onCancel, onReactivate, loading }) {
   const { getToken } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [changingPlan, setChangingPlan] = useState(false);
+  const [showPlanChangeDialog, setShowPlanChangeDialog] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
 
   useEffect(() => {
     fetchInvoices();
@@ -28,7 +43,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const fetchInvoices = async () => {
     try {
       setLoadingInvoices(true);
-      const response = await api.get('/invoices', { getToken });
+      const response = await api.get('/subscription-invoices', { getToken });
       setInvoices(Array.isArray(response) ? response : response.invoices || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
@@ -38,25 +53,27 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
     }
   };
 
-  const handleChangePlan = async (newPlan) => {
-    if (!confirm(`Are you sure you want to ${plan.id === 'free' || plan.price < SUBSCRIPTION_PLANS[newPlan].price ? 'upgrade' : 'downgrade'} to ${newPlan === 'pro' ? 'Pro' : 'Studio'} plan?`)) {
-      return;
-    }
+  const handleChangePlan = (newPlan) => {
+    setSelectedPlanId(newPlan);
+    setShowPlanChangeDialog(true);
+  };
 
+  const executePlanChange = async () => {
+    setShowPlanChangeDialog(false);
     setChangingPlan(true);
     try {
-      const response = await api.post('/subscriptions/change-plan', { newPlan }, { getToken });
-      
+      const response = await api.post('/subscriptions/change-plan', { newPlan: selectedPlanId }, { getToken });
+
       if (response.redirectUrl) {
         // Redirect to Razorpay payment page for new subscription
         window.location.href = response.redirectUrl;
       } else {
-        alert(response.message || 'Plan change successful!');
+        toast.success(response.message || 'Plan change successful!');
         window.location.reload();
       }
     } catch (error) {
       console.error('Failed to change plan:', error);
-      alert(error.response?.data?.error || 'Failed to change plan. Please try again.');
+      toast.error(error.response?.data?.error || 'Failed to change plan. Please try again.');
     } finally {
       setChangingPlan(false);
     }
@@ -99,19 +116,19 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const isActive = subData.status === 'active';
   const isCancelled = ['cancelled', 'expired'].includes(subData.status);
   const autoRenewEnabled = subData.autoRenew ?? true;
-  
+
   // For active subscriptions, this is the next billing/renewal date
   // For cancelled subscriptions, this is when access ends
   const nextBillingDate = formatDate(
     subData.subscriptionEndDate
   );
-  
+
   // Determine the label based on subscription status
   const billingDateLabel = isActive
     ? 'Next Billing Date'
     : isCancelled
-    ? 'Access Until'
-    : 'Subscription End Date';
+      ? 'Access Until'
+      : 'Subscription End Date';
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -132,6 +149,18 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
         {config.text}
       </Badge>
     );
+  };
+
+  const getPlanChangeDescription = () => {
+    if (!selectedPlanId) return '';
+    const newPlan = SUBSCRIPTION_PLANS[selectedPlanId];
+    const isUpgrade = plan.id === 'free' || plan.price < newPlan.price;
+
+    if (isUpgrade) {
+      return `You are upgrading to the ${newPlan.name} plan. You will be redirected to complete the payment of ₹${newPlan.price}.`;
+    } else {
+      return `You are downgrading to the ${newPlan.name} plan. This change will take effect at the end of your current billing period on ${nextBillingDate}.`;
+    }
   };
 
   return (
@@ -160,12 +189,10 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                 </span>
               </div>
               <div className="w-full bg-secondary rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all ${
-                    usage.projectCount >= usage.maxProjects ? 'bg-destructive' : 'bg-primary'
-                  }`}
-                  style={{ 
-                    width: `${Math.min(100, (usage.projectCount / usage.maxProjects) * 100)}%` 
+                <div
+                  className={`h-2 rounded-full transition-all ${usage.projectCount >= usage.maxProjects ? 'bg-destructive' : 'bg-primary'}`}
+                  style={{
+                    width: `${Math.min(100, (usage.projectCount / usage.maxProjects) * 100)}%`
                   }}
                 />
               </div>
@@ -219,11 +246,59 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
       {/* Actions Card */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Subscription Actions</h3>
-        <div className="space-y-3">
+        <div className="space-y-4">
+
+          {/* Auto-Renew Toggle */}
+          {isActive && (
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-card/50">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Auto-renew</span>
+                  <Badge variant={subData.autoRenew ? "default" : "secondary"} className={subData.autoRenew ? "bg-green-500/15 text-green-500 hover:bg-green-500/25" : ""}>
+                    {subData.autoRenew ? "On" : "Off"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {subData.autoRenew
+                    ? "Your subscription will automatically renew"
+                    : "Subscription will end after current period"}
+                </p>
+              </div>
+              <Switch
+                checked={subData.autoRenew}
+                onCheckedChange={async (checked) => {
+                  try {
+                    const token = await getToken();
+                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+                    const response = await fetch(`${apiUrl}/subscriptions/auto-renew`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({ autoRenew: checked })
+                    });
+
+                    if (response.ok) {
+                      toast.success(`Auto-renew ${checked ? 'enabled' : 'disabled'}`);
+                      // Refresh page to show updated status
+                      window.location.reload();
+                    } else {
+                      throw new Error('Failed to update auto-renew settings');
+                    }
+                  } catch (error) {
+                    toast.error(error.message);
+                  }
+                }}
+              />
+            </div>
+          )}
+
           {/* Upgrade/Downgrade Options */}
           {isActive && plan.id === 'pro' && (
             <>
-              <Button 
+              <Button
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => handleChangePlan('studio')}
@@ -240,7 +315,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
 
           {isActive && plan.id === 'studio' && (
             <>
-              <Button 
+              <Button
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => handleChangePlan('pro')}
@@ -258,8 +333,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           {/* Active Subscription - Show Cancel */}
           {isActive && plan.price > 0 && (
             <>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 className="w-full justify-start gap-2 font-bold text-base py-6 bg-red-600 hover:bg-red-700 shadow-xl"
                 onClick={onCancel}
                 disabled={loading || changingPlan}
@@ -285,15 +360,20 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           {/* Cancelled Subscription - Show Reactivate */}
           {isCancelled && plan.price > 0 && (
             <>
-              <Button 
-                className="w-full justify-start gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base py-6 shadow-2xl shadow-green-500/50 border-2 border-green-400"
+              <Button
+                className="w-full justify-start gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base py-6 shadow-2xl shadow-green-500/50 border-2 border-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={onReactivate}
-                disabled={loading || changingPlan}
+                disabled={loading || changingPlan || (subData.subscriptionEndDate && new Date(subData.subscriptionEndDate) > new Date())}
               >
                 {loading ? (
                   <>
                     <Clock className="w-4 h-4 animate-spin" />
                     Processing...
+                  </>
+                ) : (subData.subscriptionEndDate && new Date(subData.subscriptionEndDate) > new Date()) ? (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    Plan Ends on {new Date(subData.subscriptionEndDate).toLocaleDateString()}
                   </>
                 ) : (
                   <>
@@ -303,7 +383,9 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                 )}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Resume your {plan.name} plan subscription
+                {(subData.subscriptionEndDate && new Date(subData.subscriptionEndDate) > new Date())
+                  ? 'You cannot reactivate until your current billing period ends'
+                  : `Resume your ${plan.name} plan subscription`}
               </p>
             </>
           )}
@@ -311,7 +393,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           {/* Free Plan - Show Upgrade Option */}
           {plan.id === 'free' && (
             <>
-              <Button 
+              <Button
                 className="w-full justify-start gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base py-6 shadow-2xl shadow-purple-500/50 border-2 border-purple-400"
                 onClick={() => window.location.href = '/dashboard/subscription'}
               >
@@ -336,7 +418,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                   </div>
                 </div>
               </div>
-              <Button 
+              <Button
                 className="w-full justify-start gap-2 bg-primary hover:bg-primary/90"
                 onClick={onReactivate}
                 disabled={loading || changingPlan}
@@ -367,7 +449,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           <FileText className="w-5 h-5" />
           Invoice History
         </h3>
-        
+
         {loadingInvoices ? (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="w-4 h-4 animate-spin" />
@@ -380,20 +462,20 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
         ) : (
           <div className="space-y-3">
             {invoices.map((invoice) => (
-              <div 
+              <div
                 key={invoice.invoiceNumber}
                 className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary/50 transition-colors"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
-                    <Badge 
+                    <Badge
                       variant={
-                        invoice.status === 'paid' || invoice.status === 'refunded' 
-                          ? 'default' 
-                          : invoice.status === 'failed' 
-                          ? 'destructive' 
-                          : 'secondary'
+                        invoice.status === 'paid' || invoice.status === 'refunded'
+                          ? 'default'
+                          : invoice.status === 'failed'
+                            ? 'destructive'
+                            : 'secondary'
                       }
                       className="text-xs"
                     >
@@ -415,7 +497,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className={`font-semibold ${invoice.amount < 0 ? 'text-green-600' : ''}`}>
-                      {invoice.amount < 0 ? '+' : ''}₹{Math.abs(invoice.amount)}
+                      {invoice.amount !== undefined && invoice.amount !== null ? (invoice.amount < 0 ? '+' : '') + '₹' + Math.abs(invoice.amount) : '₹0.00'}
                     </p>
                     {invoice.metadata?.prorated && (
                       <p className="text-xs text-muted-foreground">
@@ -434,6 +516,23 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
           </div>
         )}
       </Card>
+
+      <AlertDialog open={showPlanChangeDialog} onOpenChange={setShowPlanChangeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Plan Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              {getPlanChangeDescription()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executePlanChange}>
+              Confirm Change
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

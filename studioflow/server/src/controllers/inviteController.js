@@ -93,14 +93,16 @@ export const acceptInvite = async (req, res) => {
 
     // Notify project owner
     try {
-      await createNotification({
-        userId: project.ownerId,
+      await createNotificationWithIdempotency({
+        projectId: projectId,
+        recipients: [project.ownerId],
         type: 'project-invitation',
         title: '✉️ New Member Joined',
         message: `${userName} has joined your project "${project.title}"`,
         link: `/dashboard/projects/${projectId}`,
         priority: 'medium',
         category: 'project',
+        eventType: 'member-joined',
         metadata: {
           projectId,
           newMemberUserId: userId,

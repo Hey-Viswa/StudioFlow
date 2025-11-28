@@ -161,8 +161,9 @@ export const createTask = async (req, res) => {
     // Notify assigned user if different from creator
     if (assignedTo && assignedTo !== userId) {
       try {
-        await createNotification({
-          userId: assignedTo,
+        await createNotificationWithIdempotency({
+          projectId: projectId,
+          recipients: [assignedTo],
           type: 'task-assigned',
           title: '📋 New Task Assigned',
           message: `You've been assigned to "${title}" in ${project.title}`,
@@ -170,6 +171,7 @@ export const createTask = async (req, res) => {
           priority: 'high',
           category: 'task',
           sendEmail: true,
+          eventType: 'task-assigned',
           metadata: {
             projectId,
             taskId: createdTask._id.toString(),
@@ -257,14 +259,16 @@ export const updateTask = async (req, res) => {
     // Notify project owner when task is completed
     if (!wasCompleted && nowCompleted && project.ownerId !== userId) {
       try {
-        await createNotification({
-          userId: project.ownerId,
+        await createNotificationWithIdempotency({
+          projectId: projectId,
+          recipients: [project.ownerId],
           type: 'task-completed',
           title: '✅ Task Completed',
           message: `Task "${task.title}" has been completed in ${project.title}`,
           link: `/dashboard/projects/${projectId}`,
           priority: 'medium',
           category: 'task',
+          eventType: 'task-completed',
           metadata: {
             projectId,
             taskId: task._id.toString(),

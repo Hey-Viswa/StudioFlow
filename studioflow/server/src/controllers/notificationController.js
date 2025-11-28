@@ -1,4 +1,4 @@
-import notificationService from '../services/notificationService.js';
+import * as notificationService from '../services/notificationService.js';
 
 /**
  * Get notifications for authenticated user
@@ -14,7 +14,7 @@ export const getNotifications = async (req, res) => {
       type = null
     } = req.query;
 
-    const result = await notificationService.listNotifications(userId, {
+    const result = await notificationService.getNotifications(userId, {
       page: parseInt(page),
       limit: Math.min(parseInt(limit), 100), // Max 100 per page
       unreadOnly: unreadOnly === 'true',
@@ -92,7 +92,7 @@ export const deleteNotification = async (req, res) => {
     const userId = req.userId;
     const { id } = req.params;
 
-    await notificationService.deleteNotifications(id, userId);
+    await notificationService.deleteNotification(userId, id);
 
     res.json({ success: true, message: 'Notification deleted' });
   } catch (error) {
@@ -117,14 +117,18 @@ export const deleteAllNotifications = async (req, res) => {
     }
 
     // Get all notification IDs for this user
-    const { notifications } = await notificationService.listNotifications(userId, {
+    const { notifications } = await notificationService.getNotifications(userId, {
+      page: 1,
       limit: 10000 // Get all
     });
 
     const ids = notifications.map(n => n._id);
 
     if (ids.length > 0) {
-      await notificationService.deleteNotifications(ids, userId);
+      // Delete each notification individually
+      for (const id of ids) {
+        await notificationService.deleteNotification(userId, id);
+      }
     }
 
     res.json({

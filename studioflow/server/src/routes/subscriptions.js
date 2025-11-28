@@ -11,7 +11,8 @@ import {
   handleWebhook,
   verifySubscriptionStatus,
   changePlan,
-  verifyUpgradePayment
+  verifyUpgradePayment,
+  toggleAutoRenew
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import User from '../models/User.js';
@@ -42,7 +43,7 @@ router.post('/fix/:userId', async (req, res) => {
   try {
     const { plan } = req.body; // 'pro' or 'studio'
     const user = await User.findOne({ clerkUserId: req.params.userId });
-    
+
     if (!user) {
       return res.json({ error: 'User not found' });
     }
@@ -56,9 +57,9 @@ router.post('/fix/:userId', async (req, res) => {
     user.subscription.subscriptionStartDate = new Date();
     user.subscription.subscriptionEndDate = endDate;
     user.subscription.autoRenew = true;
-    
+
     await user.save();
-    
+
     res.json({
       message: 'Subscription fixed',
       subscription: user.subscription
@@ -80,6 +81,7 @@ router.post('/upgrade', verifyClerk, upgradeSubscription);
 router.post('/reactivate', verifyClerk, reactivateSubscription);
 router.post('/change-plan', verifyClerk, changePlan);
 router.post('/verify-status', verifyClerk, verifySubscriptionStatus);
+router.post('/auto-renew', verifyClerk, toggleAutoRenew);
 
 // Webhook route (no auth required, but signature verified)
 router.post('/webhook', express.json({ verify: (req, res, buf) => { req.rawBody = buf } }), handleWebhook);

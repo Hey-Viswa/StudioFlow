@@ -166,7 +166,7 @@ const ProjectSchema = new mongoose.Schema({
     type: String,
     default: null
   }
-}, { 
+}, {
   timestamps: true
 });
 
@@ -176,41 +176,41 @@ ProjectSchema.index({ ownerId: 1, deletedAt: 1 }); // For listing user's project
 ProjectSchema.index({ deletedBy: 1, deletedAt: 1 }); // For trash queries
 ProjectSchema.index({ createdAt: -1 }); // For sorting by creation date
 
-ProjectSchema.methods.isMember = function(userId) {
+ProjectSchema.methods.isMember = function (userId) {
   return this.members.some(member => String(member.userId) === String(userId));
 };
 
-ProjectSchema.methods.getUserRole = function(userId) {
+ProjectSchema.methods.getUserRole = function (userId) {
   const member = this.members.find(member => String(member.userId) === String(userId));
   return member ? member.role : null;
 };
 
-ProjectSchema.methods.isOwner = function(userId) {
+ProjectSchema.methods.isOwner = function (userId) {
   // Convert both to strings to ensure proper comparison
   return String(this.ownerId) === String(userId);
 };
 
 // Auto-calculate progress based on task completion
-ProjectSchema.methods.calculateProgress = function() {
+ProjectSchema.methods.calculateProgress = function () {
   if (!this.tasks || this.tasks.length === 0) {
     return 0;
   }
-  
+
   const completedTasks = this.tasks.filter(task => task.status === 'completed').length;
   const totalTasks = this.tasks.length;
-  
+
   return Math.round((completedTasks / totalTasks) * 100);
 };
 
 // Auto-update project status based on progress
-ProjectSchema.methods.updateStatusBasedOnProgress = function() {
+ProjectSchema.methods.updateStatusBasedOnProgress = function () {
   const progress = this.calculateProgress();
-  
-  // Don't change status if it's archived
-  if (this.status === 'archived') {
+
+  // Don't change status if it's archived, needs revision, or finalized
+  if (this.status === 'archived' || this.status === 'needs-revision' || this.status === 'finalized') {
     return;
   }
-  
+
   // Update status based on progress
   if (progress === 0) {
     // No tasks completed - keep active (or leave as-is if on-hold)
@@ -226,12 +226,12 @@ ProjectSchema.methods.updateStatusBasedOnProgress = function() {
       this.status = 'active';
     }
   }
-  
+
   this.progress = progress;
 };
 
 // Pre-save middleware to auto-calculate progress and update status
-ProjectSchema.pre('save', function(next) {
+ProjectSchema.pre('save', function (next) {
   // Only auto-update if tasks exist
   if (this.tasks && this.tasks.length > 0) {
     this.updateStatusBasedOnProgress();

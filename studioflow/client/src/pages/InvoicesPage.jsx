@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
@@ -13,9 +13,10 @@ import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpayCheckou
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   // All hooks MUST be called at the top level before any conditional logic or early returns
   // This prevents "Rendered more hooks than during the previous render" error
-  
+
   // Local UI state for modals
   const [showNewInvoiceModal, setShowNewInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -43,6 +44,19 @@ export default function InvoicesPage() {
     setSearchFilter,
     refreshInvoices,
   } = useInvoices();
+
+  // Check for invoice ID in URL on mount or when invoices load
+  useEffect(() => {
+    const invoiceId = searchParams.get('id');
+    if (invoiceId && invoices.length > 0 && !showDetailModal) {
+      const invoice = invoices.find(inv => inv._id === invoiceId);
+      if (invoice) {
+        setSelectedInvoice(invoice);
+        setDetailModalMode('view');
+        setShowDetailModal(true);
+      }
+    }
+  }, [searchParams, invoices, showDetailModal]);
 
   const stats = getStats();
 
@@ -214,7 +228,7 @@ export default function InvoicesPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature
             });
-            
+
             toast.success('Payment successful!');
           } catch (error) {
             toast.error('Payment verification failed');
@@ -247,7 +261,7 @@ export default function InvoicesPage() {
               Manage project invoices and payments
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <Button
               onClick={() => navigate('/dashboard/invoices/new')}
@@ -269,7 +283,7 @@ export default function InvoicesPage() {
             <div className="flex-1">
               <p className="text-destructive font-semibold mb-1">Failed to load invoices</p>
               <p className="text-sm">
-                {error.includes('network') || error.includes('fetch') 
+                {error.includes('network') || error.includes('fetch')
                   ? 'Check your network connection and try again.'
                   : error}
               </p>
@@ -319,6 +333,10 @@ export default function InvoicesPage() {
             setShowDetailModal(false);
             setSelectedInvoice(null);
             setDetailModalMode('view');
+            // Clear the URL query parameter
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('id');
+            navigate({ search: newParams.toString() }, { replace: true });
           }}
           onSave={handleSaveInvoice}
           onDelete={handleDeleteInvoice}

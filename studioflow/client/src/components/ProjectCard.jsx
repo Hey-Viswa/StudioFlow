@@ -15,12 +15,12 @@ import { format } from "date-fns"
 
 const getStatusColor = (status) => {
   const colors = {
-    active: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-    completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    "on-hold": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-    archived: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-    "needs-revision": "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-    finalized: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+    active: "bg-status-active text-status-active-foreground",
+    completed: "bg-status-completed text-status-completed-foreground",
+    "on-hold": "bg-status-on-hold text-status-on-hold-foreground",
+    archived: "bg-status-archived text-status-archived-foreground",
+    "needs-revision": "bg-status-needs-revision text-status-needs-revision-foreground",
+    finalized: "bg-status-finalized text-status-finalized-foreground"
   }
   return colors[status] || colors.active
 }

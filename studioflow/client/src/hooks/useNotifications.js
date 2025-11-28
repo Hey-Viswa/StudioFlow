@@ -53,7 +53,7 @@ export const useNotifications = () => {
 
     try {
       setLoading(true);
-      
+
       // Use Clerk's getToken() method - defensive check
       let token;
       try {
@@ -219,10 +219,20 @@ export const useNotifications = () => {
   useEffect(() => {
     if (!socket || !user?.id) return;
 
+    const playNotificationSound = () => {
+      try {
+        const audio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+        audio.play().catch(e => console.log('Audio play failed:', e));
+      } catch (e) {
+        console.error('Error playing sound:', e);
+      }
+    };
+
     const handleNewNotification = (notification) => {
       console.log('🔔 New notification received:', notification);
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
+      playNotificationSound();
     };
 
     const handleNotificationRead = ({ notificationId }) => {

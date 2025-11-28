@@ -43,13 +43,13 @@ export const createProject = async (req, res) => {
     const user = await User.findOne({ clerkUserId: ownerId });
     const currentPlan = user?.subscription?.plan || 'free';
     const maxProjects = PLAN_LIMITS[currentPlan]?.maxProjects || 5;
-    
+
     // Count user's active projects
     const projectCount = await Project.countDocuments({ ownerId });
-    
+
     if (projectCount >= maxProjects) {
-      return res.status(403).json({ 
-        error: 'Project limit reached', 
+      return res.status(403).json({
+        error: 'Project limit reached',
         message: `You've reached the maximum of ${maxProjects} projects for your ${currentPlan} plan. Please upgrade to create more projects.`,
         currentPlan,
         maxProjects,
@@ -63,8 +63,8 @@ export const createProject = async (req, res) => {
     try {
       const user = await clerkClient.users.getUser(ownerId);
       ownerEmail = user.emailAddresses?.[0]?.emailAddress || '';
-      ownerName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      ownerName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || ownerEmail;
     } catch (err) {
       console.error('Error fetching user from Clerk:', err);
@@ -88,7 +88,7 @@ export const createProject = async (req, res) => {
 
     // Generate initial invite link for convenience
     const inviteToken = jwt.sign(
-      { 
+      {
         projectId: project._id.toString(),
         invitedBy: ownerId,
         role: 'client'
@@ -169,8 +169,8 @@ export const listProjects = async (req, res) => {
     if (dateRange && dateRange !== 'all') {
       const now = new Date();
       let startDate;
-      
-      switch(dateRange) {
+
+      switch (dateRange) {
         case 'today':
           startDate = new Date(now.setHours(0, 0, 0, 0));
           break;
@@ -186,7 +186,7 @@ export const listProjects = async (req, res) => {
         default:
           startDate = null;
       }
-      
+
       if (startDate) {
         query.createdAt = { $gte: startDate };
       }
@@ -195,9 +195,9 @@ export const listProjects = async (req, res) => {
     // Find projects where user is owner OR member, and NOT deleted
     // Use lean() for better performance and select only necessary fields
     const projects = await Project.find(query)
-    .select('title brief status progress ownerId members createdAt updatedAt dueDate comments') // Only needed fields
-    .lean() // Return plain objects for better performance
-    .sort({ createdAt: -1 }); // Most recent first
+      .select('title brief status progress ownerId members createdAt updatedAt dueDate comments') // Only needed fields
+      .lean() // Return plain objects for better performance
+      .sort({ createdAt: -1 }); // Most recent first
 
     // OPTIMIZATION: Collect all unique user IDs first to batch fetch from Clerk
     const allUserIds = new Set();
@@ -213,7 +213,7 @@ export const listProjects = async (req, res) => {
     // BATCH FETCH: Get all users at once instead of one by one
     const userCache = new Map();
     const userIds = Array.from(allUserIds);
-    
+
     // Fetch users in parallel with rate limiting (max 10 concurrent)
     const chunkSize = 10;
     for (let i = 0; i < userIds.length; i += chunkSize) {
@@ -221,8 +221,8 @@ export const listProjects = async (req, res) => {
       await Promise.all(chunk.map(async (id) => {
         try {
           const user = await clerkClient.users.getUser(id);
-          const displayName = user.firstName && user.lastName 
-            ? `${user.firstName} ${user.lastName}` 
+          const displayName = user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
             : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
           userCache.set(id, {
             name: displayName,
@@ -237,7 +237,7 @@ export const listProjects = async (req, res) => {
 
     // Get counts for invoices, files, and comments for all projects at once
     const projectIds = projects.map(p => p._id);
-    
+
     // Batch fetch counts
     const [invoiceCounts, fileCounts] = await Promise.all([
       ProjectInvoice.aggregate([
@@ -270,7 +270,7 @@ export const listProjects = async (req, res) => {
     const enhancedProjects = projects.map((project) => {
       // Determine if this is user's own project or shared project
       const isOwner = String(project.ownerId) === String(userId);
-      
+
       // Get owner name from cache
       const ownerData = userCache.get(project.ownerId) || { name: 'Unknown' };
       const ownerName = ownerData.name;
@@ -302,7 +302,7 @@ export const listProjects = async (req, res) => {
       const invoiceStats = invoiceMap.get(projectIdStr) || { paid: 0, total: 0 };
       const filesCount = fileMap.get(projectIdStr) || 0;
       const commentsCount = project.comments?.length || 0;
-      
+
       return {
         ...project,
         ownerName,
@@ -406,7 +406,7 @@ export const generateInvite = async (req, res) => {
 
     // Create invite token (valid for 7 days)
     const inviteToken = jwt.sign(
-      { 
+      {
         projectId: project._id.toString(),
         invitedBy: userId,
         role: 'client'
@@ -501,10 +501,10 @@ export const updateProject = async (req, res) => {
     const userName = req.userName || '';
     const { title, brief, status, dueDate, progress, tasks, revisionNotes, finalizedAt } = req.body;
 
-    console.log('📊 Update project request:', { 
-      projectId: id, 
-      userId, 
-      updates: { title, brief, status, dueDate, progress, hasTasks: !!tasks, revisionNotes, finalizedAt } 
+    console.log('📊 Update project request:', {
+      projectId: id,
+      userId,
+      updates: { title, brief, status, dueDate, progress, hasTasks: !!tasks, revisionNotes, finalizedAt }
     });
 
     const project = await Project.findById(id);
@@ -524,8 +524,8 @@ export const updateProject = async (req, res) => {
     }
 
     // Allow clients to request revision or approve final
-    const isClientAction = status === 'needs-revision' || status === 'completed';
-    
+    const isClientAction = status === 'needs-revision' || status === 'finalized';
+
     // Only owner can update project details (except client revision/approval)
     if (!isOwner && !isClientAction) {
       console.log('❌ User is not owner:', { userId, ownerId: project.ownerId });
@@ -545,17 +545,17 @@ export const updateProject = async (req, res) => {
     if (title !== undefined) project.title = title;
     if (brief !== undefined) project.brief = brief;
     if (dueDate !== undefined) project.dueDate = dueDate ? new Date(dueDate) : null;
-    
+
     // Update tasks if provided
     if (tasks !== undefined) {
       project.tasks = tasks;
       console.log('� Tasks updated, auto-calculating progress...');
     }
-    
+
     // Manual status override (only if not letting auto-calc handle it)
     if (status !== undefined && !tasks) {
       project.status = status;
-      
+
       // Add system comment for status changes
       if (status === 'needs-revision' && revisionNotes) {
         project.comments.push({
@@ -578,7 +578,7 @@ export const updateProject = async (req, res) => {
         }
       }
     }
-    
+
     // Manual progress override (only if no tasks update)
     if (progress !== undefined && !tasks) {
       if (progress < 0 || progress > 100) {
@@ -590,8 +590,8 @@ export const updateProject = async (req, res) => {
 
     // Save will trigger pre-save middleware that auto-calculates progress
     await project.save();
-    
-    console.log('✅ Project updated successfully:', { 
+
+    console.log('✅ Project updated successfully:', {
       progress: project.progress,
       status: project.status,
       completedTasks: project.tasks.filter(t => t.status === 'completed').length,
@@ -616,6 +616,52 @@ export const updateProject = async (req, res) => {
         updates: { title, brief, status: project.status, dueDate, progress: project.progress, tasks: project.tasks }
       });
       console.log('📡 Socket.IO: Emitted project-updated event globally');
+    }
+
+    // Send Notifications for Client Actions
+    if (status === 'needs-revision' && revisionNotes) {
+      console.log('🔔 Attempting to send revision notification to owner:', project.ownerId);
+      try {
+        await createNotificationWithIdempotency({
+          projectId: project._id.toString(),
+          recipients: [project.ownerId.toString()], // Notify owner (ensure string)
+          type: 'project-updated',
+          title: '📝 Revision Requested',
+          message: `Client requested changes: "${revisionNotes.substring(0, 50)}${revisionNotes.length > 50 ? '...' : ''}"`,
+          link: `/dashboard/projects/${project._id}?tab=comments`,
+          priority: 'high',
+          category: 'project',
+          eventType: 'revision-requested',
+          metadata: {
+            projectTitle: project.title,
+            requestedBy: userName
+          }
+        });
+        console.log('🔔 Notification sent: Revision Requested');
+      } catch (notifError) {
+        console.error('❌ Failed to send revision notification:', notifError);
+      }
+    } else if (status === 'finalized') {
+      try {
+        await createNotificationWithIdempotency({
+          projectId: project._id.toString(),
+          recipients: [project.ownerId.toString()], // Notify owner (ensure string)
+          type: 'project-updated',
+          title: '✅ Project Approved',
+          message: `Client has approved and finalized "${project.title}"`,
+          link: `/dashboard/projects/${project._id}`,
+          priority: 'high',
+          category: 'project',
+          eventType: 'project-approved',
+          metadata: {
+            projectTitle: project.title,
+            approvedBy: userName
+          }
+        });
+        console.log('🔔 Notification sent: Project Approved');
+      } catch (notifError) {
+        console.error('❌ Failed to send approval notification:', notifError);
+      }
     }
 
     res.json({
@@ -661,8 +707,8 @@ export const deleteProject = async (req, res) => {
     let userName = '';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
       console.log('✅ User details fetched:', userName);
     } catch (err) {
@@ -721,7 +767,7 @@ export const deleteProject = async (req, res) => {
       const memberUserIds = project.members
         .map(m => m.userId)
         .filter(uid => uid !== userId); // Don't notify the person who deleted it
-      
+
       if (memberUserIds.length > 0) {
         await createNotificationWithIdempotency({
           projectId: project._id.toString(),
@@ -743,14 +789,14 @@ export const deleteProject = async (req, res) => {
       console.error('Error sending deletion notifications:', notifError);
     }
 
-    res.json({ 
+    res.json({
       message: 'Project moved to trash. Will be permanently deleted after 30 days.',
       trashId: trashEntry._id
     });
   } catch (error) {
     console.error('❌ Delete project error:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to delete project',
       details: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
@@ -766,22 +812,22 @@ export const listTrash = async (req, res) => {
 
     // Find projects that were deleted by this user and haven't been 30 days yet
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     // Use lean() and select only needed fields
     const trashedProjects = await Project.find({
       deletedBy: userId,
       deletedAt: { $ne: null, $gte: thirtyDaysAgo }
     })
-    .select('title brief status deletedAt ownerId createdAt')
-    .lean()
-    .sort({ deletedAt: -1 });
+      .select('title brief status deletedAt ownerId createdAt')
+      .lean()
+      .sort({ deletedAt: -1 });
 
     // Calculate days remaining for each project
     const projectsWithDaysRemaining = trashedProjects.map(project => {
       const deletedDate = new Date(project.deletedAt);
       const expiryDate = new Date(deletedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
       const daysRemaining = Math.ceil((expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
-      
+
       return {
         ...project,
         daysRemaining
@@ -822,9 +868,9 @@ export const restoreProject = async (req, res) => {
     project.deletedBy = null;
     await project.save();
 
-    res.json({ 
+    res.json({
       project,
-      message: 'Project restored successfully' 
+      message: 'Project restored successfully'
     });
   } catch (error) {
     console.error('Restore project error:', error);

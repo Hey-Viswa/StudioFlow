@@ -29,12 +29,28 @@ import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
 import { initializeSocket } from './src/config/socket.js';
 import { initializeAppwrite } from './src/config/appwrite.js';
 import { initializeMessaging } from './src/config/appwriteMessaging.js';
+import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+// Global Error Handlers
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
+  console.error(err.name, err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+  console.error(err.name, err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
 
 const app = express();
 const httpServer = createServer(app);
@@ -210,8 +226,11 @@ const startServer = async () => {
         // Initialize Appwrite (optional - falls back to Socket.IO)
         initializeAppwrite();
         
-        // Initialize Appwrite Messaging (for email and push notifications)
+        // Initialize Appwrite Messaging (for email notifications)
         initializeMessaging();
+        
+        // Initialize Firebase (for push notifications)
+        initializeFirebase();
         
         // Check Razorpay environment variables
         console.log('\n=== Razorpay Configuration Check ===');
