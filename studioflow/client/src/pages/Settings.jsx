@@ -277,7 +277,7 @@ export default function Settings() {
   ];
 
   return (
-    <div className="min-h-screen bg-background/50">
+    <div className="min-h-screen bg-background">
       {/* Header Section */}
       <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-8 pt-10 px-8">
         <div className="max-w-6xl mx-auto">

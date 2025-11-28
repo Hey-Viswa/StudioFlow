@@ -7,11 +7,11 @@ import { cn } from "../lib/utils"
 
 const getFileIcon = (mimeType) => {
   if (!mimeType) return FileText
-  
+
   if (mimeType.startsWith('image/')) return Image
   if (mimeType.startsWith('video/')) return Film
   if (mimeType.includes('zip') || mimeType.includes('archive')) return FileArchive
-  
+
   return FileText
 }
 
@@ -28,15 +28,15 @@ const FileThumbnail = ({ file, onClick }) => {
       <div className="relative w-16 h-16 flex items-center justify-center rounded bg-muted">
         {isPreviewable && file.previewUrl ? (
           file.mimeType.startsWith('video/') ? (
-            <video 
-              src={file.previewUrl} 
+            <video
+              src={file.previewUrl}
               className="w-full h-full object-cover rounded"
               muted
             />
           ) : (
-            <img 
-              src={file.previewUrl} 
-              alt={file.filename} 
+            <img
+              src={file.previewUrl}
+              alt={file.filename}
               className="w-full h-full object-cover rounded"
             />
           )
@@ -47,21 +47,21 @@ const FileThumbnail = ({ file, onClick }) => {
           <ExternalLink className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
-      <span className="text-xs text-center truncate w-full max-w-[80px]">
+      <span className="text-xs text-center truncate w-full max-w-[80px] sm:max-w-[100px]">
         {file.filename || file.originalFilename}
       </span>
     </button>
   )
 }
 
-const FilesStrip = React.forwardRef(({ 
+const FilesStrip = React.forwardRef(({
   files = [],
   title = "Recent Files",
   maxVisible = 6,
   onFileClick,
   onViewAll,
   className,
-  ...props 
+  ...props
 }, ref) => {
   const displayFiles = files.slice(0, maxVisible)
   const hasMore = files.length > maxVisible
@@ -71,9 +71,9 @@ const FilesStrip = React.forwardRef(({
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-base font-semibold">{title}</CardTitle>
         {hasMore && onViewAll && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onViewAll}
             className="h-8 text-xs"
           >
@@ -89,11 +89,11 @@ const FilesStrip = React.forwardRef(({
           </div>
         ) : (
           <ScrollArea className="w-full">
-            <div className="flex gap-3 pb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pb-2">
               {displayFiles.map((file) => (
-                <FileThumbnail 
-                  key={file._id || file.fileId} 
-                  file={file} 
+                <FileThumbnail
+                  key={file._id || file.fileId}
+                  file={file}
                   onClick={onFileClick}
                 />
               ))}

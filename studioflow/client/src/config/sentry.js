@@ -20,14 +20,14 @@ export function initSentry() {
     Sentry.init({
       dsn: import.meta.env.VITE_SENTRY_DSN,
       environment: import.meta.env.MODE || 'development',
-      
+
       // BUDGET-FRIENDLY: Only sample 5% of transactions
       tracesSampleRate: 0.05,
-      
+
       // Capture replays only for errors (not all sessions)
       replaysSessionSampleRate: 0, // Don't record normal sessions
       replaysOnErrorSampleRate: 0.1, // Record 10% of error sessions
-      
+
       // Filter out noise
       ignoreErrors: [
         // Network errors
@@ -36,50 +36,50 @@ export function initSentry() {
         'Failed to fetch',
         'Load failed',
         'ChunkLoadError',
-        
+
         // Browser extensions
         'chrome-extension',
         'moz-extension',
-        
+
         // Authentication (expected)
         'Invalid token',
         'Unauthorized',
         '401',
-        
+
         // Common user errors
         'Not found',
         '404',
-        
+
         // Cancelled requests
         'cancelled',
         'aborted',
-        
+
         // React errors we handle
         'ResizeObserver loop limit exceeded',
       ],
-      
+
       beforeSend(event, hint) {
         // Filter out errors from bots
         if (navigator.userAgent && /bot|crawler|spider/i.test(navigator.userAgent)) {
           return null;
         }
-        
+
         // Filter validation errors
         const error = hint.originalException;
         if (error?.message?.includes('Validation') || error?.message?.includes('required')) {
           return null;
         }
-        
+
         // Filter Clerk errors (they handle their own)
         if (error?.message?.includes('Clerk')) {
           return null;
         }
-        
+
         return event;
       },
-      
+
       integrations: [
-        new Sentry.BrowserTracing({
+        Sentry.browserTracingIntegration({
           // Only trace important navigations
           tracingOrigins: [
             'localhost',
@@ -87,7 +87,7 @@ export function initSentry() {
             /^https:\/\/studioflow\.studio/
           ],
         }),
-        new Sentry.Replay({
+        Sentry.replayIntegration({
           maskAllText: true,
           blockAllMedia: true,
         }),

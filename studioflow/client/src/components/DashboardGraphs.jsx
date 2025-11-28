@@ -541,15 +541,15 @@ const DashboardGraphs = React.forwardRef(({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
         <RevenueChart
           data={revenueData}
           granularity={revenueGranularity}
           onGranularityChange={onRevenueGranularityChange}
-          className="md:col-span-2"
+          className="col-span-1 md:col-span-2"
         />
-        <InvoiceStatusChart data={invoiceStatusData} />
-        <ProjectProgressChart data={projectProgressData} />
+        <InvoiceStatusChart data={invoiceStatusData} className="col-span-1" />
+        <ProjectProgressChart data={projectProgressData} className="col-span-1" />
       </div>
     </div>
   )

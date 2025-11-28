@@ -162,10 +162,10 @@ export default function InvoiceTable({
 
   const saveEdit = async (invoice) => {
     if (!editingField || !onInlineUpdate) return;
-    
+
     const { field } = editingField;
     const updates = { _id: invoice._id }; // Only include the ID
-    
+
     if (field === 'dueDate') {
       updates.dueDate = new Date(editValue);
     } else if (field === 'amount') {
@@ -176,7 +176,7 @@ export default function InvoiceTable({
       }
       updates.total = newTotal;
     }
-    
+
     try {
       // Pass only the updates object with _id and the changed field
       await onInlineUpdate(updates);
@@ -241,190 +241,274 @@ export default function InvoiceTable({
       </div>
 
       <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Invoice</TableHead>
-              <TableHead className="text-muted-foreground">Project</TableHead>
-              <TableHead className="text-muted-foreground">Client</TableHead>
-              <TableHead className="text-muted-foreground">Status</TableHead>
-              <TableHead className="text-muted-foreground">Due Date</TableHead>
-              <TableHead className="text-right text-muted-foreground">Amount</TableHead>
-              <TableHead className="text-right text-muted-foreground">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody className="divide-y">
-            {invoices.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="px-4 py-12 text-center">
-                  <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground mb-1">No invoices found</p>
-                  <p className="text-sm text-muted-foreground">
-                    {searchTerm || statusFilter !== 'all'
-                      ? 'Try adjusting your filters'
-                      : 'Create your first invoice to get started'}
-                  </p>
-                </TableCell>
+        {/* Desktop Table View */}
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-muted-foreground">Invoice</TableHead>
+                <TableHead className="text-muted-foreground">Project</TableHead>
+                <TableHead className="text-muted-foreground">Client</TableHead>
+                <TableHead className="text-muted-foreground">Status</TableHead>
+                <TableHead className="text-muted-foreground">Due Date</TableHead>
+                <TableHead className="text-right text-muted-foreground">Amount</TableHead>
+                <TableHead className="text-right text-muted-foreground">Actions</TableHead>
               </TableRow>
-            ) : (
-              invoices.map((invoice) => (
-                <TableRow
-                  key={invoice._id}
-                  className="hover:bg-muted/50 transition-colors"
-                >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-muted rounded">
-                        <FileText className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-mono font-medium">
-                          {invoice.invoiceNumber}
-                        </p>
-                        {invoice.resendCount > 0 && (
-                          <p className="text-[10px] text-muted-foreground">
-                            Resent {invoice.resendCount}x
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm truncate max-w-[200px]">
-                      {invoice.projectId?.title || invoice.projectTitle || 'N/A'}
+            </TableHeader>
+            <TableBody className="divide-y">
+              {invoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="px-4 py-12 text-center">
+                    <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground mb-1">No invoices found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm || statusFilter !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Create your first invoice to get started'}
                     </p>
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm">
-                      {invoice.client?.name || 'N/A'}
-                    </p>
-                    {invoice.client?.email && (
-                      <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                        {invoice.client.email}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <InvoiceStatusBadge
-                      status={invoice.status === 'pending' && new Date(invoice.dueDate) < new Date() ? 'overdue' : invoice.status}
-                      invoiceId={invoice._id}
-                      onStatusChange={handleStatusChange}
-                      loading={statusUpdating === invoice._id}
-                      allowEdit={true}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {editingField?.invoiceId === invoice._id && editingField?.field === 'dueDate' ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="date"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="h-8 w-36 text-sm"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => saveEdit(invoice)}
-                        >
-                          <Check className="w-4 h-4 text-green-600" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={cancelEditing}
-                        >
-                          <X className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div 
-                        className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 group"
-                        onClick={() => startEditing(invoice, 'dueDate')}
-                      >
-                        <CalendarIcon className="w-3 h-3 text-muted-foreground" />
-                        <span>{formatDate(invoice.dueDate)}</span>
-                        <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {editingField?.invoiceId === invoice._id && editingField?.field === 'amount' ? (
-                      <div className="flex items-center justify-end gap-1">
-                        <Input
-                          type="number"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="h-8 w-28 text-sm text-right"
-                          autoFocus
-                          step="0.01"
-                          min="0"
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => saveEdit(invoice)}
-                        >
-                          <Check className="w-4 h-4 text-green-600" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={cancelEditing}
-                        >
-                          <X className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div 
-                        className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 inline-flex items-center gap-2 group"
-                        onClick={() => startEditing(invoice, 'amount')}
-                      >
-                        <span>{formatINR(invoice.total)}</span>
-                        <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600"
-                        onClick={() => onDownloadInvoice?.(invoice)}
-                        title="Download PDF"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-3 hover:bg-blue-50 hover:text-blue-600"
-                        onClick={() => onEditInvoice?.(invoice)}
-                      >
-                        <Edit2 className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                        onClick={() => handleDeleteClick(invoice)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                invoices.map((invoice) => (
+                  <TableRow
+                    key={invoice._id}
+                    className="hover:bg-muted/50 transition-colors"
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-muted rounded">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-mono font-medium">
+                            {invoice.invoiceNumber}
+                          </p>
+                          {invoice.resendCount > 0 && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Resent {invoice.resendCount}x
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm truncate max-w-[200px]">
+                        {invoice.projectId?.title || invoice.projectTitle || 'N/A'}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm">
+                        {invoice.client?.name || 'N/A'}
+                      </p>
+                      {invoice.client?.email && (
+                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">
+                          {invoice.client.email}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <InvoiceStatusBadge
+                        status={invoice.status === 'pending' && new Date(invoice.dueDate) < new Date() ? 'overdue' : invoice.status}
+                        invoiceId={invoice._id}
+                        onStatusChange={handleStatusChange}
+                        loading={statusUpdating === invoice._id}
+                        allowEdit={true}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {editingField?.invoiceId === invoice._id && editingField?.field === 'dueDate' ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="date"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="h-8 w-36 text-sm"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => saveEdit(invoice)}
+                          >
+                            <Check className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={cancelEditing}
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 group"
+                          onClick={() => startEditing(invoice, 'dueDate')}
+                        >
+                          <CalendarIcon className="w-3 h-3 text-muted-foreground" />
+                          <span>{formatDate(invoice.dueDate)}</span>
+                          <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {editingField?.invoiceId === invoice._id && editingField?.field === 'amount' ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Input
+                            type="number"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="h-8 w-28 text-sm text-right"
+                            autoFocus
+                            step="0.01"
+                            min="0"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => saveEdit(invoice)}
+                          >
+                            <Check className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={cancelEditing}
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 inline-flex items-center gap-2 group"
+                          onClick={() => startEditing(invoice, 'amount')}
+                        >
+                          <span>{formatINR(invoice.total)}</span>
+                          <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600"
+                          onClick={() => onDownloadInvoice?.(invoice)}
+                          title="Download PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 hover:bg-blue-50 hover:text-blue-600"
+                          onClick={() => onEditInvoice?.(invoice)}
+                        >
+                          <Edit2 className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => handleDeleteClick(invoice)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4 p-4">
+          {invoices.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground mb-1">No invoices found</p>
+              <p className="text-sm text-muted-foreground">
+                {searchTerm || statusFilter !== 'all'
+                  ? 'Try adjusting your filters'
+                  : 'Create your first invoice to get started'}
+              </p>
+            </div>
+          ) : (
+            invoices.map((invoice) => (
+              <div key={invoice._id} className="bg-card border rounded-lg p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-muted rounded">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-mono font-medium text-sm">{invoice.invoiceNumber}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(invoice.dueDate)}</p>
+                    </div>
+                  </div>
+                  <InvoiceStatusBadge
+                    status={invoice.status === 'pending' && new Date(invoice.dueDate) < new Date() ? 'overdue' : invoice.status}
+                    invoiceId={invoice._id}
+                    onStatusChange={handleStatusChange}
+                    loading={statusUpdating === invoice._id}
+                    allowEdit={true}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Project</p>
+                    <p className="truncate">{invoice.projectId?.title || invoice.projectTitle || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Client</p>
+                    <p className="truncate">{invoice.client?.name || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="font-semibold">
+                    {formatINR(invoice.total)}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => onDownloadInvoice?.(invoice)}
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => onEditInvoice?.(invoice)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteClick(invoice)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {totalPages > 1 && (
@@ -455,7 +539,7 @@ export default function InvoiceTable({
           </div>
         </div>
       )}
-      
+
       <DeleteConfirmDialog
         invoice={showDeleteDialog}
         open={!!showDeleteDialog}

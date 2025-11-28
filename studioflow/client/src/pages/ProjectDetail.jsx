@@ -73,7 +73,7 @@ export default function ProjectDetail() {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Comment System 2.0 integration
   const {
     comments,
@@ -85,7 +85,7 @@ export default function ProjectDetail() {
     reactToComment,
     resolveComment
   } = useComments(projectId);
-  
+
   const [inviteLink, setInviteLink] = useState(null);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -237,7 +237,7 @@ export default function ProjectDetail() {
     const date = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       return { valid: false, message: 'Invalid date' };
@@ -253,7 +253,7 @@ export default function ProjectDetail() {
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Validate character limits
     if (name === 'title' && value.length > 50) {
       toast.error('Title must be 50 characters or less');
@@ -263,7 +263,7 @@ export default function ProjectDetail() {
       toast.error('Brief must be 100 characters or less');
       return;
     }
-    
+
     // Validate date
     if (name === 'dueDate' && value) {
       const validation = validateDate(value);
@@ -272,7 +272,7 @@ export default function ProjectDetail() {
         return;
       }
     }
-    
+
     // Validate progress range
     if (name === 'progress') {
       const numValue = Number(value);
@@ -281,7 +281,7 @@ export default function ProjectDetail() {
         return;
       }
     }
-    
+
     setEditForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -290,7 +290,7 @@ export default function ProjectDetail() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       // Prepare update data
       const updateData = {
         title: editForm.title,
@@ -299,7 +299,7 @@ export default function ProjectDetail() {
         progress: editForm.progress,
         dueDate: editForm.dueDate || null // Send null if empty to clear the date
       };
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'PUT',
         credentials: 'include',
@@ -319,7 +319,7 @@ export default function ProjectDetail() {
       setProject(data.project);
       setIsEditing(false);
       toast.success('Project updated successfully!');
-      
+
       // Refresh project data to ensure UI is in sync
       await fetchProject();
     } catch (err) {
@@ -373,7 +373,7 @@ export default function ProjectDetail() {
       toast.error('Please provide revision notes');
       return;
     }
-    
+
     setSubmittingRevision(true);
     try {
       const token = await getToken();
@@ -385,7 +385,7 @@ export default function ProjectDetail() {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'needs-revision',
           revisionNotes: revisionNotes
         })
@@ -418,7 +418,7 @@ export default function ProjectDetail() {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'completed',
           finalizedAt: new Date().toISOString()
         })
@@ -444,13 +444,13 @@ export default function ProjectDetail() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const url = `${apiUrl}/projects/${projectId}`;
-      
+
       // Automatically set status to 'completed' if progress is 100%
       const updateData = { progress: progressValue };
       if (progressValue === 100) {
         updateData.status = 'completed';
       }
-      
+
       const response = await fetch(url, {
         method: 'PATCH',
         credentials: 'include',
@@ -467,15 +467,15 @@ export default function ProjectDetail() {
       }
 
       const data = await response.json();
-      
+
       if (progressValue === 100) {
         toast.success('Progress updated to 100% and project marked as completed! 🎉');
       } else {
         toast.success('Progress updated successfully!');
       }
-      
+
       setProject(prev => ({ ...prev, progress: progressValue, ...(progressValue === 100 && { status: 'completed' }) }));
-      
+
       // Fetch fresh data to ensure sync
       await fetchProject();
     } catch (err) {
@@ -589,11 +589,10 @@ export default function ProjectDetail() {
                         onChange={handleEditChange}
                         className="mt-1"
                       />
-                      <p className={`text-xs mt-1 ${
-                        editForm.title.length > 50 ? 'text-red-500' : 
-                        editForm.title.length > 40 ? 'text-yellow-500' : 
-                        'text-muted-foreground'
-                      }`}>
+                      <p className={`text-xs mt-1 ${editForm.title.length > 50 ? 'text-red-500' :
+                          editForm.title.length > 40 ? 'text-yellow-500' :
+                            'text-muted-foreground'
+                        }`}>
                         {editForm.title.length}/50 characters
                       </p>
                     </div>
@@ -607,18 +606,17 @@ export default function ProjectDetail() {
                         maxLength={100}
                         className="mt-1 resize-none min-h-[80px] max-h-[200px]"
                       />
-                      <p className={`text-xs mt-1 ${
-                        editForm.brief.length > 100 ? 'text-red-500' : 
-                        editForm.brief.length > 80 ? 'text-yellow-500' : 
-                        'text-muted-foreground'
-                      }`}>
+                      <p className={`text-xs mt-1 ${editForm.brief.length > 100 ? 'text-red-500' :
+                          editForm.brief.length > 80 ? 'text-yellow-500' :
+                            'text-muted-foreground'
+                        }`}>
                         {editForm.brief.length}/100 characters
                       </p>
                     </div>
                     <div>
                       <Label htmlFor="status">Status</Label>
-                      <Select 
-                        value={editForm.status} 
+                      <Select
+                        value={editForm.status}
                         onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
                       >
                         <SelectTrigger className="mt-1">
@@ -644,8 +642,8 @@ export default function ProjectDetail() {
                           min={new Date().toISOString().split('T')[0]}
                           className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
                         />
-                        <CalendarIcon 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10" 
+                        <CalendarIcon
+                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10"
                           onClick={() => document.getElementById('dueDate').showPicker()}
                         />
                       </div>
@@ -692,24 +690,24 @@ export default function ProjectDetail() {
               </div>
               {!isEditing && (
                 <div className="relative">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8"
                     onClick={() => setShowDropdown(!showDropdown)}
                     aria-label="Project options"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
-                  
+
                   {showDropdown && (
                     <>
                       {/* Backdrop to close dropdown */}
-                      <div 
-                        className="fixed inset-0 z-40" 
+                      <div
+                        className="fixed inset-0 z-40"
                         onClick={() => setShowDropdown(false)}
                       />
-                      
+
                       {/* Dropdown menu */}
                       <div className="absolute right-0 top-10 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
                         {project.isOwner ? (
@@ -778,7 +776,7 @@ export default function ProjectDetail() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Project Details */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
                 <CalendarIcon className="w-5 h-5 text-muted-foreground" />
                 <div>
@@ -818,7 +816,7 @@ export default function ProjectDetail() {
                 </div>
 
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-primary transition-all duration-300"
                     style={{ width: `${project.progress}%` }}
                   />
@@ -841,7 +839,7 @@ export default function ProjectDetail() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Generate a secure invite link to give clients access to this project. Links expire after 7 days.
                 </p>
-                
+
                 {!inviteLink ? (
                   <Button onClick={generateInviteLink} disabled={generatingInvite}>
                     {generatingInvite ? (
@@ -950,22 +948,22 @@ export default function ProjectDetail() {
                   Comments
                 </TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="tasks" className="mt-6">
                 <TasksTab projectId={projectId} project={project} />
               </TabsContent>
-              
+
               <TabsContent value="invoices" className="mt-6">
-                <ProjectInvoiceList 
-                  projectId={projectId} 
-                  clients={project.members?.filter(m => m.role === 'client')} 
+                <ProjectInvoiceList
+                  projectId={projectId}
+                  clients={project.members?.filter(m => m.role === 'client')}
                 />
               </TabsContent>
-              
+
               <TabsContent value="files" className="mt-6">
                 <ProjectFilesPanel projectId={projectId} project={project} />
               </TabsContent>
-              
+
               <TabsContent value="comments">
                 <CommentThread
                   comments={comments}

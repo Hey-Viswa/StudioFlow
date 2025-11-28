@@ -169,7 +169,7 @@ const NotificationsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background/50">
+    <div className="min-h-screen bg-background">
       <div className="container max-w-5xl mx-auto p-6 space-y-8">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -404,8 +404,8 @@ const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon
     <div
       onClick={() => onClick(notification)}
       className={`group relative flex items-start gap-4 p-4 rounded-xl transition-all duration-200 border cursor-pointer hover:shadow-md ${!notification.read
-          ? 'bg-card border-primary/20 shadow-sm'
-          : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50'
+        ? 'bg-card border-primary/20 shadow-sm'
+        : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50'
         }`}
     >
       {/* Unread Indicator */}
@@ -431,7 +431,7 @@ const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon
           </span>
         </div>
 
-        <p className={`text-sm line-clamp-2 ${!notification.read ? 'text-foreground/80' : 'text-muted-foreground'}`}>
+        <p className={`text-sm line-clamp-2 ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
           {notification.message}
         </p>
 

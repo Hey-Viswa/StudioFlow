@@ -1,10 +1,10 @@
 import { Card } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { formatINR, formatCompactNumber } from '../../utils/currency';
-import { 
-  DollarSign, 
-  CheckCircle2, 
-  Send, 
+import {
+  DollarSign,
+  CheckCircle2,
+  Send,
   AlertTriangle,
   XCircle,
   TrendingUp,
@@ -94,21 +94,21 @@ export default function InvoicesKPI({ stats, loading }) {
                     <Icon className="w-5 h-5" style={{ color: kpi.iconColor }} />
                   </div>
                   {kpi.trend && (
-                    <TrendIcon 
-                      className={`w-4 h-4 ${kpi.trend === 'up' ? 'text-green-500' : 'text-red-500'}`} 
+                    <TrendIcon
+                      className={`w-4 h-4 ${kpi.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}
                     />
                   )}
                 </div>
-                
-                <p className="text-sm text-slate-400 mb-1">{kpi.label}</p>
-                
+
+                <p className="text-sm text-muted-foreground mb-1">{kpi.label}</p>
+
                 <div className="flex items-baseline gap-2">
-                  <p className="text-2xl font-bold text-white">
+                  <p className="text-2xl font-bold text-foreground">
                     {formatINR(kpi.value, { compact: true })}
                   </p>
                 </div>
-                
-                <p className="text-xs text-slate-500 mt-1">
+
+                <p className="text-xs text-muted-foreground mt-1">
                   {kpi.count} {kpi.count === 1 ? 'invoice' : 'invoices'}
                 </p>
               </div>
