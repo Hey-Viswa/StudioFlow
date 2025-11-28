@@ -15,11 +15,17 @@ import {
   Bell
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { ModeToggle } from './ModeToggle';
 
 export default function DashboardLayout() {
+  // Layout for the dashboard with sidebar and header
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Initialize push notifications
+  usePushNotifications();
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -68,7 +74,10 @@ export default function DashboardLayout() {
               <span className="text-primary-foreground font-bold text-base">SF</span>
             </div>
           ) : (
-            <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto" />
+            <div className="relative">
+              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto hidden dark:block" />
+              <img src="/studioflow-black.svg" alt="StudioFlow" className="h-8 w-auto block dark:hidden" />
+            </div>
           )}
         </Link>
 
@@ -188,6 +197,7 @@ export default function DashboardLayout() {
                   <p className="text-sm font-medium text-sidebar-foreground truncate">Account</p>
                   <p className="text-xs text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors">Manage profile</p>
                 </div>
+                <ModeToggle />
                 <NotificationBell />
               </>
             )}
@@ -206,8 +216,12 @@ export default function DashboardLayout() {
           >
             <Menu className="w-5 h-5" />
           </Button>
-          <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-6 w-auto" />
+          <div className="relative">
+            <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-6 w-auto hidden dark:block" />
+            <img src="/studioflow-black.svg" alt="StudioFlow" className="h-6 w-auto block dark:hidden" />
+          </div>
           <div className="flex items-center gap-2">
+            <ModeToggle />
             <NotificationBell />
             <UserButton
               appearance={{

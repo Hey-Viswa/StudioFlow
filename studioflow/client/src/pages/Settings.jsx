@@ -38,6 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 export default function Settings() {
   const { user } = useUser();
@@ -296,9 +297,7 @@ export default function Settings() {
         {subscription && <SubscriptionAlert subscription={subscription.subscription} />}
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <DashboardSkeleton />
         ) : (
           <div className="grid grid-cols-12 gap-8">
             {/* Sidebar Navigation */}

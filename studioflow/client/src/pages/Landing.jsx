@@ -59,44 +59,44 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto" />
+              <div className="relative">
+                <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto hidden dark:block" />
+                <img src="/studioflow-black.svg" alt="StudioFlow" className="h-8 w-auto block dark:hidden" />
+              </div>
               {/* <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">StudioFlow</h1> */}
             </div>
-            
+
             {/* Centered Navigation Pills */}
             <div className="absolute left-1/2 transform -translate-x-1/2 hidden md:flex items-center gap-1 bg-muted/80 p-1.5 rounded-full border border-border">
-              <button 
-                onClick={() => scrollToSection('features')} 
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
-                  activeSection === 'features' 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                }`}
+              <button
+                onClick={() => scrollToSection('features')}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeSection === 'features'
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
               >
                 Features
               </button>
-              <button 
-                onClick={() => scrollToSection('pricing')} 
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
-                  activeSection === 'pricing' 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                }`}
+              <button
+                onClick={() => scrollToSection('pricing')}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeSection === 'pricing'
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
               >
                 Pricing
               </button>
-              <button 
-                onClick={() => scrollToSection('faq')} 
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
-                  activeSection === 'faq' 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                }`}
+              <button
+                onClick={() => scrollToSection('faq')}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activeSection === 'faq'
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
               >
                 FAQ
               </button>
             </div>
-            
+
             {/* Auth Buttons - Always visible */}
             <div className="flex items-center gap-3">
               {!isSignedIn ? (
@@ -115,14 +115,14 @@ const Landing = () => {
                 </>
               ) : (
                 <>
-                  <Button 
+                  <Button
                     onClick={() => navigate('/dashboard')}
-                    variant="ghost" 
+                    variant="ghost"
                     className="hover:scale-105 transition-transform duration-200"
                   >
                     Dashboard
                   </Button>
-                  <UserButton 
+                  <UserButton
                     afterSignOutUrl="/"
                     appearance={{
                       elements: {
@@ -143,7 +143,7 @@ const Landing = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(120,119,198,0.15),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_60%,rgba(120,119,198,0.08),transparent_50%)]" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8 animate-fade-in">
@@ -151,19 +151,19 @@ const Landing = () => {
                 <Sparkles className="w-3 h-3" />
                 <span>Now in Beta</span>
               </div>
-              
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-tight animate-slide-up" style={{animationDelay: '0.1s'}}>
+
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-tight animate-slide-up" style={{ animationDelay: '0.1s' }}>
                 Project management for{' '}
                 <span className="bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
                   video editors
                 </span>
               </h1>
-              
-              <p className="text-xl text-muted-foreground leading-relaxed animate-slide-up max-w-xl" style={{animationDelay: '0.2s'}}>
+
+              <p className="text-xl text-muted-foreground leading-relaxed animate-slide-up max-w-xl" style={{ animationDelay: '0.2s' }}>
                 Organize timelines, collaborate with clients, and get paid—without leaving your flow.
               </p>
-              
-              <div className="flex flex-wrap gap-4 animate-slide-up" style={{animationDelay: '0.3s'}}>
+
+              <div className="flex flex-wrap gap-4 animate-slide-up" style={{ animationDelay: '0.3s' }}>
                 <SignedOut>
                   <SignUpButton mode="modal">
                     <Button size="lg" className="gap-2 hover:scale-105 transition-all duration-200 shadow-2xl shadow-primary/30 hover:shadow-3xl hover:shadow-primary/50 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8">
@@ -174,8 +174,8 @@ const Landing = () => {
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     onClick={() => navigate('/dashboard')}
                     className="gap-2 hover:scale-105 transition-all duration-200 shadow-2xl shadow-primary/30 hover:shadow-3xl hover:shadow-primary/50 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8"
                   >
@@ -189,8 +189,8 @@ const Landing = () => {
                   Watch Demo
                 </Button>
               </div>
-              
-              <div className="flex items-center gap-6 text-sm text-muted-foreground animate-slide-up" style={{animationDelay: '0.4s'}}>
+
+              <div className="flex items-center gap-6 text-sm text-muted-foreground animate-slide-up" style={{ animationDelay: '0.4s' }}>
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-primary" />
                   <span>No credit card needed</span>
@@ -202,9 +202,9 @@ const Landing = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Hero Image Placeholder */}
-            <div className="relative animate-slide-in-left" style={{animationDelay: '0.5s'}}>
+            <div className="relative animate-slide-in-left" style={{ animationDelay: '0.5s' }}>
               <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-transparent rounded-lg blur-3xl" />
               <div className="relative aspect-[4/3] rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border/50 overflow-hidden shadow-2xl">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -329,8 +329,8 @@ const Landing = () => {
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full hover:bg-primary/5 transition-colors"
                     onClick={() => navigate('/dashboard/subscription')}
                   >
@@ -390,7 +390,7 @@ const Landing = () => {
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <Button 
+                  <Button
                     className="w-full bg-purple-600 hover:bg-purple-700 shadow-2xl shadow-purple-600/40 hover:shadow-3xl hover:shadow-purple-600/60 transition-all font-bold text-base text-white"
                     onClick={() => navigate('/dashboard/subscription')}
                   >
@@ -444,8 +444,8 @@ const Landing = () => {
                   </SignUpButton>
                 </SignedOut>
                 <SignedIn>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full hover:bg-primary/5 transition-colors"
                     onClick={() => navigate('/dashboard/subscription')}
                   >
@@ -515,7 +515,10 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto" />
+              <div className="relative">
+                <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-5 w-auto hidden dark:block" />
+                <img src="/studioflow-black.svg" alt="StudioFlow" className="h-5 w-auto block dark:hidden" />
+              </div>
               <p className="text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">StudioFlow</span> © 2025
               </p>

@@ -10,6 +10,7 @@ import InvoiceDetailModal from '../components/invoices/InvoiceDetailModal';
 import SendInvoiceModal from '../components/invoices/SendInvoiceModal';
 import { useInvoices } from '../hooks/useInvoices';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpayCheckout';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -249,6 +250,10 @@ export default function InvoicesPage() {
       });
     }
   };
+
+  if (loading && invoices.length === 0) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -1,13 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { Bell, Check, Trash2, Filter, RefreshCw, Search, X } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import {
+  Bell,
+  Check,
+  Trash2,
+  Filter,
+  RefreshCw,
+  Search,
+  X,
+  Settings,
+  MoreHorizontal,
+  Clock,
+  Inbox
+} from 'lucide-react';
+import { formatDistanceToNow, isToday, isYesterday, isThisWeek } from 'date-fns';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { Separator } from '../components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -16,6 +36,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { useNotifications } from '../hooks/useNotifications';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
@@ -83,9 +104,7 @@ const NotificationsPage = () => {
     await markAsRead(notificationId);
   };
 
-  const getNotificationIcon = (type, icon) => {
-    if (icon) return icon;
-
+  const getNotificationIcon = (type) => {
     const iconMap = {
       'payment-received': '💰',
       'payment-failed': '❌',
@@ -118,229 +137,344 @@ const NotificationsPage = () => {
   const getPriorityColor = (priority) => {
     const colorMap = {
       high: 'bg-red-500',
-      medium: 'bg-yellow-500',
+      medium: 'bg-amber-500',
       low: 'bg-blue-500',
     };
-    return colorMap[priority] || 'bg-gray-500';
+    return colorMap[priority] || 'bg-slate-500';
   };
 
-  const getTypeColor = (type) => {
-    const colorMap = {
-      error: 'destructive',
-      warning: 'warning',
-      success: 'success',
-      info: 'default',
+  const groupNotificationsByDate = (notifs) => {
+    const groups = {
+      today: [],
+      yesterday: [],
+      thisWeek: [],
+      older: []
     };
-    return colorMap[type] || 'default';
+
+    notifs.forEach(n => {
+      const date = new Date(n.createdAt);
+      if (isToday(date)) groups.today.push(n);
+      else if (isYesterday(date)) groups.yesterday.push(n);
+      else if (isThisWeek(date)) groups.thisWeek.push(n);
+      else groups.older.push(n);
+    });
+
+    return groups;
   };
 
-  const clearSearch = () => {
-    setSearchQuery('');
-  };
+  const groupedNotifications = groupNotificationsByDate(notifications);
 
   if (loading && notifications.length === 0) {
-    return (
-      <div className="container max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Bell className="w-8 h-8" />
-            Notifications
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {unreadCount > 0
-              ? `You have ${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
-              : 'All caught up!'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={refetch}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-          {unreadCount > 0 && (
-            <Button variant="default" size="sm" onClick={markAllAsRead}>
-              <Check className="w-4 h-4 mr-2" />
-              Mark All Read
+    <div className="min-h-screen bg-background/50">
+      <div className="container max-w-5xl mx-auto p-6 space-y-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              Notifications
+              {unreadCount > 0 && (
+                <Badge variant="default" className="rounded-full px-3 py-1 text-sm">
+                  {unreadCount} new
+                </Badge>
+              )}
+            </h1>
+            <p className="text-muted-foreground mt-1 text-lg">
+              Stay updated with your projects and team activity
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/dashboard/settings')}
+              className="hidden md:flex"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
             </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search notifications..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-10"
-            />
-            {searchQuery && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2"
-              >
-                <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-              </button>
+            {unreadCount > 0 && (
+              <Button onClick={markAllAsRead} size="sm" className="shadow-sm">
+                <Check className="w-4 h-4 mr-2" />
+                Mark all read
+              </Button>
             )}
           </div>
+        </div>
 
-          {/* Filter Tabs */}
-          <Tabs value={filter} onValueChange={setFilter}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">
-                All ({allNotifications.length})
-              </TabsTrigger>
-              <TabsTrigger value="unread">
-                Unread ({unreadCount})
-              </TabsTrigger>
-              <TabsTrigger value="read">
-                Read ({allNotifications.length - unreadCount})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Type Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-                <SelectItem value="payment">Payments</SelectItem>
-                <SelectItem value="subscription">Subscriptions</SelectItem>
-                <SelectItem value="invoice">Invoices</SelectItem>
-                <SelectItem value="comment">Comments</SelectItem>
-                <SelectItem value="task">Tasks</SelectItem>
-                <SelectItem value="file">Files</SelectItem>
-                <SelectItem value="project">Projects</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications List */}
-      <div className="space-y-3">
-        {notifications.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Bell className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium">No notifications found</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {searchQuery || typeFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : "You're all caught up!"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          notifications.map((notification) => (
-            <Card
-              key={notification._id}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                !notification.read ? 'border-l-4 border-l-primary bg-accent/50' : ''
-              }`}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  {/* Icon */}
-                  <div className="text-3xl flex-shrink-0">
-                    {getNotificationIcon(notification.type, notification.icon)}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className={`font-semibold ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {notification.title}
-                      </h3>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Priority Indicator */}
-                        <div
-                          className={`w-2 h-2 rounded-full ${getPriorityColor(
-                            notification.priority
-                          )}`}
-                          title={`${notification.priority} priority`}
-                        />
-                        {/* Type Badge */}
-                        <Badge variant={getTypeColor(notification.type)} className="text-xs">
-                          {notification.category || notification.type}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                      {notification.message}
-                    </p>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(notification.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </span>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
-                        {!notification.read && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => handleMarkAsRead(e, notification._id)}
-                            className="h-8"
-                          >
-                            <Check className="w-4 h-4 mr-1" />
-                            Mark Read
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Main Feed */}
+          <div className="lg:col-span-8 space-y-6">
+            <Card className="border-border/50 shadow-sm bg-card/50 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <Tabs value={filter} onValueChange={setFilter} className="w-full">
+                    <TabsList className="grid w-full max-w-[400px] grid-cols-3">
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="unread">Unread</TabsTrigger>
+                      <TabsTrigger value="read">Archived</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <Button variant="ghost" size="icon" onClick={refetch} className="ml-2">
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-300px)]">
+                  <div className="p-6 pt-0 space-y-8">
+                    {notifications.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-16 h-16 bg-muted/30 rounded-full flex items-center justify-center mb-4">
+                          <Inbox className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">All caught up!</h3>
+                        <p className="text-muted-foreground max-w-sm">
+                          {searchQuery
+                            ? "No notifications match your search filters."
+                            : "You have no new notifications at the moment."}
+                        </p>
+                        {searchQuery && (
+                          <Button variant="link" onClick={() => setSearchQuery('')} className="mt-2">
+                            Clear filters
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => handleDeleteNotification(e, notification._id)}
-                          className="h-8 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Today's Notifications */}
+                        {groupedNotifications.today.length > 0 && (
+                          <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider pl-1">Today</h3>
+                            {groupedNotifications.today.map(notification => (
+                              <NotificationItem
+                                key={notification._id}
+                                notification={notification}
+                                onClick={handleNotificationClick}
+                                onMarkRead={handleMarkAsRead}
+                                onDelete={handleDeleteNotification}
+                                getIcon={getNotificationIcon}
+                                getPriorityColor={getPriorityColor}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Yesterday's Notifications */}
+                        {groupedNotifications.yesterday.length > 0 && (
+                          <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider pl-1">Yesterday</h3>
+                            {groupedNotifications.yesterday.map(notification => (
+                              <NotificationItem
+                                key={notification._id}
+                                notification={notification}
+                                onClick={handleNotificationClick}
+                                onMarkRead={handleMarkAsRead}
+                                onDelete={handleDeleteNotification}
+                                getIcon={getNotificationIcon}
+                                getPriorityColor={getPriorityColor}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* This Week's Notifications */}
+                        {groupedNotifications.thisWeek.length > 0 && (
+                          <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider pl-1">This Week</h3>
+                            {groupedNotifications.thisWeek.map(notification => (
+                              <NotificationItem
+                                key={notification._id}
+                                notification={notification}
+                                onClick={handleNotificationClick}
+                                onMarkRead={handleMarkAsRead}
+                                onDelete={handleDeleteNotification}
+                                getIcon={getNotificationIcon}
+                                getPriorityColor={getPriorityColor}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Older Notifications */}
+                        {groupedNotifications.older.length > 0 && (
+                          <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider pl-1">Older</h3>
+                            {groupedNotifications.older.map(notification => (
+                              <NotificationItem
+                                key={notification._id}
+                                notification={notification}
+                                onClick={handleNotificationClick}
+                                onMarkRead={handleMarkAsRead}
+                                onDelete={handleDeleteNotification}
+                                getIcon={getNotificationIcon}
+                                getPriorityColor={getPriorityColor}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar Filters */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="border-border/50 shadow-sm sticky top-6">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  Filters
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search keywords..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-muted/50"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                      >
+                        <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Type</label>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="bg-muted/50">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="project">Projects</SelectItem>
+                      <SelectItem value="task">Tasks</SelectItem>
+                      <SelectItem value="comment">Comments</SelectItem>
+                      <SelectItem value="file">Files</SelectItem>
+                      <SelectItem value="invoice">Invoices</SelectItem>
+                      <SelectItem value="payment">Payments</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                <div className="pt-2">
+                  <h4 className="text-sm font-medium mb-3">Quick Actions</h4>
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => navigate('/dashboard/settings')}
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Notification Preferences
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))
-        )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Sub-component for individual notification item
+const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon, getPriorityColor }) => {
+  return (
+    <div
+      onClick={() => onClick(notification)}
+      className={`group relative flex items-start gap-4 p-4 rounded-xl transition-all duration-200 border cursor-pointer hover:shadow-md ${!notification.read
+          ? 'bg-card border-primary/20 shadow-sm'
+          : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50'
+        }`}
+    >
+      {/* Unread Indicator */}
+      {!notification.read && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-primary rounded-r-full" />
+      )}
+
+      {/* Icon */}
+      <div className={`mt-1 w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-sm ${!notification.read ? 'bg-primary/10' : 'bg-muted'
+        }`}>
+        {getIcon(notification.type)}
       </div>
 
-      {/* Load More (future enhancement) */}
-      {notifications.length > 0 && notifications.length % 20 === 0 && (
-        <div className="flex justify-center pt-4">
-          <Button variant="outline" onClick={refetch}>
-            Load More
-          </Button>
+      {/* Content */}
+      <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <h4 className={`text-sm font-semibold leading-none ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {notification.title}
+          </h4>
+          <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+          </span>
         </div>
-      )}
+
+        <p className={`text-sm line-clamp-2 ${!notification.read ? 'text-foreground/80' : 'text-muted-foreground'}`}>
+          {notification.message}
+        </p>
+
+        {/* Footer Metadata */}
+        <div className="flex items-center gap-3 pt-2">
+          {notification.priority === 'high' && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-red-200 text-red-600 bg-red-50">
+              High Priority
+            </Badge>
+          )}
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+            {notification.category || 'Update'}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Actions (Hover) */}
+      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!notification.read && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            onClick={(e) => onMarkRead(e, notification._id)}
+            title="Mark as read"
+          >
+            <Check className="w-4 h-4" />
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => onDelete(e, notification._id)} className="text-destructive focus:text-destructive">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 };

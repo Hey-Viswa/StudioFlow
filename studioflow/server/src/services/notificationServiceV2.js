@@ -35,14 +35,14 @@ const checkIdempotency = async (idempotencyKey) => {
     console.log(`⏭️  Skipping duplicate notification: ${idempotencyKey}`);
     return cached.notificationId;
   }
-  
+
   // Check database for recent similar notifications (last 1 hour)
   const oneHourAgo = new Date(Date.now() - IDEMPOTENCY_TTL);
   const existing = await Notification.findOne({
     idempotencyKey,
     createdAt: { $gte: oneHourAgo }
   });
-  
+
   if (existing) {
     console.log(`⏭️  Found existing notification in DB: ${existing._id}`);
     idempotencyCache.set(idempotencyKey, {
@@ -51,7 +51,7 @@ const checkIdempotency = async (idempotencyKey) => {
     });
     return existing._id.toString();
   }
-  
+
   return null;
 };
 
@@ -59,26 +59,37 @@ const checkIdempotency = async (idempotencyKey) => {
  * Centralized notification creation helper
  * Ensures: DB write first, then realtime emit, then email queue
  */
+import { notificationQueue } from '../queues/notificationQueue.js';
+
+// ... (keep imports)
+
+// ... (keep idempotency cache logic)
+
+/**
+ * Centralized notification creation helper
+ * Pushes job to Redis queue for processing by the worker
+ */
 export const createNotificationWithIdempotency = async ({
   // Standard params
   projectId,
-  recipients = [], // Array of user IDs
+  recipients = [], // Array of user IDs (optional, if not provided, Rules Engine will determine)
   type,
   title,
   message,
   link = null,
   metadata = {},
-  
+
   // Optional params
   priority = 'medium',
   category = 'general',
   icon = 'bell',
   sendEmail = false,
   emailTemplate = 'notification',
-  
+
   // Idempotency
   idempotencyKey = null,
-  eventType = null // e.g., 'project-deleted', 'task-assigned'
+  eventType = null, // e.g., 'project-deleted', 'task-assigned'
+  actorId = null // ID of the user who triggered the event
 }) => {
   try {
     // Generate idempotency key if not provided
@@ -96,107 +107,56 @@ export const createNotificationWithIdempotency = async ({
       }
     }
 
-    const createdNotifications = [];
-    const emailJobs = [];
-
-    // Create notification for each recipient
-    for (const userId of recipients) {
-      // Step 1: Persist to database first
-      const notification = await Notification.create({
-        userId,
-        type,
+    // Prepare job data
+    const jobData = {
+      type: eventType || type, // Use eventType if available (e.g., 'comment.created')
+      actorId,
+      data: {
+        projectId,
+        recipients, // Pass explicit recipients if any
         title,
         message,
         link,
-        metadata: {
-          ...metadata,
-          projectId
-        },
         priority,
         category,
         icon,
-        idempotencyKey: idemKey
-      });
-
-      createdNotifications.push(notification);
-      console.log(`✅ Notification created: ${notification._id} for user ${userId}`);
-
-      // Cache for idempotency
-      if (idemKey) {
-        idempotencyCache.set(idemKey, {
-          notificationId: notification._id.toString(),
-          timestamp: Date.now()
-        });
+        metadata,
+        sendEmail,
+        emailTemplate,
+        ...metadata // Spread metadata into top-level data for easier access in worker
       }
+    };
 
-      // Step 2: Emit realtime event (non-blocking)
-      setImmediate(() => {
-        try {
-          const io = getIO();
-          if (io) {
-            io.to(`user:${userId}`).emit('notification:new', {
-              notification: notification.toObject()
-            });
-            console.log(`📡 Realtime notification sent to user:${userId}`);
-          } else {
-            console.warn('⚠️  Socket.IO not available, skipping realtime emit');
-          }
-        } catch (socketError) {
-          console.error('Socket.IO emit error:', socketError.message);
-        }
-      });
+    // Add to Redis Queue
+    const job = await notificationQueue.add(jobData, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      },
+      removeOnComplete: true
+    });
 
-      // Step 3: Enqueue email job if requested (non-blocking)
-      if (sendEmail) {
-        emailJobs.push({
-          userId,
-          notificationId: notification._id.toString()
-        });
-      }
-    }
+    console.log(`✅ Notification job enqueued: ${job.id} (Type: ${jobData.type})`);
 
-    // Enqueue all emails in batch
-    if (emailJobs.length > 0) {
-      setImmediate(async () => {
-        try {
-          const jobs = emailJobs.map(job => ({
-            name: 'send-notification-email',
-            data: {
-              notificationId: job.notificationId,
-              userId: job.userId,
-              type,
-              title,
-              message,
-              link,
-              template: emailTemplate
-            },
-            opts: {
-              attempts: 3,
-              backoff: {
-                type: 'exponential',
-                delay: 2000
-              }
-            }
-          }));
-
-          await Promise.all(jobs.map(j => emailQueue.add(j.name, j.data, j.opts)));
-          console.log(`📧 ${emailJobs.length} email job(s) enqueued`);
-        } catch (emailError) {
-          console.error('Email queue error:', emailError.message);
-        }
+    // Cache for idempotency (using job ID as placeholder)
+    if (idemKey) {
+      idempotencyCache.set(idemKey, {
+        notificationId: `job-${job.id}`,
+        timestamp: Date.now()
       });
     }
 
     return {
       success: true,
-      notifications: createdNotifications,
-      count: createdNotifications.length
+      jobId: job.id,
+      queued: true
     };
   } catch (error) {
-    console.error('❌ Create notification error:', error);
-    
-    // Silent fail with warning - don't break the main operation
-    console.warn('⚠️  Notification creation failed, continuing operation');
+    console.error('❌ Enqueue notification error:', error);
+
+    // Fallback: If Redis fails, maybe we should log it or try direct DB write?
+    // For now, just return error
     return {
       success: false,
       error: error.message
@@ -254,11 +214,11 @@ export const listNotifications = async (userId, {
 } = {}) => {
   try {
     const query = { userId };
-    
+
     if (unreadOnly) {
       query.read = false;
     }
-    
+
     if (type) {
       query.type = type;
     }

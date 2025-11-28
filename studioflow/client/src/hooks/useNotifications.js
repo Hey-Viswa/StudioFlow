@@ -249,14 +249,18 @@ export const useNotifications = () => {
       setUnreadCount(0);
     };
 
-    socket.on('notification', handleNewNotification);
-    socket.on('notification-read', handleNotificationRead);
-    socket.on('notifications-read-all', handleAllNotificationsRead);
+    socket.on('notification:new', handleNewNotification);
+    socket.on('notification:updated', handleNotificationRead);
+    socket.on('notification:all-read', handleAllNotificationsRead);
+    socket.on('notification:deleted', (data) => {
+      setNotifications(prev => prev.filter(n => !data.ids.includes(n._id)));
+    });
 
     return () => {
-      socket.off('notification', handleNewNotification);
-      socket.off('notification-read', handleNotificationRead);
-      socket.off('notifications-read-all', handleAllNotificationsRead);
+      socket.off('notification:new', handleNewNotification);
+      socket.off('notification:updated', handleNotificationRead);
+      socket.off('notification:all-read', handleAllNotificationsRead);
+      socket.off('notification:deleted');
     };
   }, [user?.id]);
 

@@ -17,34 +17,34 @@ const clearProjectMembersCache = (project) => {
 // Helper: Calculate project progress based on completed tasks
 const calculateProgressFromTasks = (project) => {
   const tasks = project.tasks || [];
-  
+
   if (tasks.length === 0) {
     return 0;
   }
 
   const completedTasks = tasks.filter(task => task.status === 'completed').length;
   const progress = Math.round((completedTasks / tasks.length) * 100);
-  
+
   return progress;
 };
 
 // Helper: Update project progress based on tasks
 const updateProjectProgress = async (project) => {
   const calculatedProgress = calculateProgressFromTasks(project);
-  
+
   // Update project progress
   project.progress = calculatedProgress;
-  
+
   // Auto-complete project if all tasks are done
   if (calculatedProgress === 100 && project.status !== 'completed') {
     project.status = 'completed';
   }
-  
+
   // Revert to active if tasks are incomplete
   if (calculatedProgress < 100 && project.status === 'completed') {
     project.status = 'active';
   }
-  
+
   await project.save();
   return calculatedProgress;
 };
@@ -75,7 +75,7 @@ export const getTasks = async (req, res) => {
     const pendingTasks = tasks.filter(task => task.status === 'pending').length;
     const progress = calculateProgressFromTasks(project);
 
-    res.json({ 
+    res.json({
       tasks,
       stats: {
         total: totalTasks,
@@ -118,8 +118,8 @@ export const createTask = async (req, res) => {
     let userName = '';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
     } catch (err) {
       console.error('Error fetching user from Clerk:', err);
@@ -139,7 +139,7 @@ export const createTask = async (req, res) => {
     };
 
     project.tasks.push(newTask);
-    
+
     // Calculate and update progress based on tasks
     await updateProjectProgress(project);
 
@@ -184,7 +184,7 @@ export const createTask = async (req, res) => {
       }
     }
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Task created successfully',
       task: createdTask,
       progress: project.progress
@@ -222,7 +222,7 @@ export const updateTask = async (req, res) => {
 
     // Track status change for notifications
     const wasCompleted = task.status === 'completed';
-    
+
     // Update task fields
     if (updates.title !== undefined) task.title = updates.title;
     if (updates.description !== undefined) task.description = updates.description;
@@ -237,7 +237,7 @@ export const updateTask = async (req, res) => {
     if (updates.assignedTo !== undefined) task.assignedTo = updates.assignedTo;
     if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
     if (updates.googleCalendarEventId !== undefined) task.googleCalendarEventId = updates.googleCalendarEventId;
-    
+
     const nowCompleted = task.status === 'completed';
 
     // Calculate and update progress based on tasks
@@ -280,7 +280,7 @@ export const updateTask = async (req, res) => {
       }
     }
 
-    res.json({ 
+    res.json({
       message: 'Task updated successfully',
       task,
       progress: project.progress
@@ -310,7 +310,7 @@ export const deleteTask = async (req, res) => {
     }
 
     project.tasks.pull(taskId);
-    
+
     // Calculate and update progress based on tasks
     await updateProjectProgress(project);
 
@@ -327,7 +327,7 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    res.json({ 
+    res.json({
       message: 'Task deleted successfully',
       progress: project.progress
     });
@@ -390,8 +390,8 @@ export const createComment = async (req, res) => {
     let userEmail = '';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || '';
       userEmail = user.emailAddresses?.[0]?.emailAddress || '';
     } catch (err) {
@@ -423,7 +423,29 @@ export const createComment = async (req, res) => {
       });
     }
 
-    res.status(201).json({ 
+    // Trigger Notification via Queue
+    try {
+      await createNotificationWithIdempotency({
+        projectId,
+        type: 'comment-created',
+        eventType: 'comment.created', // Matches Rules Engine
+        actorId: userId,
+        title: `New comment in ${project.title}`,
+        message: `${userName} commented: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
+        link: `/dashboard/projects/${projectId}?tab=comments`,
+        priority: 'medium',
+        category: 'comment',
+        metadata: {
+          commentId: createdComment._id.toString(),
+          commentText: text,
+          projectTitle: project.title
+        }
+      });
+    } catch (notifError) {
+      console.error('Failed to trigger comment notification:', notifError);
+    }
+
+    res.status(201).json({
       message: 'Comment created successfully',
       comment: createdComment
     });
@@ -484,8 +506,8 @@ export const updateComment = async (req, res) => {
     let userName = 'Unknown User';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || 'Unknown User';
     } catch (err) {
       console.error('Error fetching user from Clerk:', err);

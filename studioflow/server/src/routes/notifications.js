@@ -5,7 +5,8 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
-  deleteAllNotifications
+  deleteAllNotifications,
+  registerDeviceToken
 } from '../controllers/notificationController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 
@@ -31,5 +32,8 @@ router.delete('/:id', deleteNotification);
 
 // DELETE /api/notifications - Delete all notifications (with confirmation)
 router.delete('/', deleteAllNotifications);
+
+// POST /api/notifications/register-token - Register FCM token
+router.post('/register-token', registerDeviceToken);
 
 export default router;

@@ -7,12 +7,15 @@ export default function NetworkError() {
 
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-center">
-            <div className="mb-8">
-                <img
-                    src="/Error-page.svg"
-                    alt="Connection Lost"
-                    className="w-full max-w-[400px] h-auto mx-auto"
-                />
+            <div className="mb-8 relative w-64 h-64 mx-auto">
+                <div className="absolute inset-0 bg-primary/5 rounded-full animate-pulse" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <WifiOff className="w-32 h-32 text-muted-foreground/50" />
+                </div>
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-4 h-4 bg-destructive rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                <div className="absolute bottom-10 left-0 w-3 h-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                <div className="absolute top-10 left-10 w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.5s' }} />
             </div>
 
             <h1 className="text-3xl font-bold tracking-tight mb-2">Connection Lost</h1>

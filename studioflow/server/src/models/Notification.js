@@ -1,102 +1,69 @@
 import mongoose from 'mongoose';
 
-const notificationSchema = new mongoose.Schema({
-  userId: {
+const NotificationSchema = new mongoose.Schema({
+  recipientId: {
+    type: String,
+    required: true
+  },
+  actorId: {
+    type: String,
+    required: true
+  },
+  resourceId: {
     type: String,
     required: true,
     index: true
   },
+  resourceType: {
+    type: String,
+    enum: ['project', 'task', 'comment', 'invoice', 'file'],
+    required: true
+  },
   type: {
     type: String,
-    required: true,
-    enum: [
-      'payment_success',
-      'payment_failed',
-      'invoice_created',
-      'invoice_paid',
-      'comment_added',
-      'comment_reply',
-      'comment_mention',
-      'project_created',
-      'project_updated',
-      'project_revision',
-      'project_approved',
-      'project_completed',
-      'member_joined',
-      'task_assigned',
-      'task_completed',
-      'file_uploaded',
-      'subscription_expiring',
-      'subscription_expired',
-      'system'
-    ]
+    enum: ['mention', 'assigned', 'status_change', 'comment_created', 'file_uploaded', 'invoice_created', 'invoice_paid', 'project_needs_revision', 'project_finalized'],
+    required: true
   },
   title: {
     type: String,
-    required: true,
-    maxlength: 200
+    required: true
   },
   message: {
     type: String,
-    required: true,
-    maxlength: 1000
+    required: true
   },
-  link: {
-    type: String,
-    default: null
+  data: {
+    url: String,
+    metadata: mongoose.Schema.Types.Mixed
   },
-  meta: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
-  read: {
+  isRead: {
     type: Boolean,
     default: false,
     index: true
   },
-  icon: {
-    type: String,
-    default: 'bell'
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'normal', 'high', 'urgent'],
-    default: 'normal'
+  readAt: {
+    type: Date
   },
   category: {
     type: String,
-    enum: ['project', 'task', 'comment', 'invoice', 'payment', 'subscription', 'system', 'general'],
-    default: 'general'
+    enum: ['urgent', 'action', 'info', 'system'],
+    default: 'info'
   },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
-  idempotencyKey: {
-    type: String,
-    sparse: true, // Allow null but create index for non-null values
+  groupId: {
+    type: String, // For collapsing similar notifications
     index: true
   },
-  readAt: {
+  createdAt: {
     type: Date,
-    default: null
+    default: Date.now,
+    expires: 60 * 60 * 24 * 30 // Auto-delete after 30 days
   }
 }, {
   timestamps: true
 });
 
-// Indexes for performance
-notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
-notificationSchema.index({ createdAt: -1 });
-notificationSchema.index({ type: 1, createdAt: -1 });
-notificationSchema.index({ idempotencyKey: 1, createdAt: -1 }, { sparse: true });
+// Indexes for common queries
+NotificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
+NotificationSchema.index({ recipientId: 1, category: 1 });
 
-// Auto-delete old read notifications after 90 days
-notificationSchema.index(
-  { createdAt: 1 },
-  { expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { read: true } }
-);
-
-const Notification = mongoose.model('Notification', notificationSchema);
-
-export default Notification;
+export default mongoose.model('Notification', NotificationSchema);

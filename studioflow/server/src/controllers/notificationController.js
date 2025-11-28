@@ -36,7 +36,7 @@ export const getUnreadCountHandler = async (req, res) => {
   try {
     const userId = req.userId;
     const count = await notificationService.getUnreadCount(userId);
-    
+
     res.json({ unreadCount: count });
   } catch (error) {
     console.error('Get unread count error:', error);
@@ -139,5 +139,41 @@ export const deleteAllNotifications = async (req, res) => {
   } catch (error) {
     console.error('Delete all notifications error:', error);
     res.status(500).json({ error: 'Failed to delete all notifications' });
+  }
+};
+
+/**
+ * Register device token for push notifications
+ * POST /api/notifications/register-token
+ */
+export const registerDeviceToken = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { token, platform = 'web' } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    // Import DeviceToken model dynamically to avoid circular dependencies if any
+    const DeviceToken = (await import('../models/DeviceToken.js')).default;
+
+    // Upsert the token
+    await DeviceToken.findOneAndUpdate(
+      { userId, token },
+      {
+        userId,
+        token,
+        platform,
+        isActive: true,
+        lastUsedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: 'Device token registered' });
+  } catch (error) {
+    console.error('Register device token error:', error);
+    res.status(500).json({ error: 'Failed to register device token' });
   }
 };

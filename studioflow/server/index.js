@@ -31,6 +31,7 @@ import { initializeAppwrite } from './src/config/appwrite.js';
 import { initializeMessaging } from './src/config/appwriteMessaging.js';
 import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
+import { startNotificationWorker } from './src/workers/notificationWorker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,17 +40,17 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Global Error Handlers
 process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
-  console.error(err.name, err.message);
-  console.error(err.stack);
-  process.exit(1);
+    console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
+    console.error(err.name, err.message);
+    console.error(err.stack);
+    process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION! 💥 Shutting down...');
-  console.error(err.name, err.message);
-  console.error(err.stack);
-  process.exit(1);
+    console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+    console.error(err.name, err.message);
+    console.error(err.stack);
+    process.exit(1);
 });
 
 const app = express();
@@ -83,14 +84,14 @@ app.use(cors({
         if (!origin) {
             return callback(null, true);
         }
-        
+
         if (allowedOrigins.includes(origin)) return callback(null, true);
-        
+
         // Allow Vercel preview deployments
         if (origin.includes('.vercel.app')) {
             return callback(null, true);
         }
-        
+
         if (process.env.NODE_ENV !== 'production') {
             if (origin.includes('localhost') || origin.includes('github.dev') || origin.includes('app.github.dev')) {
                 return callback(null, true);
@@ -107,10 +108,10 @@ app.get('/api/ready', async (req, res) => {
     try {
         const mongoose = (await import('mongoose')).default;
         const dbStatus = mongoose.connection.readyState;
-        
+
         // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
         const isReady = dbStatus === 1;
-        
+
         if (isReady) {
             res.status(200).json({
                 ok: true,
@@ -143,22 +144,22 @@ app.get('/api/test-auth', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        
+
         if (!token) {
             return res.status(401).json({ error: 'No token provided', headers: req.headers });
         }
-        
+
         // Try to decode without verification to see what's in the token
         const parts = token.split('.');
         if (parts.length !== 3) {
             return res.status(401).json({ error: 'Invalid token format' });
         }
-        
+
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-        res.json({ 
-            message: 'Token received', 
+        res.json({
+            message: 'Token received',
             tokenLength: token.length,
-            payload: payload 
+            payload: payload
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -184,54 +185,54 @@ app.use('/api/projects', messageRoutes); // Message/chat routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('✅ Client connected:', socket.id);
+    console.log('✅ Client connected:', socket.id);
 
-  // Authenticate user and join their personal room
-  socket.on('authenticate', (userId) => {
-    if (userId) {
-      socket.join(`user:${userId}`);
-      console.log(`👤 User ${userId} authenticated and joined personal room`);
-      socket.emit('authenticated', { userId, room: `user:${userId}` });
-    }
-  });
+    // Authenticate user and join their personal room
+    socket.on('authenticate', (userId) => {
+        if (userId) {
+            socket.join(`user:${userId}`);
+            console.log(`👤 User ${userId} authenticated and joined personal room`);
+            socket.emit('authenticated', { userId, room: `user:${userId}` });
+        }
+    });
 
-  // Join project room
-  socket.on('join-project', (projectId) => {
-    socket.join(`project-${projectId}`);
-    console.log(`👤 Socket ${socket.id} joined project-${projectId}`);
-  });
+    // Join project room
+    socket.on('join-project', (projectId) => {
+        socket.join(`project-${projectId}`);
+        console.log(`👤 Socket ${socket.id} joined project-${projectId}`);
+    });
 
-  // Leave project room
-  socket.on('leave-project', (projectId) => {
-    socket.leave(`project-${projectId}`);
-    console.log(`👋 Socket ${socket.id} left project-${projectId}`);
-  });
+    // Leave project room
+    socket.on('leave-project', (projectId) => {
+        socket.leave(`project-${projectId}`);
+        console.log(`👋 Socket ${socket.id} left project-${projectId}`);
+    });
 
-  // File upload events
-  socket.on('file-upload-progress', ({ projectId, fileId, progress }) => {
-    socket.to(`project-${projectId}`).emit('file-upload-progress', { fileId, progress });
-  });
+    // File upload events
+    socket.on('file-upload-progress', ({ projectId, fileId, progress }) => {
+        socket.to(`project-${projectId}`).emit('file-upload-progress', { fileId, progress });
+    });
 
-  socket.on('disconnect', () => {
-    console.log('❌ Client disconnected:', socket.id);
-  });
+    socket.on('disconnect', () => {
+        console.log('❌ Client disconnected:', socket.id);
+    });
 });
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
-    try{
+    try {
         await connectDB();
-        
+
         // Initialize Appwrite (optional - falls back to Socket.IO)
         initializeAppwrite();
-        
+
         // Initialize Appwrite Messaging (for email notifications)
         initializeMessaging();
-        
+
         // Initialize Firebase (for push notifications)
         initializeFirebase();
-        
+
         // Check Razorpay environment variables
         console.log('\n=== Razorpay Configuration Check ===');
         console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? `${process.env.RAZORPAY_KEY_ID.substring(0, 15)}...` : '❌ MISSING');
@@ -239,19 +240,22 @@ const startServer = async () => {
         console.log('RAZORPAY_PRO_PLAN_ID:', process.env.RAZORPAY_PRO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPS7s2l9ku5N)');
         console.log('RAZORPAY_STUDIO_PLAN_ID:', process.env.RAZORPAY_STUDIO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPuLbBYG9E8N)');
         console.log('===================================\n');
-        
+
         // Start subscription checker for automatic downgrades
         startSubscriptionChecker();
-        
+
         // Start file cleanup scheduler
         initializeCleanupScheduler();
-        
+
+        // Start notification worker
+        startNotificationWorker();
+
         httpServer.listen(PORT, () => {
             console.log(`🚀 Server is running on port ${PORT}`);
             console.log(`⚡ Socket.IO is ready for real-time updates`);
         });
     } catch (error) {
-        console.error('Error starting server:', error); 
+        console.error('Error starting server:', error);
     }
 }
 

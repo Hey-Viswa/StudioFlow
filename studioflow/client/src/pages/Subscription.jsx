@@ -28,6 +28,7 @@ import {
   Shield,
   Rocket
 } from 'lucide-react';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 const STATUS_META = {
   trial: {
@@ -428,11 +429,7 @@ export default function Subscription() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const currentPlan = currentSubscription?.subscription?.plan || 'free';

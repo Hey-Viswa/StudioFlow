@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatINR } from '../utils/currency';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 export default function Trash() {
   const { getToken } = useAuth();
@@ -56,7 +57,7 @@ export default function Trash() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       console.log('Fetching trash from:', `${apiUrl}/trash/all`);
-      
+
       const response = await fetch(`${apiUrl}/trash/all`, {
         credentials: 'include',
         headers: {
@@ -90,9 +91,9 @@ export default function Trash() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       console.log('🔄 Restoring item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
-      
+
       let endpoint;
       if (item.type === 'invoice') {
         endpoint = `/trash/invoices/${item._id}/restore`;
@@ -102,7 +103,7 @@ export default function Trash() {
       } else {
         endpoint = `/trash/projects/${item._id}/restore`;
       }
-      
+
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         credentials: 'include',
@@ -136,9 +137,9 @@ export default function Trash() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       console.log('🗑️ Permanently deleting item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
-      
+
       let endpoint;
       if (item.type === 'invoice') {
         endpoint = `/trash/invoices/${item._id}`;
@@ -148,7 +149,7 @@ export default function Trash() {
       } else {
         endpoint = `/trash/projects/${item._id}`;
       }
-      
+
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -178,21 +179,17 @@ export default function Trash() {
     return format(new Date(date), 'MMM dd, yyyy');
   };
 
-  const filteredItems = filter === 'all' 
-    ? trashItems 
+  const filteredItems = filter === 'all'
+    ? trashItems
     : trashItems.filter(item => {
-        if (filter === 'projects') return item.type === 'project';
-        if (filter === 'invoices') return item.type === 'invoice';
-        if (filter === 'files') return item.type === 'file';
-        return true;
-      });
+      if (filter === 'projects') return item.type === 'project';
+      if (filter === 'invoices') return item.type === 'invoice';
+      if (filter === 'files') return item.type === 'file';
+      return true;
+    });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -273,9 +270,9 @@ export default function Trash() {
                   <TableCell>
                     <div>
                       <p className="font-medium text-card-foreground">
-                        {item.type === 'project' ? item.title : 
-                         item.type === 'invoice' ? item.invoiceNumber :
-                         item.filename}
+                        {item.type === 'project' ? item.title :
+                          item.type === 'invoice' ? item.invoiceNumber :
+                            item.filename}
                       </p>
                       {item.type === 'project' && item.brief && (
                         <p className="text-sm text-muted-foreground truncate max-w-md">
@@ -341,9 +338,9 @@ export default function Trash() {
                             <AlertDialogTitle className="text-card-foreground">Permanently Delete?</AlertDialogTitle>
                             <AlertDialogDescription className="text-muted-foreground">
                               This will permanently delete {
-                                item.type === 'project' ? `project "${item.title}"` : 
-                                item.type === 'invoice' ? `invoice "${item.invoiceNumber}"` :
-                                `file "${item.filename}"`
+                                item.type === 'project' ? `project "${item.title}"` :
+                                  item.type === 'invoice' ? `invoice "${item.invoiceNumber}"` :
+                                    `file "${item.filename}"`
                               }.
                               This action cannot be undone.
                             </AlertDialogDescription>

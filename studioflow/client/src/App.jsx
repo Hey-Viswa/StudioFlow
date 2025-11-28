@@ -7,6 +7,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NetworkError from './pages/NetworkError';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/DashboardLayout';
+import { ThemeProvider } from './components/ThemeProvider';
+import NetworkStatusListener from './components/NetworkStatusListener';
 import DashboardHome from './pages/DashboardHome';
 import ProjectDetail from './pages/ProjectDetail';
 import CreateProject from './pages/CreateProject';
@@ -41,61 +43,65 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  console.log('App mounting...');
   return (
     <ErrorBoundary>
-      <Router>
-        <Toaster position="top-right" richColors closeButton />
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/invite" element={<AcceptInvite />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-conditions" element={<TermsConditions />} />
-          <Route path="/cancellation-refund" element={<CancellationRefund />} />
-          <Route path="/shipping-delivery" element={<ShippingDelivery />} />
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <Router>
+          <NetworkStatusListener />
+          <Toaster position="top-right" richColors closeButton />
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/invite" element={<AcceptInvite />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-conditions" element={<TermsConditions />} />
+            <Route path="/cancellation-refund" element={<CancellationRefund />} />
+            <Route path="/shipping-delivery" element={<ShippingDelivery />} />
 
 
-          <Route path="/contact" element={<ContactUs />} />
-          <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
-          <Route path="/network-error" element={<NetworkError />} />
+            <Route path="/contact" element={<ContactUs />} />
+            <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
+            <Route path="/network-error" element={<NetworkError />} />
 
-          {/* Shared Files - Protected Route */}
-          <Route
-            path="/shared/files/:shareToken"
-            element={
-              <ProtectedRoute>
-                <SharedFilePage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Shared Files - Protected Route */}
+            <Route
+              path="/shared/files/:shareToken"
+              element={
+                <ProtectedRoute>
+                  <SharedFilePage />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Dashboard with nested routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<ClientDashboard />} />
-            <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="projects" element={<Projects />} />
-            <Route path="projects/new" element={<CreateProject />} />
-            <Route path="projects/:projectId" element={<ProjectDetail />} />
-            <Route path="projects/:projectId/files" element={<ProjectFilesPage />} />
-            <Route path="invoices" element={<InvoicesPage />} />
-            <Route path="invoices/new" element={<CreateInvoicePage />} />
-            <Route path="subscription" element={<Subscription />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="trash" element={<Trash />} />
-          </Route>
+            {/* Dashboard with nested routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ClientDashboard />} />
+              <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="projects" element={<Projects />} />
+              <Route path="projects/new" element={<CreateProject />} />
+              <Route path="projects/:projectId" element={<ProjectDetail />} />
+              <Route path="projects/:projectId/files" element={<ProjectFilesPage />} />
+              <Route path="invoices" element={<InvoicesPage />} />
+              <Route path="invoices/new" element={<CreateInvoicePage />} />
+              <Route path="subscription" element={<Subscription />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="trash" element={<Trash />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <Analytics />
-        <SpeedInsights />
-      </Router>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <Analytics />
+          <SpeedInsights />
+        </Router>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

@@ -626,12 +626,13 @@ export const updateProject = async (req, res) => {
           projectId: project._id.toString(),
           recipients: [project.ownerId.toString()], // Notify owner (ensure string)
           type: 'project-updated',
+          eventType: 'project.needs_revision', // Matches Rules Engine
+          actorId: userId,
           title: '📝 Revision Requested',
           message: `Client requested changes: "${revisionNotes.substring(0, 50)}${revisionNotes.length > 50 ? '...' : ''}"`,
           link: `/dashboard/projects/${project._id}?tab=comments`,
           priority: 'high',
           category: 'project',
-          eventType: 'revision-requested',
           metadata: {
             projectTitle: project.title,
             requestedBy: userName
@@ -647,12 +648,13 @@ export const updateProject = async (req, res) => {
           projectId: project._id.toString(),
           recipients: [project.ownerId.toString()], // Notify owner (ensure string)
           type: 'project-updated',
+          eventType: 'project.finalized', // Matches Rules Engine
+          actorId: userId,
           title: '✅ Project Approved',
           message: `Client has approved and finalized "${project.title}"`,
           link: `/dashboard/projects/${project._id}`,
           priority: 'high',
           category: 'project',
-          eventType: 'project-approved',
           metadata: {
             projectTitle: project.title,
             approvedBy: userName
@@ -773,12 +775,13 @@ export const deleteProject = async (req, res) => {
           projectId: project._id.toString(),
           recipients: memberUserIds,
           type: 'project-deleted',
+          eventType: 'project.deleted',
+          actorId: userId,
           title: '🗑️ Project Deleted',
           message: `Project "${project.title}" has been moved to trash by ${userName}`,
           link: `/dashboard/trash`,
           priority: 'high',
           category: 'project',
-          eventType: 'project-deleted',
           metadata: {
             projectTitle: project.title,
             deletedBy: userName

@@ -40,6 +40,7 @@ import {
   Eye,
   Trash2
 } from 'lucide-react';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 export default function Projects() {
   const { getToken } = useAuth();
@@ -65,7 +66,7 @@ export default function Projects() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
+
       // Fetch projects and subscription in parallel
       const [projectsResponse, subscriptionResponse] = await Promise.all([
         fetch(`${apiUrl}/projects`, {
@@ -95,7 +96,7 @@ export default function Projects() {
       setProjects(projectsData.projects || []);
       setMyProjects(projectsData.myProjects || []);
       setSharedProjects(projectsData.sharedProjects || []);
-      
+
       if (subscriptionResponse.ok) {
         const subscriptionData = await subscriptionResponse.json();
         console.log('💳 Subscription data:', subscriptionData);
@@ -131,40 +132,40 @@ export default function Projects() {
   }, [fetchProjects]);
 
   const statusConfig = {
-    'active': { 
-      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', 
-      label: 'In Progress', 
-      badge: 'In Progress' 
+    'active': {
+      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      label: 'In Progress',
+      badge: 'In Progress'
     },
-    'in-progress': { 
-      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', 
-      label: 'In Progress', 
-      badge: 'In Progress' 
+    'in-progress': {
+      color: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      label: 'In Progress',
+      badge: 'In Progress'
     },
-    'completed': { 
-      color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', 
-      label: 'Completed', 
-      badge: 'Completed' 
+    'completed': {
+      color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+      label: 'Completed',
+      badge: 'Completed'
     },
-    'needs-revision': { 
-      color: 'bg-red-500/10 text-red-600 border-red-500/20', 
-      label: 'Needs Revision', 
-      badge: 'Needs Revision' 
+    'needs-revision': {
+      color: 'bg-red-500/10 text-red-600 border-red-500/20',
+      label: 'Needs Revision',
+      badge: 'Needs Revision'
     },
-    'on-hold': { 
-      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
-      label: 'On Hold', 
-      badge: 'On Hold' 
+    'on-hold': {
+      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+      label: 'On Hold',
+      badge: 'On Hold'
     },
-    'review': { 
-      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', 
-      label: 'Review', 
-      badge: 'Review' 
+    'review': {
+      color: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+      label: 'Review',
+      badge: 'Review'
     },
-    'archived': { 
-      color: 'bg-muted/50 text-muted-foreground border-border', 
-      label: 'Archived', 
-      badge: 'Archived' 
+    'archived': {
+      color: 'bg-muted/50 text-muted-foreground border-border',
+      label: 'Archived',
+      badge: 'Archived'
     }
   };
 
@@ -175,7 +176,7 @@ export default function Projects() {
   };
 
   // Get unique clients for filter
-  const uniqueClients = [...new Set(projects.map(p => 
+  const uniqueClients = [...new Set(projects.map(p =>
     p.members?.find(m => m.role === 'client')?.name || 'No client'
   ))];
 
@@ -190,11 +191,11 @@ export default function Projects() {
   // Filter projects
   const filteredProjects = displayProjects.filter(project => {
     const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.brief?.toLowerCase().includes(searchTerm.toLowerCase());
+      project.brief?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
     const projectClient = project.members?.find(m => m.role === 'client')?.name || 'No client';
     const matchesClient = clientFilter === 'all' || projectClient === clientFilter;
-    
+
     return matchesSearch && matchesStatus && matchesClient;
   });
 
@@ -209,11 +210,7 @@ export default function Projects() {
   const activeProjects = projects.filter(p => p.status === 'active').length;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -228,18 +225,17 @@ export default function Projects() {
             </p>
             {subscription?.usage && (
               <p className="text-sm text-muted-foreground">
-                <span className={`font-medium ${
-                  subscription.usage.projectCount >= subscription.usage.maxProjects 
-                    ? 'text-destructive' 
-                    : 'text-primary'
-                }`}>
+                <span className={`font-medium ${subscription.usage.projectCount >= subscription.usage.maxProjects
+                  ? 'text-destructive'
+                  : 'text-primary'
+                  }`}>
                   {subscription.usage.projectCount}/{subscription.usage.maxProjects}
                 </span>
                 {' '}projects used
                 {subscription.usage.projectCount >= subscription.usage.maxProjects && (
-                  <Button 
-                    variant="link" 
-                    size="sm" 
+                  <Button
+                    variant="link"
+                    size="sm"
                     className="ml-2 h-auto p-0"
                     onClick={() => navigate('/dashboard/subscription')}
                   >
@@ -250,8 +246,8 @@ export default function Projects() {
             )}
           </div>
         </div>
-        <Button 
-          onClick={() => navigate('/dashboard/projects/new')} 
+        <Button
+          onClick={() => navigate('/dashboard/projects/new')}
           className="gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -266,31 +262,28 @@ export default function Projects() {
       <div className="flex gap-4 mb-6 border-b">
         <button
           onClick={() => setActiveTab('all')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${
-            activeTab === 'all'
-              ? 'border-primary text-primary font-medium'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'all'
+            ? 'border-primary text-primary font-medium'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
         >
           All Projects ({projects.length})
         </button>
         <button
           onClick={() => setActiveTab('my')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${
-            activeTab === 'my'
-              ? 'border-primary text-primary font-medium'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'my'
+            ? 'border-primary text-primary font-medium'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
         >
           My Projects ({myProjects.length})
         </button>
         <button
           onClick={() => setActiveTab('shared')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${
-            activeTab === 'shared'
-              ? 'border-primary text-primary font-medium'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'shared'
+            ? 'border-primary text-primary font-medium'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
         >
           Shared with Me ({sharedProjects.length})
         </button>
@@ -407,8 +400,8 @@ export default function Projects() {
                           {client?.name || <span className="text-muted-foreground">No client</span>}
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className={statusConfig[project.status]?.color || statusConfig.active.color}
                           >
                             {statusConfig[project.status]?.badge || 'Active'}
@@ -416,9 +409,9 @@ export default function Projects() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3 w-[180px]">
-                            <Progress 
-                              value={project.progress || 0} 
-                              className="h-2.5 flex-1" 
+                            <Progress
+                              value={project.progress || 0}
+                              className="h-2.5 flex-1"
                             />
                             <span className="text-sm font-semibold w-12 text-right shrink-0">
                               {project.progress || 0}%
@@ -442,7 +435,7 @@ export default function Projects() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Project
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onSelect={async () => {
                                   try {
@@ -478,7 +471,7 @@ export default function Projects() {
               </TableBody>
             </Table>
           </div>
-          
+
           {/* Footer with pagination */}
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
@@ -503,7 +496,7 @@ export default function Projects() {
             <h2 className="text-lg font-medium mb-1">Board view</h2>
             <p className="text-sm text-muted-foreground">Quick glance of statuses</p>
           </div>
-          
+
           <div className="flex gap-4 overflow-x-auto pb-4">
             {/* In Progress Column */}
             <div className="flex-1 min-w-[300px]">
@@ -514,7 +507,7 @@ export default function Projects() {
                     {groupedProjects['active'].length}
                   </Badge>
                 </div>
-                
+
                 <div className="space-y-3">
                   {groupedProjects['active'].map((project) => {
                     const client = project.members?.find(m => m.role === 'client');
@@ -549,7 +542,7 @@ export default function Projects() {
                     {groupedProjects['on-hold'].length}
                   </Badge>
                 </div>
-                
+
                 <div className="space-y-3">
                   {groupedProjects['on-hold'].map((project) => {
                     const client = project.members?.find(m => m.role === 'client');
@@ -584,7 +577,7 @@ export default function Projects() {
                     {groupedProjects['archived'].length}
                   </Badge>
                 </div>
-                
+
                 <div className="space-y-3">
                   {groupedProjects['archived'].map((project) => {
                     const client = project.members?.find(m => m.role === 'client');
@@ -614,7 +607,7 @@ export default function Projects() {
                     {groupedProjects['completed'].length}
                   </Badge>
                 </div>
-                
+
                 <div className="space-y-3">
                   {groupedProjects['completed'].map((project) => {
                     const client = project.members?.find(m => m.role === 'client');
