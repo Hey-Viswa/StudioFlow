@@ -271,7 +271,7 @@ const Landing = () => {
       </nav>
 
       {/* Hero Section */}
-      <section ref={heroRef} className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+      <section ref={heroRef} className="relative pt-24 pb-16 lg:pt-48 lg:pb-32 overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 -z-10">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-primary/20 rounded-full blur-[120px] opacity-50 dark:opacity-20 mix-blend-screen" />
@@ -280,52 +280,52 @@ const Landing = () => {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <div className="hero-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8">
+          <div className="hero-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6 sm:mb-8">
             <Sparkles className="w-3 h-3" />
             <span>Reimagined for Video Editors</span>
           </div>
 
-          <h1 className="hero-title text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
+          <h1 className="hero-title text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
             Manage Projects. <br className="hidden sm:block" />
             <span className="bg-gradient-to-r from-primary via-green-400 to-primary bg-clip-text text-transparent animate-gradient-x">
               Master Your Flow.
             </span>
           </h1>
 
-          <p className="hero-desc text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="hero-desc text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed px-4">
             The all-in-one workspace for video editors to organize timelines, collaborate with clients, and get paid faster—without the chaos.
           </p>
 
-          <div className="hero-buttons flex flex-wrap justify-center gap-4 mb-20">
+          <div className="hero-buttons flex flex-col sm:flex-row justify-center gap-4 mb-16 sm:mb-20 px-4 sm:px-0">
             {!isSignedIn ? (
               <SignUpButton mode="modal">
-                <Button size="lg" className="h-12 px-8 text-base bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-105 transition-all duration-300">
+                <Button size="lg" className="w-full sm:w-auto h-12 px-8 text-base bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-105 transition-all duration-300">
                   Start for Free
                 </Button>
               </SignUpButton>
             ) : (
-              <Button size="lg" onClick={() => navigate('/dashboard')} className="h-12 px-8 text-base bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-105 transition-all duration-300">
+              <Button size="lg" onClick={() => navigate('/dashboard')} className="w-full sm:w-auto h-12 px-8 text-base bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-105 transition-all duration-300">
                 Go to Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             )}
-            <Button size="lg" variant="outline" className="h-12 px-8 text-base border-primary/20 hover:bg-primary/5 hover:border-primary/40 transition-all duration-300">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 text-base border-primary/20 hover:bg-primary/5 hover:border-primary/40 transition-all duration-300">
               <Play className="w-4 h-4 mr-2" /> Watch Demo
             </Button>
           </div>
 
           {/* Hero Visual */}
-          <div className="hero-visual relative max-w-5xl mx-auto">
+          <div className="hero-visual relative max-w-5xl mx-auto px-2 sm:px-0">
             <div className="relative rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm shadow-2xl overflow-hidden aspect-[16/9] group">
               <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-purple-500/5 group-hover:opacity-100 transition-opacity duration-500" />
 
               {/* Mockup UI */}
               <div className="absolute inset-0 flex flex-col">
                 {/* Window Controls */}
-                <div className="h-10 border-b border-border/50 bg-muted/30 flex items-center px-4 gap-2">
+                <div className="h-8 sm:h-10 border-b border-border/50 bg-muted/30 flex items-center px-4 gap-2">
                   <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/20" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/20" />
+                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500/20" />
+                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-500/20" />
+                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500/20" />
                   </div>
                 </div>
 
@@ -345,19 +345,19 @@ const Landing = () => {
                   </div>
 
                   {/* Main Content */}
-                  <div className="flex-1 p-6 overflow-hidden">
-                    <div className="flex justify-between items-center mb-8">
+                  <div className="flex-1 p-4 sm:p-6 overflow-hidden">
+                    <div className="flex justify-between items-center mb-6 sm:mb-8">
                       <div>
-                        <div className="h-6 w-32 bg-foreground/10 rounded mb-2" />
-                        <div className="h-4 w-48 bg-muted-foreground/10 rounded" />
+                        <div className="h-5 sm:h-6 w-24 sm:w-32 bg-foreground/10 rounded mb-2" />
+                        <div className="h-3 sm:h-4 w-32 sm:w-48 bg-muted-foreground/10 rounded" />
                       </div>
-                      <div className="h-8 w-24 bg-primary rounded shadow-lg shadow-primary/20" />
+                      <div className="h-6 sm:h-8 w-16 sm:w-24 bg-primary rounded shadow-lg shadow-primary/20" />
                     </div>
 
                     {/* Project Grid */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                       {[1, 2, 3].map(i => (
-                        <div key={i} className="aspect-video bg-card border border-border/50 rounded-lg p-3 shadow-sm flex flex-col justify-between group hover:border-primary/30 transition-colors">
+                        <div key={i} className={`aspect-video bg-card border border-border/50 rounded-lg p-3 shadow-sm flex flex-col justify-between group hover:border-primary/30 transition-colors ${i > 1 ? 'hidden sm:flex' : 'flex'}`}>
                           <div className="flex justify-between items-start">
                             <div className="w-8 h-8 rounded bg-primary/10" />
                             <div className="w-16 h-4 rounded-full bg-green-500/10" />
@@ -415,9 +415,9 @@ const Landing = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[400px]">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto md:auto-rows-[400px]">
             {/* Card 1: Centralized Workspace (Wide) */}
-            <div className="feature-card feature-card-1 md:col-span-2 lg:col-span-2 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
+            <div className="feature-card feature-card-1 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
               <div className="grid md:grid-cols-2 gap-8 h-full items-center">
                 <div className="relative z-10">
                   <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 text-blue-500">
@@ -457,7 +457,7 @@ const Landing = () => {
             </div>
 
             {/* Card 2: Streamlined Reviews (Tall) */}
-            <div className="feature-card feature-card-2 md:col-span-1 lg:col-span-1 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
+            <div className="feature-card feature-card-2 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
               <div className="relative z-10 flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-6 text-purple-500">
                   <MessageSquare className="w-6 h-6" />
@@ -487,7 +487,7 @@ const Landing = () => {
             </div>
 
             {/* Card 3: Integrated Invoicing (Tall) */}
-            <div className="feature-card feature-card-3 md:col-span-1 lg:col-span-1 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
+            <div className="feature-card feature-card-3 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
               <div className="relative z-10 flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center mb-6 text-green-500">
                   <Receipt className="w-6 h-6" />
@@ -516,7 +516,7 @@ const Landing = () => {
             </div>
 
             {/* Card 4: Secure Asset Delivery (Wide) */}
-            <div className="feature-card feature-card-4 md:col-span-2 lg:col-span-2 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
+            <div className="feature-card feature-card-4 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
               <div className="grid md:grid-cols-2 gap-8 h-full items-center">
                 <div className="relative z-10">
                   <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-6 text-orange-500">
@@ -547,7 +547,7 @@ const Landing = () => {
             </div>
 
             {/* Card 5: Task Management (Tall) */}
-            <div className="feature-card feature-card-5 md:col-span-2 lg:col-span-1 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
+            <div className="feature-card feature-card-5 md:col-span-2 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
               <div className="relative z-10 flex-1">
                 <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-6 text-pink-500">
                   <ListTodo className="w-6 h-6" />
@@ -581,7 +581,7 @@ const Landing = () => {
             </div>
 
             {/* Card 6: Team Collaboration (Wide) */}
-            <div className="feature-card feature-card-6 md:col-span-2 lg:col-span-2 p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
+            <div className="feature-card feature-card-6 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
               <div className="grid md:grid-cols-2 gap-8 h-full items-center">
                 <div className="relative z-10">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6 text-indigo-500">
@@ -627,7 +627,7 @@ const Landing = () => {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12 relative z-10">
               {/* Step 1: Organize */}
-              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 relative group hover:border-blue-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/5">
+              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-blue-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/5">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-blue-500/20 relative z-10 group-hover:scale-110 transition-transform">
                   1
                 </div>
@@ -666,7 +666,7 @@ const Landing = () => {
               </div>
 
               {/* Step 2: Collaborate */}
-              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 relative group hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5">
+              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-purple-500/20 relative z-10 group-hover:scale-110 transition-transform">
                   2
                 </div>
@@ -702,7 +702,7 @@ const Landing = () => {
               </div>
 
               {/* Step 3: Get Paid */}
-              <div className="workflow-step md:col-span-2 lg:col-span-1 bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 relative group hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/5">
+              <div className="workflow-step md:col-span-2 lg:col-span-1 bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/5">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-green-500/20 relative z-10 group-hover:scale-110 transition-transform">
                   3
                 </div>
@@ -756,7 +756,7 @@ const Landing = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {/* Starter */}
-            <div className="pricing-card p-8 rounded-2xl border border-border bg-card shadow-sm hover:border-primary/30 transition-all duration-300 h-full flex flex-col">
+            <div className="pricing-card p-6 sm:p-8 rounded-2xl border border-border bg-card shadow-sm hover:border-primary/30 transition-all duration-300 h-full flex flex-col">
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-muted-foreground mb-2">Starter</h3>
                 <div className="text-4xl font-bold">₹0<span className="text-base font-normal text-muted-foreground">/mo</span></div>
@@ -779,7 +779,7 @@ const Landing = () => {
             </div>
 
             {/* Pro */}
-            <div className="pricing-card p-8 rounded-2xl border-2 border-primary bg-card shadow-xl relative h-full flex flex-col">
+            <div className="pricing-card p-6 sm:p-8 rounded-2xl border-2 border-primary bg-card shadow-xl relative h-full flex flex-col">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium">
                 Most Popular
               </div>
@@ -805,7 +805,7 @@ const Landing = () => {
             </div>
 
             {/* Studio */}
-            <div className="pricing-card md:col-span-2 lg:col-span-1 p-8 rounded-2xl border border-border bg-card shadow-sm hover:border-primary/30 transition-all duration-300 h-full flex flex-col">
+            <div className="pricing-card md:col-span-2 lg:col-span-1 p-6 sm:p-8 rounded-2xl border border-border bg-card shadow-sm hover:border-primary/30 transition-all duration-300 h-full flex flex-col">
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-muted-foreground mb-2">Studio</h3>
                 <div className="text-4xl font-bold">₹499<span className="text-base font-normal text-muted-foreground">/mo</span></div>
