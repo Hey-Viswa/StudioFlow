@@ -78,6 +78,9 @@ if (process.env.FRONTEND_URL) {
     allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
+// Explicitly add the known Vercel deployment URL
+allowedOrigins.push('https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app');
+
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, Postman, etc.)
@@ -85,6 +88,10 @@ app.use(cors({
             return callback(null, true);
         }
 
+        // TEMPORARY: Allow all origins to debug deployment issue
+        return callback(null, true);
+
+        /*
         if (allowedOrigins.includes(origin)) return callback(null, true);
 
         // Allow Vercel preview deployments
@@ -97,7 +104,10 @@ app.use(cors({
                 return callback(null, true);
             }
         }
-        callback(new Error('Not allowed by CORS'));
+        
+        console.log('❌ CORS blocked origin:', origin);
+        callback(new Error(`Not allowed by CORS: ${origin}`));
+        */
     },
     credentials: true
 }));

@@ -4,11 +4,11 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { 
-  Search, 
-  Plus, 
-  FileText, 
-  DollarSign, 
+import {
+  Search,
+  Plus,
+  FileText,
+  DollarSign,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -29,7 +29,7 @@ import {
 
 export default function Invoices() {
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const invoices = [
     { id: 'INV-1045', project: 'Product Promo Reel', client: 'Nimbus Co.', status: 'Paid', issued: 'Aug 20', due: 'Sep 05', amount: 3200, currency: 'USD' },
     { id: 'INV-1046', project: 'Wedding Highlights', client: 'Carter Family', status: 'Pending', issued: 'Sep 01', due: 'Sep 15', amount: 2850, currency: 'USD' },
@@ -39,7 +39,7 @@ export default function Invoices() {
     { id: 'INV-1050', project: 'Event Recap', client: 'Harbor Fest', status: 'Pending', issued: 'Sep 10', due: 'Sep 24', amount: 950, currency: 'CAD' },
   ];
 
-  const filteredInvoices = invoices.filter(invoice => 
+  const filteredInvoices = invoices.filter(invoice =>
     invoice.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     invoice.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
     invoice.client.toLowerCase().includes(searchQuery.toLowerCase())
@@ -52,7 +52,7 @@ export default function Invoices() {
   };
 
   const getStatusIcon = (status) => {
-    switch(status) {
+    switch (status) {
       case 'Paid': return <CheckCircle2 className="w-3 h-3" />;
       case 'Pending': return <Clock className="w-3 h-3" />;
       case 'Overdue': return <AlertCircle className="w-3 h-3" />;
@@ -82,17 +82,17 @@ export default function Invoices() {
   const totalOverdue = invoices.filter(inv => inv.status === 'Overdue').reduce((sum, inv) => sum + inv.amount, 0);
 
   return (
-    <div className="flex-1 space-y-6 p-8">
+    <div className="flex-1 space-y-6 p-4 md:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white">Invoices</h2>
-          <p className="text-muted-foreground text-slate-400">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-white">Invoices</h2>
+          <p className="text-sm md:text-base text-muted-foreground text-slate-400">
             Manage your invoices and payments
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button className="bg-primary hover:bg-primary/90">
+          <Button className="w-full md:w-auto bg-primary hover:bg-primary/90">
             <Plus className="w-4 h-4 mr-2" />
             New Invoice
           </Button>
@@ -100,7 +100,7 @@ export default function Invoices() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card border-slate-800">
           <div className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -164,27 +164,28 @@ export default function Invoices() {
         </Card>
       </div>
 
-      {/* Invoices Table */}
+      {/* Invoices List */}
       <Card className="bg-card border-slate-800">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-4 md:p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
             <div>
               <h3 className="text-lg font-semibold text-white">Recent Invoices</h3>
               <p className="text-sm text-slate-400">You have {filteredInvoices.length} invoices in total</p>
             </div>
-            <div className="relative w-64">
+            <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                className="pl-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 w-full"
               />
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-800">
+          {/* Desktop Table View */}
+          <div className="hidden md:block rounded-md border border-slate-800">
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-800 hover:bg-slate-800/50">
@@ -199,8 +200,8 @@ export default function Invoices() {
               </TableHeader>
               <TableBody>
                 {filteredInvoices.map((invoice) => (
-                  <TableRow 
-                    key={invoice.id} 
+                  <TableRow
+                    key={invoice.id}
                     className="border-slate-800 hover:bg-slate-800/50"
                   >
                     <TableCell className="font-medium">
@@ -216,8 +217,8 @@ export default function Invoices() {
                       {invoice.client}
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={`${statusConfig[invoice.status]} flex items-center gap-1 w-fit`}
                       >
                         {getStatusIcon(invoice.status)}
@@ -232,9 +233,9 @@ export default function Invoices() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
                           onClick={() => {
                             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -243,9 +244,9 @@ export default function Invoices() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
                           onClick={() => {
                             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -255,12 +256,11 @@ export default function Invoices() {
                           <Download className="w-4 h-4" />
                         </Button>
                         {invoice.status !== 'Paid' && (
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
                             onClick={() => {
-                              // TODO: Implement send invoice functionality
                               console.log('Send invoice:', invoice.id);
                             }}
                           >
@@ -273,6 +273,76 @@ export default function Invoices() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {filteredInvoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-mono text-sm font-semibold">{invoice.id}</span>
+                      <Badge
+                        variant="outline"
+                        className={`${statusConfig[invoice.status]} text-[10px] px-1.5 py-0 h-5`}
+                      >
+                        {invoice.status}
+                      </Badge>
+                    </div>
+                    <h4 className="font-medium text-white mt-1">{invoice.project}</h4>
+                    <p className="text-xs text-slate-400">{invoice.client}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-white">{formatAmount(invoice.amount, invoice.currency)}</p>
+                    <p className="text-xs text-slate-400">Due {invoice.due}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <span className="text-xs text-slate-500">Issued {invoice.issued}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                      onClick={() => {
+                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        window.open(`${apiUrl}/api/invoices/${invoice.id}/view`, '_blank');
+                      }}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                      onClick={() => {
+                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        window.open(`${apiUrl}/api/invoices/${invoice.id}/download`, '_blank');
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    {invoice.status !== 'Paid' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                        onClick={() => {
+                          console.log('Send invoice:', invoice.id);
+                        }}
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </Card>

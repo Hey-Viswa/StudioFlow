@@ -214,13 +214,13 @@ export default function Projects() {
   }
 
   return (
-    <div className="p-8 relative">
+    <div className="p-4 md:p-8 relative">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1">Projects</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">Projects</h1>
           <div className="flex items-center gap-4">
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground text-sm md:text-base">
               <span className="font-medium text-foreground">{activeProjects}</span> active projects
             </p>
             {subscription?.usage && (
@@ -248,7 +248,7 @@ export default function Projects() {
         </div>
         <Button
           onClick={() => navigate('/dashboard/projects/new')}
-          className="gap-2"
+          className="gap-2 w-full md:w-auto"
         >
           <Plus className="w-4 h-4" />
           New Project
@@ -259,10 +259,10 @@ export default function Projects() {
       <SubscriptionAlert subscription={subscription?.subscription} />
 
       {/* Category Tabs */}
-      <div className="flex gap-4 mb-6 border-b">
+      <div className="flex gap-4 mb-6 border-b overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setActiveTab('all')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'all'
+          className={`pb-3 px-1 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'all'
             ? 'border-primary text-primary font-medium'
             : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
@@ -271,7 +271,7 @@ export default function Projects() {
         </button>
         <button
           onClick={() => setActiveTab('my')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'my'
+          className={`pb-3 px-1 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'my'
             ? 'border-primary text-primary font-medium'
             : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
@@ -280,7 +280,7 @@ export default function Projects() {
         </button>
         <button
           onClick={() => setActiveTab('shared')}
-          className={`pb-3 px-1 border-b-2 transition-colors ${activeTab === 'shared'
+          className={`pb-3 px-1 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'shared'
             ? 'border-primary text-primary font-medium'
             : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
@@ -290,41 +290,43 @@ export default function Projects() {
       </div>
 
       {/* Filters & View Toggle */}
-      <div className="flex items-center gap-3 mb-6 relative z-10">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-3 mb-6 relative z-10">
+        <div className="relative flex-1 w-full md:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
           <Input
             placeholder="Search projects"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 w-full"
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent className="z-[200]">
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="on-hold">On Hold</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex w-full md:w-auto gap-3 overflow-x-auto pb-1 md:pb-0">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent className="z-[200]">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="on-hold">On Hold</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Client" />
-          </SelectTrigger>
-          <SelectContent className="z-[200]">
-            <SelectItem value="all">All Clients</SelectItem>
-            {uniqueClients.map(client => (
-              <SelectItem key={client} value={client}>{client}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="w-full md:w-40">
+              <SelectValue placeholder="Client" />
+            </SelectTrigger>
+            <SelectContent className="z-[200]">
+              <SelectItem value="all">All Clients</SelectItem>
+              {uniqueClients.map(client => (
+                <SelectItem key={client} value={client}>{client}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="flex gap-2 ml-auto">
           <Button

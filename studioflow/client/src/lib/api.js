@@ -1,5 +1,9 @@
 // API base URL configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://studioflow-production.up.railway.app/api';
+// Ensure we use the production URL if VITE_API_URL is missing or invalid (like '/')
+const envApiUrl = import.meta.env.VITE_API_URL;
+export const API_BASE_URL = (envApiUrl && envApiUrl.startsWith('http'))
+  ? envApiUrl
+  : 'https://studioflow-production.up.railway.app/api';
 
 // Helper to construct full API URLs
 export const getApiUrl = (endpoint) => {
