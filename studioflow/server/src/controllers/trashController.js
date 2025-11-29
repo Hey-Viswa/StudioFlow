@@ -83,11 +83,11 @@ export const getTrashedProjects = async (req, res) => {
     const userId = req.userId;
 
     // Find projects deleted by user or owned by user
+    // RBAC Fix: Clients should not see projects deleted by owner unless they deleted it themselves
     const trashedProjects = await Trash.find({
       $or: [
         { ownerId: userId },
-        { deletedBy: userId },
-        { 'members.userId': userId }
+        { deletedBy: userId }
       ]
     }).sort({ deletedAt: -1 });
 

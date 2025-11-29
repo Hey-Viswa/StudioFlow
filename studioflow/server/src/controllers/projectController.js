@@ -43,6 +43,15 @@ export const createProject = async (req, res) => {
 
     // Check subscription limits
     const user = await User.findOne({ clerkUserId: ownerId });
+    
+    // RBAC: Clients cannot create projects
+    if (user?.role === 'client') {
+      return res.status(403).json({ 
+        error: 'Permission denied', 
+        message: 'Clients cannot create projects. Please contact support if you believe this is an error.' 
+      });
+    }
+
     const currentPlan = user?.subscription?.plan || 'free';
     const maxProjects = PLAN_LIMITS[currentPlan]?.maxProjects || 5;
 

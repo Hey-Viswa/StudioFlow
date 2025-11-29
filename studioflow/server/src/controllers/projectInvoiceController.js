@@ -1,5 +1,7 @@
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import Project from '../models/Project.js';
+import ProjectMember from '../models/ProjectMember.js';
+import { ROLES } from '../utils/permissions.js';
 import DeletedInvoice from '../models/DeletedInvoice.js';
 import { razorpay } from '../config/razorpay.js';
 import crypto from 'crypto';
@@ -63,27 +65,27 @@ export const getAllUserInvoices = async (req, res) => {
     console.log('User:', userId);
     console.log('Status filter:', status);
 
-    // Get all projects user has access to (owner or member)
-    const projects = await Project.find({
-      $and: [
-        { deletedAt: null },
-        {
-          $or: [
-            { ownerId: userId },
-            { 'members.userId': userId }
-          ]
-        }
-      ]
-    }).select('_id title');
+    // RBAC Fix: Segregate invoices based on role
+    // 1. Find projects where user is Owner
+    const ownedProjects = await Project.find({ ownerId: userId, deletedAt: null }).select('_id');
+    const ownedProjectIds = ownedProjects.map(p => p._id);
 
-    const projectIds = projects.map(p => p._id);
+    // 2. Find projects where user is Team Member (privileged)
+    const teamMemberships = await ProjectMember.find({
+      userId,
+      role: { $in: ['owner', 'team_member', 'admin'] },
+      status: 'active'
+    }).select('projectId');
+    const teamProjectIds = teamMemberships.map(m => m.projectId);
+
+    // Combine privileged projects (can see ALL invoices)
+    const privilegedProjectIds = [...new Set([...ownedProjectIds, ...teamProjectIds])];
 
     // Build query
     const query = {
       $or: [
-        { userId }, // Creator
-        { 'client.userId': userId }, // Client
-        { projectId: { $in: projectIds } } // Project Member
+        { projectId: { $in: privilegedProjectIds } }, // Can see ALL invoices for these projects
+        { 'client.userId': userId } // Can see invoices where I am explicitly the client
       ]
     };
 
@@ -322,12 +324,33 @@ export const getProjectInvoices = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isOwner(userId) && !await project.isMember(userId)) {
+    // Check ownership
+    const isOwner = String(project.ownerId) === String(userId);
+    
+    // Check membership
+    const membership = await ProjectMember.findOne({ 
+      projectId, 
+      userId, 
+      status: { $ne: 'inactive' }
+    });
+
+    if (!isOwner && !membership) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Determine role
+    const role = isOwner ? 'owner' : membership.role;
+
+    // Build query
+    const query = { projectId };
+
+    // RBAC: Clients can only see their own invoices
+    if (role === 'client') {
+      query['client.userId'] = userId;
+    }
+
     // Fetch invoices
-    const invoices = await ProjectInvoice.find({ projectId })
+    const invoices = await ProjectInvoice.find(query)
       .sort({ createdAt: -1 })
       .select('-items');
 
