@@ -1115,6 +1115,11 @@ export const upgradeSubscription = async (req, res) => {
 
       const subscription = await razorpay.subscriptions.create(subscriptionData);
 
+      // SAVE THE SUBSCRIPTION ID!
+      user.subscription.razorpaySubscriptionId = subscription.id;
+      user.subscription.status = 'created'; // Pending payment
+      await user.save();
+
       res.json({
         subscriptionId: subscription.id,
         amount: planConfig.price,
@@ -1152,6 +1157,11 @@ export const upgradeSubscription = async (req, res) => {
         total_count: 12,
         customer_notify: 1
       });
+
+      // SAVE THE NEW SUBSCRIPTION ID!
+      user.subscription.razorpaySubscriptionId = newSubscription.id;
+      user.subscription.status = 'created'; // Pending payment
+      await user.save();
 
       res.json({
         subscriptionId: newSubscription.id,
@@ -1311,6 +1321,11 @@ export const reactivateSubscription = async (req, res) => {
 
     console.log(`[${timestamp}] ✅ Razorpay subscription created:`, subscription.id);
     console.log(`[${timestamp}]   Requires immediate payment`);
+
+    // SAVE THE SUBSCRIPTION ID!
+    user.subscription.razorpaySubscriptionId = subscription.id;
+    user.subscription.status = 'created'; // Pending payment
+    await user.save();
 
     res.json({
       subscriptionId: subscription.id,
