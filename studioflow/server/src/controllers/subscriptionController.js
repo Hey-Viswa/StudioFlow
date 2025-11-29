@@ -829,9 +829,23 @@ export const handleWebhook = async (req, res) => {
 async function handleSubscriptionActivated(subscription, timestamp) {
   console.log(`[${timestamp}] 🔄 Processing subscription.activated...`);
 
-  const user = await User.findOne({
+  let user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
+
+  // Fallback: Find by Customer ID if subscription ID not found (e.g. external upgrade)
+  if (!user && subscription.customer_id) {
+    console.log(`[${timestamp}] ⚠️  User not found by subscription ID, trying customer ID: ${subscription.customer_id}`);
+    user = await User.findOne({
+      'subscription.razorpayCustomerId': subscription.customer_id
+    });
+
+    if (user) {
+      console.log(`[${timestamp}] ✓ Found user by customer ID. Updating subscription ID to: ${subscription.id}`);
+      user.subscription.razorpaySubscriptionId = subscription.id;
+      // Don't save yet, will save below
+    }
+  }
 
   if (user) {
     const previousStatus = user.subscription.status;
@@ -867,9 +881,22 @@ async function handleSubscriptionActivated(subscription, timestamp) {
 async function handleSubscriptionCharged(subscription, payment, timestamp) {
   console.log(`[${timestamp}] 🔄 Processing subscription.charged...`);
 
-  const user = await User.findOne({
+  let user = await User.findOne({
     'subscription.razorpaySubscriptionId': subscription.id
   });
+
+  // Fallback: Find by Customer ID if subscription ID not found
+  if (!user && subscription.customer_id) {
+    console.log(`[${timestamp}] ⚠️  User not found by subscription ID, trying customer ID: ${subscription.customer_id}`);
+    user = await User.findOne({
+      'subscription.razorpayCustomerId': subscription.customer_id
+    });
+
+    if (user) {
+      console.log(`[${timestamp}] ✓ Found user by customer ID. Updating subscription ID to: ${subscription.id}`);
+      user.subscription.razorpaySubscriptionId = subscription.id;
+    }
+  }
 
   if (user) {
     const previousStatus = user.subscription.status;
