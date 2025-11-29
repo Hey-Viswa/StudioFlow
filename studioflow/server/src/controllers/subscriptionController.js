@@ -1521,10 +1521,26 @@ export const getBillingHistory = async (req, res) => {
 
           // SAFETY FILTER: Ensure payments actually belong to this subscription
           // This protects against SDK/API bugs returning global data
-          // Relaxed filter: Allow if subscription_id is missing (trusting the query) OR matches exactly
-          const filteredPayments = payments.items.filter(p => 
-             !p.subscription_id || p.subscription_id === user.subscription.razorpaySubscriptionId
-          );
+          const filteredPayments = payments.items.filter(p => {
+             // 1. Match by Subscription ID (Strongest link)
+             if (p.subscription_id && p.subscription_id === user.subscription.razorpaySubscriptionId) {
+                 return true;
+             }
+             
+             // 2. Match by User ID in notes (Secondary link)
+             if (p.notes && p.notes.userId === userId) {
+                 return true;
+             }
+
+             // 3. Match by Email in notes (Fallback)
+             if (p.notes && p.notes.email === user.email) {
+                 return true;
+             }
+             
+             // 4. If neither, be safe and exclude.
+             // We cannot trust payments with missing subscription_id unless they have user notes.
+             return false;
+          });
           
           console.log(`🔍 Filtered payments: ${filteredPayments.length}`);
 
