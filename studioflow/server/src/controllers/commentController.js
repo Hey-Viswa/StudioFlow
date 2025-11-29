@@ -11,16 +11,16 @@ export const getComments = async (req, res) => {
     const userId = req.userId;
 
     const project = await Project.findById(projectId).select('comments members ownerId');
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Check access
-    const hasAccess = 
-      project.ownerId === userId || 
+    const hasAccess =
+      project.ownerId === userId ||
       project.members.some(m => m.userId === userId);
-    
+
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -51,16 +51,16 @@ export const addComment = async (req, res) => {
     }
 
     const project = await Project.findById(projectId).select('comments members ownerId');
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Check access
-    const hasAccess = 
-      project.ownerId === userId || 
+    const hasAccess =
+      project.ownerId === userId ||
       project.members.some(m => m.userId === userId);
-    
+
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -106,12 +106,12 @@ export const addComment = async (req, res) => {
     // Notify project owner and mentioned users
     try {
       const notifyUserIds = [];
-      
+
       // Notify project owner if not the commenter
       if (project.ownerId !== userId) {
         notifyUserIds.push(project.ownerId);
       }
-      
+
       // Notify mentioned users
       if (mentions && mentions.length > 0) {
         mentions.forEach(mentionedUserId => {
@@ -120,7 +120,7 @@ export const addComment = async (req, res) => {
           }
         });
       }
-      
+
       // Notify parent comment author if replying
       if (parentId) {
         const parentComment = project.comments.id(parentId);
@@ -128,22 +128,27 @@ export const addComment = async (req, res) => {
           notifyUserIds.push(parentComment.userId);
         }
       }
-      
+
       if (notifyUserIds.length > 0) {
-        await createBulkNotifications({
-          userIds: notifyUserIds,
-          type: mentions && mentions.length > 0 ? 'comment-mentioned' : 'comment-added',
-          title: mentions && mentions.length > 0 ? '🔔 You were mentioned' : '💬 New Comment',
-          message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
-          link: `/dashboard/projects/${projectId}`,
-          priority: mentions && mentions.length > 0 ? 'high' : 'medium',
-          category: 'comment',
-          metadata: {
+        // Import dynamically to avoid circular dependency issues
+        const { triggerNotification } = await import('../services/notificationService.js');
+
+        await triggerNotification(
+          'comment.created',
+          {
             projectId,
             commentId: commentObj._id,
-            commenterName: userName
-          }
-        });
+            commenterName: userName,
+            text: text,
+            title: '💬 New Comment', // Worker will override if mentioned
+            message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+            link: `/dashboard/projects/${projectId}?tab=comments`,
+            priority: 'medium', // Worker will override if mentioned
+            category: 'comment',
+            mentions: mentions || []
+          },
+          userId // Actor
+        );
       }
     } catch (notifError) {
       console.error('Error sending comment notifications:', notifError);
@@ -167,13 +172,13 @@ export const updateComment = async (req, res) => {
     }
 
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     const comment = project.comments.id(commentId);
-    
+
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
@@ -216,13 +221,13 @@ export const deleteComment = async (req, res) => {
     const userId = req.userId;
 
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     const comment = project.comments.id(commentId);
-    
+
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
@@ -274,13 +279,13 @@ export const reactToComment = async (req, res) => {
     }
 
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     const comment = project.comments.id(commentId);
-    
+
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
@@ -337,7 +342,7 @@ export const resolveComment = async (req, res) => {
     const userId = req.userId;
 
     const project = await Project.findById(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -348,7 +353,7 @@ export const resolveComment = async (req, res) => {
     }
 
     const comment = project.comments.id(commentId);
-    
+
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }

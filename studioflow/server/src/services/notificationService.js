@@ -236,7 +236,7 @@ const sendNotificationPush = async (userId, notification) => {
   try {
     // Get user's FCM token from database (you'll need to store this when user registers device)
     const fcmToken = await getUserFCMToken(userId);
-    
+
     if (!fcmToken) {
       console.warn(`⚠️  No FCM token found for user ${userId}`);
       return;
@@ -254,7 +254,7 @@ const sendNotificationPush = async (userId, notification) => {
       },
       link: notification.link ? `${process.env.CLIENT_URL || 'http://localhost:3002'}${notification.link}` : null
     });
-    
+
     console.log(`✅ Push notification sent via FCM to user ${userId}`);
   } catch (error) {
     console.error('❌ Send push notification error:', error);
@@ -271,7 +271,7 @@ const getUserFCMToken = async (userId) => {
     // For now, you'll need to store FCM tokens in your User model or a separate collection
     // Example: const user = await User.findOne({ clerkId: userId });
     // return user?.fcmToken;
-    
+
     // Placeholder: return null until you implement FCM token storage
     return null;
   } catch (error) {
@@ -312,7 +312,7 @@ export const createBulkNotifications = async ({
   sendPush = false
 }) => {
   const results = [];
-  
+
   for (const userId of userIds) {
     try {
       const notification = await createNotification({
@@ -452,6 +452,42 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
 
   console.log(`🧹 Cleaned up ${result.deletedCount} old notifications`);
   return result;
+};
+
+/**
+ * Trigger a notification event (adds to queue)
+ * @param {string} type - Event type (e.g., 'task.assigned', 'comment.created')
+ * @param {Object} data - Event data (payload)
+ * @param {string} actorId - ID of user who triggered the event
+ */
+export const triggerNotification = async (type, data, actorId) => {
+  try {
+    // Import queue dynamically to avoid circular dependency issues if any
+    const { notificationQueue } = await import('../queues/notificationQueue.js');
+
+    const job = await notificationQueue.add({
+      type,
+      data,
+      actorId,
+      timestamp: new Date()
+    }, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      },
+      removeOnComplete: true,
+      removeOnFail: false
+    });
+
+    console.log(`📨 Notification job added to queue: ${job.id} (${type})`);
+    return job;
+  } catch (error) {
+    console.error('❌ Failed to trigger notification:', error);
+    // Fallback: Try to process immediately if queue fails? 
+    // For now, just log error to avoid blocking main flow
+    return null;
+  }
 };
 
 /**

@@ -618,6 +618,43 @@ export const updateProject = async (req, res) => {
       console.log('📡 Socket.IO: Emitted project-updated event globally');
     }
 
+    // Check for Task Assignments and Trigger Notifications
+    if (tasks && tasks.length > 0) {
+      const oldTasksMap = new Map(project.tasks.map(t => [t._id?.toString(), t]));
+
+      for (const newTask of tasks) {
+        // Check if it's a new assignment
+        // Case 1: New task with assignee
+        // Case 2: Existing task with CHANGED assignee
+        const oldTask = newTask._id ? oldTasksMap.get(newTask._id.toString()) : null;
+        const newAssigneeId = newTask.assignedTo?.userId;
+        const oldAssigneeId = oldTask?.assignedTo?.userId;
+
+        if (newAssigneeId && newAssigneeId !== userId) { // Don't notify if assigning to self
+          if (!oldTask || (oldAssigneeId !== newAssigneeId)) {
+            console.log(`🔔 Triggering task assignment notification for user ${newAssigneeId}`);
+
+            // Import dynamically to avoid circular dependency issues
+            const { triggerNotification } = await import('../services/notificationService.js');
+
+            await triggerNotification(
+              'task.assigned',
+              {
+                projectId: project._id,
+                taskId: newTask._id || 'new', // Might be new, so ID might not be stable yet if not re-fetched
+                taskTitle: newTask.title,
+                projectTitle: project.title,
+                assignedTo: newTask.assignedTo,
+                priority: 'medium', // Default
+                link: `/dashboard/projects/${project._id}`
+              },
+              userId // Actor
+            );
+          }
+        }
+      }
+    }
+
     // Send Notifications for Client Actions
     if (status === 'needs-revision' && revisionNotes) {
       console.log('🔔 Attempting to send revision notification to owner:', project.ownerId);

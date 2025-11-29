@@ -1,8 +1,6 @@
 import { notificationQueue } from '../queues/notificationQueue.js';
-import Notification from '../models/Notification.js';
 import { NotificationRulesService } from '../services/notificationRules.js';
-import { sendPushNotification } from '../utils/pushNotification.js';
-import { getIO } from '../config/socket.js'; // Assuming we have a way to get IO instance
+import { createNotification } from '../services/notificationService.js';
 
 // This function will be called to start processing jobs
 export const startNotificationWorker = () => {
@@ -43,39 +41,33 @@ export const startNotificationWorker = () => {
                     continue;
                 }
 
+                // Customization for Mentions
+                let notificationTitle = data.title;
+                let notificationPriority = data.priority || 'medium';
+
+                if (context.isMention) {
+                    notificationTitle = '🔔 You were mentioned';
+                    notificationPriority = 'high';
+                }
+
                 // 4. Get Enabled Channels
                 const channels = await NotificationRulesService.getEnabledChannels(userId, context.isUrgent);
 
-                // 5. Create Notification in DB (In-App)
-                if (channels.inApp) {
-                    const notification = await Notification.create({
-                        recipientId: userId,
-                        actorId: actorId,
-                        type: type,
-                        title: data.title,
-                        message: data.message,
-                        data: data,
-                        priority: data.priority || 'medium',
-                        category: data.category || 'info',
-                        link: data.link
-                    });
-
-                    // 6. Send Real-time Update (Socket.IO)
-                    const io = getIO();
-                    if (io) {
-                        io.to(`user:${userId}`).emit('notification:new', notification);
-                    }
-                }
-
-                // 7. Send Push Notification
-                if (channels.push) {
-                    await sendPushNotification(
-                        userId,
-                        data.title,
-                        data.message,
-                        { ...data, url: data.link }
-                    );
-                }
+                // 5. Create Notification using Service
+                // This handles DB persistence, Socket.IO emit, Email, and Push based on flags
+                await createNotification({
+                    userId,
+                    type,
+                    title: notificationTitle,
+                    message: data.message,
+                    link: data.link,
+                    metadata: data,
+                    priority: notificationPriority,
+                    category: data.category || 'info',
+                    sendEmail: channels.email,
+                    sendPush: channels.push
+                    // idempotencyKey is optional, service will generate if needed
+                });
             }
 
         } catch (error) {
