@@ -471,7 +471,9 @@ export const processNotificationEvent = async (type, data, actorId) => {
       // Context for preference checking
       const context = {
         projectId: data.projectId || data._id, // Assuming data has project info
-        isMention: data.mentions?.includes(userId),
+        isMention: Array.isArray(data.mentions) && data.mentions.some(m =>
+          (typeof m === 'string' ? m === userId : m.userId === userId)
+        ),
         isUrgent: data.priority === 'high'
       };
 
@@ -556,8 +558,8 @@ export const triggerNotification = async (type, data, actorId) => {
   // Ideally we should import isQueueEnabled from the queue file.
   // For now, let's rely on the queue.add throwing or check process.env
 
-  // Forcing Direct Mode for local development reliability
-  const useQueue = false; // process.env.ENABLE_REDIS_QUEUE === 'true';
+  // Check if queue is enabled
+  const useQueue = process.env.ENABLE_REDIS_QUEUE === 'true';
 
   if (!useQueue) {
     console.log(`DIRECT MODE: Processing notification ${type} immediately.`);

@@ -246,13 +246,20 @@ function generateRevenueData(invoices, granularity) {
   const dataMap = new Map();
   const now = new Date();
 
+  // Helper to format date as YYYY-MM-DD in local time
+  const toLocalISOString = (date) => {
+    const offset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+    const localDate = new Date(date.getTime() - offset);
+    return localDate.toISOString().split('T')[0];
+  };
+
   // Initialize map with 0 for all periods
   if (granularity === 'daily') {
     // Last 30 days
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
+      const key = toLocalISOString(d);
       dataMap.set(key, 0);
     }
   } else if (granularity === 'weekly') {
@@ -262,13 +269,15 @@ function generateRevenueData(invoices, granularity) {
       d.setDate(d.getDate() - (i * 7));
       const weekStart = new Date(d);
       weekStart.setDate(d.getDate() - d.getDay()); // Start of week (Sunday)
-      const key = weekStart.toISOString().split('T')[0];
+      const key = toLocalISOString(weekStart);
       dataMap.set(key, 0);
     }
   } else {
     // Last 6 months (default)
     for (let i = 5; i >= 0; i--) {
+      // Create date for the 1st of the month
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      // Key format: YYYY-MM
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       dataMap.set(key, 0);
     }
@@ -281,12 +290,13 @@ function generateRevenueData(invoices, granularity) {
     let key;
 
     if (granularity === 'daily') {
-      key = date.toISOString().split('T')[0];
+      key = toLocalISOString(date);
     } else if (granularity === 'weekly') {
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
-      key = weekStart.toISOString().split('T')[0];
+      key = toLocalISOString(weekStart);
     } else {
+      // Monthly: YYYY-MM
       key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     }
 
@@ -295,9 +305,27 @@ function generateRevenueData(invoices, granularity) {
     }
   });
 
+  // Convert to array and format for frontend
   return Array.from(dataMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, revenue]) => ({ date, revenue }));
+    .map(([date, revenue]) => {
+      // Add a display label for better UX
+      let label = date;
+
+      if (granularity === 'monthly') {
+        // Parse YYYY-MM
+        const [year, month] = date.split('-');
+        const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        label = monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      } else {
+        // Parse YYYY-MM-DD manually to avoid timezone shifts
+        const [year, month, day] = date.split('-').map(num => parseInt(num));
+        const d = new Date(year, month - 1, day);
+        label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+
+      return { date, revenue, label };
+    });
 }
 
 // Helper function to generate project progress data

@@ -63,7 +63,7 @@ export const getTasks = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -110,7 +110,7 @@ export const createTask = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -210,7 +210,7 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -305,7 +305,7 @@ export const deleteTask = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -351,7 +351,7 @@ export const getComments = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -381,7 +381,7 @@ export const createComment = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -477,7 +477,7 @@ export const updateComment = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -545,7 +545,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

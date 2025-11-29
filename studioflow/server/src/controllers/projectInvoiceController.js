@@ -322,7 +322,7 @@ export const getProjectInvoices = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isOwner(userId) && !project.isMember(userId)) {
+    if (!project.isOwner(userId) && !await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

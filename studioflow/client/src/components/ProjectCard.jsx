@@ -12,6 +12,11 @@ import {
 import { MoreHorizontal, Eye, FileText, MessageSquare, RefreshCw, CheckCircle, Calendar, Users } from "lucide-react"
 import { cn } from "../lib/utils"
 import { format } from "date-fns"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "./ui/avatar"
 
 const getStatusColor = (status) => {
   const colors = {
@@ -25,7 +30,7 @@ const getStatusColor = (status) => {
   return colors[status] || colors.active
 }
 
-const ProjectCard = React.forwardRef(({ 
+const ProjectCard = React.forwardRef(({
   project,
   onView,
   onOpenFiles,
@@ -34,7 +39,7 @@ const ProjectCard = React.forwardRef(({
   onApproveFinal,
   showClientInfo = true,
   className,
-  ...props 
+  ...props
 }, ref) => {
   const {
     _id,
@@ -53,13 +58,13 @@ const ProjectCard = React.forwardRef(({
   const isOverdue = dueDate && new Date(dueDate) < new Date() && status !== 'completed'
 
   return (
-    <Card 
-      ref={ref} 
+    <Card
+      ref={ref}
       className={cn(
         "transition-all hover:shadow-md",
         isOverdue && "border-destructive",
         className
-      )} 
+      )}
       {...props}
     >
       <CardHeader className="pb-3">
@@ -150,10 +155,22 @@ const ProjectCard = React.forwardRef(({
       </CardContent>
 
       <CardFooter className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t">
-        {showClientInfo && clientMember && (
-          <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            <span className="truncate max-w-[120px]">{clientMember.name || clientMember.email}</span>
+        {showClientInfo && (
+          <div className="flex -space-x-2 overflow-hidden">
+            {members?.slice(0, 3).map((member, i) => (
+              <Avatar key={i} className="inline-block border-2 border-background w-6 h-6">
+                <AvatarImage src={member.avatar} />
+                <AvatarFallback className="text-[10px]">{member.name?.charAt(0) || 'U'}</AvatarFallback>
+              </Avatar>
+            ))}
+            {members?.length > 3 && (
+              <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-background bg-muted text-[8px] font-medium">
+                +{members.length - 3}
+              </div>
+            )}
+            {(!members || members.length === 0) && (
+              <span className="text-xs text-muted-foreground">No members</span>
+            )}
           </div>
         )}
         {dueDate && (

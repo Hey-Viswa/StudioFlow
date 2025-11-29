@@ -8,7 +8,9 @@ import {
   getDeletedInvoices,
   restoreInvoice,
   permanentlyDeleteInvoice,
-  getAllTrashItems
+  getAllTrashItems,
+  restoreFile,
+  permanentlyDeleteFile
 } from '../controllers/trashController.js';
 
 const router = express.Router();
@@ -41,5 +43,11 @@ router.delete('/invoices/:id', permanentlyDeleteInvoice);
 
 // Empty entire trash
 router.delete('/', emptyTrash);
+
+// Restore a file from trash
+router.post('/files/:id/restore', restoreFile);
+
+// Permanently delete a single file
+router.delete('/files/:id', permanentlyDeleteFile);
 
 export default router;

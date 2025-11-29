@@ -1,0 +1,24 @@
+Dashboard Analytics Export
+Generated on: 11/29/2025, 7:20:58 PM
+
+Revenue Data
+Date,Revenue
+2025-11,792.09
+
+Invoice Status Distribution
+Status,Count
+draft,0
+sent,0
+paid,1
+overdue,0
+
+Project Progress
+Week,In Progress,Completed,Needs Revision
+Week 1,0,0,0
+Week 2,0,0,0
+Week 3,0,0,0
+Week 4,0,0,0
+Week 5,0,0,0
+Week 6,0,0,0
+Week 7,1,0,0
+Week 8,0,1,0

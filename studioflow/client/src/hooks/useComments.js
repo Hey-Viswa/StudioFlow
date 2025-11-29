@@ -349,28 +349,42 @@ export function useComments(projectId) {
   // Real-time socket handlers
   const handleCommentAdded = useCallback((data) => {
     console.log('🔔 Real-time comment received:', data)
-    if (data.comment.parentId) {
-      // It's a reply
-      const addReplyToTree = (comments) => {
-        return comments.map(comment => {
-          if (comment._id === data.comment.parentId) {
-            return {
-              ...comment,
-              replies: [...(comment.replies || []), { ...data.comment, replies: [] }]
+    
+    setComments(prev => {
+      // Check if comment already exists to prevent duplicates
+      // This handles the race condition between optimistic update resolution and socket event
+      const exists = prev.some(c => c._id === data.comment._id) || 
+                     prev.some(c => c.replies?.some(r => r._id === data.comment._id));
+      
+      if (exists) return prev;
+
+      if (data.comment.parentId) {
+        // It's a reply
+        const addReplyToTree = (comments) => {
+          return comments.map(comment => {
+            if (comment._id === data.comment.parentId) {
+              // Check if reply already exists in this parent
+              if (comment.replies?.some(r => r._id === data.comment._id)) {
+                return comment;
+              }
+              return {
+                ...comment,
+                replies: [...(comment.replies || []), { ...data.comment, replies: [] }]
+              }
+            } else if (comment.replies?.length > 0) {
+              return {
+                ...comment,
+                replies: addReplyToTree(comment.replies)
+              }
             }
-          } else if (comment.replies?.length > 0) {
-            return {
-              ...comment,
-              replies: addReplyToTree(comment.replies)
-            }
-          }
-          return comment
-        })
+            return comment
+          })
+        }
+        return addReplyToTree(prev)
+      } else {
+        return [...prev, { ...data.comment, replies: [] }]
       }
-      setComments(prev => addReplyToTree(prev))
-    } else {
-      setComments(prev => [...prev, { ...data.comment, replies: [] }])
-    }
+    })
   }, [])
 
   const handleCommentDeleted = useCallback((data) => {

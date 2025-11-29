@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from project root (two levels up from server/src/config)
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+// Load .env from project root (server/.env)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const STORAGE_PROVIDER = process.env.STORAGE_PROVIDER || 's3';
 

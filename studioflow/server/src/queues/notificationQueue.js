@@ -2,8 +2,7 @@ import Queue from 'bull';
 import redisConfig from '../config/redis.js';
 
 // Check if Redis queue is enabled
-// Forcing Direct Mode for local development reliability
-const isQueueEnabled = false; // process.env.ENABLE_REDIS_QUEUE === 'true';
+const isQueueEnabled = process.env.ENABLE_REDIS_QUEUE === 'true';
 
 let notificationQueue;
 

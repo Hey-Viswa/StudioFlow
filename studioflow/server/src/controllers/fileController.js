@@ -11,16 +11,30 @@ import {
   formatBytes
 } from '../config/fileLimits.js';
 
+import ProjectMember from '../models/ProjectMember.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+
 /**
  * Helper: Check if user is a project collaborator
  */
-async function isProjectCollaborator(projectId, userId) {
-  const project = await Project.findById(projectId).select('members ownerId').lean();
-  if (!project) return false;
+/**
+ * Helper: Get user's role in the project
+ */
+async function getProjectRole(projectId, userId) {
+  const project = await Project.findById(projectId).select('ownerId settings').lean();
+  if (!project) return { role: null, project: null };
 
-  // Check if user is owner or in members list
-  if (project.ownerId === userId) return true;
-  return project.members.some(m => m.userId === userId);
+  if (String(project.ownerId) === String(userId)) {
+    return { role: ROLES.OWNER, project };
+  }
+
+  const membership = await ProjectMember.findOne({
+    projectId,
+    userId,
+    status: { $ne: 'inactive' }
+  });
+
+  return { role: membership?.role || null, project };
 }
 
 /**
@@ -43,10 +57,16 @@ export const signUpload = async (req, res) => {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
-    // RBAC: Check project access
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    // RBAC: Check project access and upload permission
+    const { role, project } = await getProjectRole(projectId, userId);
+
+    if (!role) {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    const context = { allowClientUploads: project.settings?.allowClientUploads };
+    if (!checkPermission(role, PERMISSIONS.FILE_UPLOAD, context)) {
+      return res.status(403).json({ error: 'You do not have permission to upload files to this project.' });
     }
 
     // Get user's subscription plan
@@ -184,8 +204,8 @@ export const confirmUpload = async (req, res) => {
     }
 
     // RBAC: Check project access
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
     }
 
@@ -195,7 +215,7 @@ export const confirmUpload = async (req, res) => {
       return res.status(404).json({ error: 'File record not found' });
     }
 
-    // Verify uploader
+    // Verify uploader (or Owner can confirm? Usually only uploader confirms their own upload flow)
     if (fileRecord.uploaderId !== userId) {
       return res.status(403).json({ error: 'Only the uploader can confirm this file' });
     }
@@ -302,10 +322,14 @@ export const getProjectFiles = async (req, res) => {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
-    // RBAC: Check project access
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    // RBAC: Check project access and view permission
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    if (!checkPermission(role, PERMISSIONS.FILE_VIEW)) {
+      return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
     // Build query
@@ -356,9 +380,13 @@ export const getFileDetails = async (req, res) => {
     const userId = req.userId;
 
     // RBAC: Check project access
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    if (!checkPermission(role, PERMISSIONS.FILE_VIEW)) {
+      return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId });
@@ -404,9 +432,14 @@ export const archiveFile = async (req, res) => {
     const { id: projectId, fileId } = req.params;
     const userId = req.userId;
 
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Check generic delete permission (Archiving is treated as delete)
+    if (!checkPermission(role, PERMISSIONS.FILE_DELETE)) {
+      return res.status(403).json({ error: 'You do not have permission to archive files' });
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId });
@@ -415,7 +448,9 @@ export const archiveFile = async (req, res) => {
     }
 
     const project = await Project.findById(projectId).select('ownerId').lean();
-    if (file.uploaderId !== userId && project.ownerId !== userId) {
+    const isProjectOwner = String(project.ownerId) === String(userId);
+
+    if (!isProjectOwner && file.uploaderId !== userId) {
       return res.status(403).json({ error: 'Only the uploader or project owner can archive this file' });
     }
 
@@ -448,9 +483,14 @@ export const restoreFile = async (req, res) => {
     const { id: projectId, fileId } = req.params;
     const userId = req.userId;
 
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Check generic delete permission (Restoring is treated as delete/manage)
+    if (!checkPermission(role, PERMISSIONS.FILE_DELETE)) {
+      return res.status(403).json({ error: 'You do not have permission to restore files' });
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId, status: 'archived' });
@@ -487,20 +527,31 @@ export const deleteFile = async (req, res) => {
     const { id: projectId, fileId } = req.params;
     const userId = req.userId;
 
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    // RBAC Check
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const file = await ProjectFile.findOne({ fileId, projectId });
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
+    // Check generic delete permission
+    if (!checkPermission(role, PERMISSIONS.FILE_DELETE)) {
+      return res.status(403).json({ error: 'You do not have permission to delete files' });
     }
 
-    // Only project owner can permanently delete
+    // Ownership Check for non-owners
+    // If user is NOT the project owner, they can only delete their OWN files (if they have FILE_DELETE permission)
+    // Note: Project Owner has full delete permission via checkPermission (assuming matrix allows it)
+    // But let's be explicit:
+
     const project = await Project.findById(projectId).select('ownerId').lean();
-    if (project.ownerId !== userId) {
-      return res.status(403).json({ error: 'Only the project owner can permanently delete files' });
+    const isProjectOwner = String(project.ownerId) === String(userId);
+
+    if (!isProjectOwner && file.uploaderId !== userId) {
+      // Check if they have a special "delete any" permission? 
+      // Currently PERMISSIONS.FILE_DELETE is generic. 
+      // Implementation Plan says: "Only their own uploads" for Team Member/Client.
+      // So we enforce ownership here.
+      return res.status(403).json({ error: 'You can only delete files you uploaded' });
     }
 
     // Delete from storage
@@ -539,9 +590,13 @@ export const getFilePreviewUrl = async (req, res) => {
     const userId = req.userId;
 
     // RBAC: Check project access
-    const hasAccess = await isProjectCollaborator(projectId, userId);
-    if (!hasAccess) {
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+    }
+
+    if (!checkPermission(role, PERMISSIONS.FILE_VIEW)) {
+      return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId });

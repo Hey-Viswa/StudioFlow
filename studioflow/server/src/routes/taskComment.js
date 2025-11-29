@@ -9,20 +9,20 @@ import {
   updateComment,
   deleteComment
 } from '../controllers/taskCommentController.js';
-import { verifyClerkJWKS } from '../middlewares/verifyClerkJWKS.js';
+import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 
 const router = express.Router();
 
 // Task routes
-router.get('/:projectId/tasks', verifyClerkJWKS, getTasks);
-router.post('/:projectId/tasks', verifyClerkJWKS, createTask);
-router.put('/:projectId/tasks/:taskId', verifyClerkJWKS, updateTask);
-router.delete('/:projectId/tasks/:taskId', verifyClerkJWKS, deleteTask);
+router.get('/:projectId/tasks', verifyClerk, getTasks);
+router.post('/:projectId/tasks', verifyClerk, createTask);
+router.put('/:projectId/tasks/:taskId', verifyClerk, updateTask);
+router.delete('/:projectId/tasks/:taskId', verifyClerk, deleteTask);
 
 // Comment routes
-router.get('/:projectId/comments', verifyClerkJWKS, getComments);
-router.post('/:projectId/comments', verifyClerkJWKS, createComment);
-router.put('/:projectId/comments/:commentId', verifyClerkJWKS, updateComment);
-router.delete('/:projectId/comments/:commentId', verifyClerkJWKS, deleteComment);
+router.get('/:projectId/comments', verifyClerk, getComments);
+router.post('/:projectId/comments', verifyClerk, createComment);
+router.put('/:projectId/comments/:commentId', verifyClerk, updateComment);
+router.delete('/:projectId/comments/:commentId', verifyClerk, deleteComment);
 
 export default router;

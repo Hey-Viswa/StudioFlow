@@ -87,6 +87,7 @@ export default function ProjectDetail() {
   } = useComments(projectId);
 
   const [inviteLink, setInviteLink] = useState(null);
+  const [inviteRole, setInviteRole] = useState('client');
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -126,11 +127,9 @@ export default function ProjectDetail() {
       }
 
       const data = await response.json();
-      // API returns the project object directly
-      setProject(data);
-      setProgressValue(data.progress || 0);
-      // inviteLink is not returned by getProjectById, it's generated on demand
-      setInviteLink(null); 
+      setProject(data.project);
+      setProgressValue(data.project.progress || 0);
+      setInviteLink(data.inviteLink);
       setError(null);
     } catch (err) {
       console.error('Fetch project error:', err);
@@ -180,29 +179,28 @@ export default function ProjectDetail() {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects/${projectId}/invite`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
         },
+        body: JSON.stringify({ role: inviteRole })
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to generate invite' }));
-        throw new Error(errorData.error || 'Failed to generate invite');
+        throw new Error('Failed to generate invite link');
       }
 
       const data = await response.json();
       setInviteLink(data.inviteLink);
-      toast.success('Invite link generated successfully!');
+      setCopied(false);
+      toast.success(`${inviteRole === 'client' ? 'Client' : 'Team'} invite link generated!`);
     } catch (err) {
       console.error('Generate invite error:', err);
-      toast.error(err.message || 'Failed to generate invite link');
+      toast.error('Failed to generate invite link');
     } finally {
       setGeneratingInvite(false);
     }
   };
-
   const copyInviteLink = () => {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
@@ -748,26 +746,30 @@ export default function ProjectDetail() {
                           </>
                         ) : (
                           <>
-                            <button
-                              onClick={() => {
-                                setShowDropdown(false);
-                                setShowRevisionModal(true);
-                              }}
-                              className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                            >
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Request Revision
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowDropdown(false);
-                                setShowApproveModal(true);
-                              }}
-                              className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Approve Final
-                            </button>
+                            {project.userRole === 'client' && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(false);
+                                    setShowRevisionModal(true);
+                                  }}
+                                  className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                                >
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                  Request Revision
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(false);
+                                    setShowApproveModal(true);
+                                  }}
+                                  className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                                  Approve Final
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
@@ -837,26 +839,41 @@ export default function ProjectDetail() {
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Share2 className="w-5 h-5" />
-                  Invite Clients
+                  Invite Team & Clients
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Generate a secure invite link to give clients access to this project. Links expire after 7 days.
+                  Generate a secure invite link to give access to this project. Links expire after 7 days.
                 </p>
 
                 {!inviteLink ? (
-                  <Button onClick={generateInviteLink} disabled={generatingInvite}>
-                    {generatingInvite ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Generate Invite Link
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-3 items-end">
+                    <div className="w-48">
+                      <Label htmlFor="invite-role" className="text-xs mb-1.5 block">Role</Label>
+                      <Select value={inviteRole} onValueChange={setInviteRole}>
+                        <SelectTrigger id="invite-role">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="client">Client (Restricted)</SelectItem>
+                          <SelectItem value="team_member">Team Member (Full Access)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button onClick={generateInviteLink} disabled={generatingInvite} className="mb-[2px]">
+                      {generatingInvite ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-4 h-4 mr-2" />
+                          Generate {inviteRole === 'client' ? 'Client' : 'Team'} Link
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex gap-2">
@@ -876,7 +893,7 @@ export default function ProjectDetail() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Share this link with clients to give them access to the project.
+                      Share this link with {inviteRole === 'client' ? 'clients' : 'team members'} to give them access.
                     </p>
                     <Button onClick={() => setInviteLink(null)} variant="ghost" size="sm">
                       Generate New Link

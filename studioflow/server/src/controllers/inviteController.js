@@ -39,14 +39,19 @@ export const acceptInvite = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
+    // Check if user is the owner
+    if (String(project.ownerId) === String(userId)) {
+      return res.status(400).json({ error: 'You are the owner of this project and cannot join via invite.' });
+    }
+
     // Check if user is already a member
-    if (project.isMember(userId)) {
+    if (await project.isMember(userId)) {
       return res.status(200).json({
         message: 'You are already a member of this project',
         project: {
           _id: project._id,
           title: project.title,
-          userRole: project.getUserRole(userId)
+          userRole: await project.getUserRole(userId)
         },
         alreadyMember: true
       });
@@ -58,23 +63,39 @@ export const acceptInvite = async (req, res) => {
     try {
       const user = await clerkClient.users.getUser(userId);
       userEmail = user.emailAddresses?.[0]?.emailAddress || '';
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || userEmail;
     } catch (err) {
       console.error('Error fetching user from Clerk:', err);
       // Continue without user details
     }
 
-    // Add user to members
-    project.members.push({
-      userId,
-      email: userEmail,
-      name: userName,
-      role: role || 'client',
-      joinedAt: new Date()
+    // Add user to ProjectMember collection
+    await import('../models/ProjectMember.js').then(async ({ default: ProjectMember }) => {
+      await ProjectMember.findOneAndUpdate(
+        { projectId, userId },
+        {
+          projectId,
+          userId,
+          email: userEmail,
+          name: userName,
+          role: role || 'client',
+          status: 'active',
+          joinedAt: new Date(),
+          invitedBy: project.ownerId // Assuming owner invited, or we could track this in token
+        },
+        { upsert: true, new: true }
+      );
     });
 
+    // Legacy support: keep embedded members for now (optional, but good for safety)
+    // project.members.push({ ... }); 
+    // We can skip legacy push to avoid confusion, as we are moving away from it.
+    // But to be safe, let's NOT push to deprecated array to force usage of new collection.
+
+    // Update project timestamp
+    project.updatedAt = new Date();
     await project.save();
 
     // Emit Socket.IO event for real-time update
@@ -147,14 +168,14 @@ export const verifyInvite = async (req, res) => {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        return res.status(400).json({ 
-          valid: false, 
-          error: 'Invite link has expired' 
+        return res.status(400).json({
+          valid: false,
+          error: 'Invite link has expired'
         });
       }
-      return res.status(400).json({ 
-        valid: false, 
-        error: 'Invalid invite token' 
+      return res.status(400).json({
+        valid: false,
+        error: 'Invalid invite token'
       });
     }
 
@@ -164,9 +185,9 @@ export const verifyInvite = async (req, res) => {
     const project = await Project.findById(projectId).select('title brief status');
 
     if (!project) {
-      return res.status(404).json({ 
-        valid: false, 
-        error: 'Project not found' 
+      return res.status(404).json({
+        valid: false,
+        error: 'Project not found'
       });
     }
 
@@ -175,14 +196,15 @@ export const verifyInvite = async (req, res) => {
       project: {
         title: project.title,
         brief: project.brief,
-        status: project.status
+        status: project.status,
+        role: decoded.role || 'client' // Include role from token
       }
     });
   } catch (error) {
     console.error('Verify invite error:', error);
-    res.status(500).json({ 
-      valid: false, 
-      error: 'Failed to verify invite' 
+    res.status(500).json({
+      valid: false,
+      error: 'Failed to verify invite'
     });
   }
 };

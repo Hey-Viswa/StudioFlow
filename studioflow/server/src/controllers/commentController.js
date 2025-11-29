@@ -5,24 +5,48 @@ import { createNotificationWithIdempotency } from '../services/notificationServi
  * Enhanced comment controller with threading, reactions, and mentions
  */
 
+import ProjectMember from '../models/ProjectMember.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+
+/**
+ * Helper: Get user's role in the project
+ */
+async function getProjectRole(projectId, userId) {
+  const project = await Project.findById(projectId).select('ownerId settings').lean();
+  if (!project) return { role: null, project: null };
+
+  if (String(project.ownerId) === String(userId)) {
+    return { role: ROLES.OWNER, project };
+  }
+
+  const membership = await ProjectMember.findOne({
+    projectId,
+    userId,
+    status: { $ne: 'inactive' }
+  });
+
+  return { role: membership?.role || null, project };
+}
+
 export const getComments = async (req, res) => {
   try {
     const { id: projectId } = req.params;
     const userId = req.userId;
 
-    const project = await Project.findById(projectId).select('comments members ownerId');
+    const project = await Project.findById(projectId).select('comments ownerId');
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Check access
-    const hasAccess =
-      project.ownerId === userId ||
-      project.members.some(m => m.userId === userId);
-
-    if (!hasAccess) {
+    // RBAC: Check project access
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!checkPermission(role, PERMISSIONS.PROJECT_VIEW)) {
+      return res.status(403).json({ error: 'You do not have permission to view comments.' });
     }
 
     // Convert reactions Map to object for JSON serialization
@@ -41,7 +65,7 @@ export const getComments = async (req, res) => {
 export const addComment = async (req, res) => {
   try {
     const { id: projectId } = req.params;
-    const { text, parentId, attachments, mentions } = req.body;
+    const { text, parentId, attachments, mentions, clientGeneratedId } = req.body;
     const userId = req.userId;
     const userName = req.userName || '';
     const userEmail = req.userEmail || '';
@@ -50,19 +74,33 @@ export const addComment = async (req, res) => {
       return res.status(400).json({ error: 'Comment text is required' });
     }
 
-    const project = await Project.findById(projectId).select('comments members ownerId');
+    const project = await Project.findById(projectId).select('comments ownerId');
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Check access
-    const hasAccess =
-      project.ownerId === userId ||
-      project.members.some(m => m.userId === userId);
+    // Idempotency check
+    if (clientGeneratedId) {
+      const existingComment = project.comments.find(c => c.clientGeneratedId === clientGeneratedId);
+      if (existingComment) {
+        console.log(`⏭️ Skipping duplicate comment (clientGeneratedId: ${clientGeneratedId})`);
+        const commentObj = {
+          ...existingComment.toObject(),
+          reactions: existingComment.reactions ? Object.fromEntries(existingComment.reactions) : {}
+        };
+        return res.status(200).json({ comment: commentObj });
+      }
+    }
 
-    if (!hasAccess) {
+    // RBAC: Check project access and comment permission
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!checkPermission(role, PERMISSIONS.COMMENT_CREATE)) {
+      return res.status(403).json({ error: 'You do not have permission to add comments.' });
     }
 
     // Validate parent comment if replying
@@ -79,6 +117,7 @@ export const addComment = async (req, res) => {
       userEmail,
       text: text.trim(),
       parentId: parentId || null,
+      clientGeneratedId: clientGeneratedId || null,
       reactions: new Map(),
       attachments: attachments || [],
       mentions: mentions || [],
@@ -157,9 +196,13 @@ export const updateComment = async (req, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    // Only owner can edit
-    if (comment.userId !== userId && project.ownerId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+    // RBAC: Check permission
+    // Only owner or the comment author can edit (usually)
+    // Matrix doesn't explicitly mention "Edit Comment", but implied "Manage Own".
+    // Let's assume only author can edit their own comment.
+
+    if (comment.userId !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
     }
 
     comment.text = text.trim();
@@ -206,9 +249,27 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    // Only owner or project owner can delete
-    if (comment.userId !== userId && project.ownerId !== userId) {
+    // RBAC Check
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // 1. Check if user has generic DELETE_COMMENT permission (e.g. Owner)
+    const canDeleteAny = checkPermission(role, PERMISSIONS.COMMENT_DELETE);
+
+    // 2. Check if user has DELETE_OWN_COMMENT permission
+    const canDeleteOwn = checkPermission(role, PERMISSIONS.COMMENT_DELETE_OWN);
+
+    if (canDeleteAny) {
+      // Allowed to delete any comment
+    } else if (canDeleteOwn) {
+      // Allowed only if it's their own comment
+      if (comment.userId !== userId) {
+        return res.status(403).json({ error: 'You can only delete your own comments' });
+      }
+    } else {
+      return res.status(403).json({ error: 'You do not have permission to delete comments' });
     }
 
     // Remove comment and all its replies

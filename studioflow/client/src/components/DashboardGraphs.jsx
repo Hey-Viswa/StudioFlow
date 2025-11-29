@@ -149,19 +149,12 @@ const RevenueChart = React.forwardRef(({
                   opacity={0.3}
                 />
                 <XAxis
-                  dataKey="date"
+                  dataKey="label"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={12}
                   minTickGap={32}
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  tickFormatter={(value) => {
-                    const date = new Date(value)
-                    return date.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric'
-                    })
-                  }}
                 />
                 <YAxis
                   tickLine={false}

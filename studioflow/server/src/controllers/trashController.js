@@ -9,6 +9,8 @@ const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
 });
 
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+
 // @desc    Soft delete project (move to trash)
 // @route   DELETE /api/projects/:id
 // @access  Protected (Owner only)
@@ -33,8 +35,8 @@ export const softDeleteProject = async (req, res) => {
     let userName = '';
     try {
       const user = await clerkClient.users.getUser(userId);
-      userName = user.firstName && user.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      userName = user.firstName && user.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user.username || user.firstName || user.emailAddresses?.[0]?.emailAddress || '';
     } catch (err) {
       console.error('Error fetching user from Clerk:', err);
@@ -129,15 +131,40 @@ export const restoreProject = async (req, res) => {
       canRestore: trashEntry.canRestore(userId)
     });
 
-    // Check if user can restore (owner or deleter)
-    if (!trashEntry.canRestore(userId)) {
+    // Determine user role in the original project
+    let userRole = null;
+    if (trashEntry.ownerId === userId) {
+      userRole = ROLES.OWNER;
+    } else {
+      // Try to find in embedded members (legacy)
+      const member = trashEntry.members.find(m => m.userId === userId);
+      userRole = member?.role || null;
+
+      // If not found, check ProjectMember collection (for migrated projects)
+      if (!userRole) {
+        const projectMember = await import('../models/ProjectMember.js').then(m => m.default.findOne({
+          projectId: trashEntry.originalProjectId,
+          userId: userId
+        }));
+        if (projectMember) {
+          userRole = projectMember.role;
+        }
+      }
+    }
+
+    // Check if user can restore (Owner, Deleter, or has Permission)
+    const isDeleter = trashEntry.deletedBy === userId;
+    const hasPermission = userRole && checkPermission(userRole, PERMISSIONS.PROJECT_DELETE);
+
+    if (!isDeleter && !hasPermission) {
       console.error('❌ Permission denied for user:', userId);
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'You do not have permission to restore this project',
         details: {
           ownerId: trashEntry.ownerId,
           deletedBy: trashEntry.deletedBy,
-          userId: userId
+          userId: userId,
+          role: userRole
         }
       });
     }
@@ -168,9 +195,9 @@ export const restoreProject = async (req, res) => {
       stack: error.stack,
       name: error.name
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to restore project',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -189,8 +216,32 @@ export const permanentlyDeleteProject = async (req, res) => {
       return res.status(404).json({ error: 'Trashed project not found' });
     }
 
-    // Check if user can delete (owner or deleter)
-    if (!trashEntry.canRestore(userId)) {
+    // Determine user role
+    let userRole = null;
+    if (trashEntry.ownerId === userId) {
+      userRole = ROLES.OWNER;
+    } else {
+      // Try to find in embedded members (legacy)
+      const member = trashEntry.members.find(m => m.userId === userId);
+      userRole = member?.role || null;
+
+      // If not found, check ProjectMember collection
+      if (!userRole) {
+        const projectMember = await import('../models/ProjectMember.js').then(m => m.default.findOne({
+          projectId: trashEntry.originalProjectId,
+          userId: userId
+        }));
+        if (projectMember) {
+          userRole = projectMember.role;
+        }
+      }
+    }
+
+    // Check if user can delete (Owner, Deleter, or has Permission)
+    const isDeleter = trashEntry.deletedBy === userId;
+    const hasPermission = userRole && checkPermission(userRole, PERMISSIONS.PROJECT_DELETE);
+
+    if (!isDeleter && !hasPermission) {
       return res.status(403).json({ error: 'You do not have permission to permanently delete this project' });
     }
 
@@ -329,6 +380,108 @@ export const permanentlyDeleteInvoice = async (req, res) => {
   } catch (error) {
     console.error('Permanent delete invoice error:', error);
     res.status(500).json({ error: 'Failed to permanently delete invoice' });
+  }
+};
+
+// ============= FILE TRASH MANAGEMENT =============
+
+// @desc    Restore file from trash
+// @route   POST /api/trash/files/:id/restore
+// @access  Protected
+export const restoreFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const file = await ProjectFile.findById(id);
+
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check permissions (Uploader or Project Owner)
+    const project = await Project.findById(file.projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const isUploader = file.uploaderId === userId;
+    const isOwner = project.ownerId === userId;
+
+    // Also check if user is a project member with file delete/restore permissions
+    // For now, we'll stick to Uploader or Owner for simplicity, or check RBAC
+    let hasPermission = isUploader || isOwner;
+
+    if (!hasPermission) {
+      // Check RBAC if not direct owner/uploader
+      const member = await import('../models/ProjectMember.js').then(m => m.default.findOne({ projectId: file.projectId, userId }));
+      if (member) {
+        hasPermission = checkPermission(member.role, PERMISSIONS.FILE_DELETE); // Assuming delete permission covers restore for now
+      }
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'You do not have permission to restore this file' });
+    }
+
+    file.status = 'active';
+    await file.save();
+
+    res.json({
+      message: 'File restored successfully',
+      file
+    });
+  } catch (error) {
+    console.error('Restore file error:', error);
+    res.status(500).json({ error: 'Failed to restore file' });
+  }
+};
+
+// @desc    Permanently delete file from trash
+// @route   DELETE /api/trash/files/:id
+// @access  Protected
+export const permanentlyDeleteFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const file = await ProjectFile.findById(id);
+
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check permissions (Uploader or Project Owner)
+    const project = await Project.findById(file.projectId);
+
+    // If project is deleted, we might still want to allow deleting the file if user is owner of the deleted project
+    // But for now let's assume project exists or we check file ownership
+
+    const isUploader = file.uploaderId === userId;
+    const isOwner = project ? project.ownerId === userId : false;
+
+    let hasPermission = isUploader || isOwner;
+
+    if (!hasPermission && project) {
+      const member = await import('../models/ProjectMember.js').then(m => m.default.findOne({ projectId: file.projectId, userId }));
+      if (member) {
+        hasPermission = checkPermission(member.role, PERMISSIONS.FILE_DELETE);
+      }
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'You do not have permission to permanently delete this file' });
+    }
+
+    // TODO: Delete from storage (S3/R2)
+    // await storageAdapter.deleteFile(file.storageKey); 
+
+    await ProjectFile.findByIdAndDelete(id);
+
+    res.json({ message: 'File permanently deleted' });
+  } catch (error) {
+    console.error('Permanent delete file error:', error);
+    res.status(500).json({ error: 'Failed to permanently delete file' });
   }
 };
 

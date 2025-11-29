@@ -2,6 +2,7 @@ import Notification from '../models/Notification.js';
 import { getIO } from '../config/socket.js';
 import { emailQueue } from '../config/queue.js';
 import crypto from 'crypto';
+import { processNotificationEvent } from './notificationService.js';
 
 // In-memory idempotency cache (use Redis in production)
 const idempotencyCache = new Map();
@@ -126,6 +127,19 @@ export const createNotificationWithIdempotency = async ({
         ...metadata // Spread metadata into top-level data for easier access in worker
       }
     };
+
+
+
+    // Check if queue is enabled
+    if (process.env.ENABLE_REDIS_QUEUE !== 'true') {
+      console.log(`DIRECT MODE: Processing notification ${jobData.type} immediately.`);
+      await processNotificationEvent(jobData.type, jobData.data, jobData.actorId);
+      return {
+        success: true,
+        queued: false,
+        message: 'Processed directly'
+      };
+    }
 
     // Add to Redis Queue
     const job = await notificationQueue.add(jobData, {

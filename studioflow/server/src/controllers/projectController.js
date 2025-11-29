@@ -8,6 +8,7 @@ import ProjectInvoice from '../models/ProjectInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -253,11 +254,12 @@ export const listProjects = async (req, res) => {
             : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
           userCache.set(id, {
             name: displayName,
-            email: user.emailAddresses?.[0]?.emailAddress
+            email: user.emailAddresses?.[0]?.emailAddress,
+            avatar: user.imageUrl
           });
         } catch (err) {
           console.error(`Error fetching user ${id} from Clerk:`, err.message);
-          userCache.set(id, { name: 'Unknown', email: '' });
+          userCache.set(id, { name: 'Unknown', email: '', avatar: null });
         }
       }));
     }
@@ -294,7 +296,7 @@ export const listProjects = async (req, res) => {
     );
 
     // Enhance projects with cached user data (NO MORE API CALLS)
-    const enhancedProjects = projects.map((project) => {
+    const enhancedProjects = await Promise.all(projects.map(async (project) => {
       // Determine if this is user's own project or shared project
       const isOwner = String(project.ownerId) === String(userId);
 
@@ -302,18 +304,41 @@ export const listProjects = async (req, res) => {
       const ownerData = userCache.get(project.ownerId) || { name: 'Unknown' };
       const ownerName = ownerData.name;
 
+      // Fetch actual members from ProjectMember collection
+      const projectMembers = await ProjectMember.find({
+        projectId: project._id,
+        status: { $ne: 'inactive' }
+      }).lean();
+
       // Enhance members with cached data
-      const enhancedMembers = (project.members || []).map((member) => {
-        if (!member.name || member.name === '') {
-          const memberData = userCache.get(member.userId) || { name: member.userId, email: member.email };
-          return {
-            ...member,
-            name: memberData.name,
-            email: memberData.email || member.email
-          };
+      const enhancedMembers = await Promise.all(projectMembers.map(async (member) => {
+        // We might need to fetch this user if not in our initial batch
+        let memberData = userCache.get(member.userId);
+
+        if (!memberData) {
+          try {
+            const user = await clerkClient.users.getUser(member.userId);
+            const displayName = user.firstName && user.lastName
+              ? `${user.firstName} ${user.lastName}`
+              : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
+            memberData = {
+              name: displayName,
+              email: user.emailAddresses?.[0]?.emailAddress,
+              avatar: user.imageUrl
+            };
+            userCache.set(member.userId, memberData);
+          } catch (e) {
+            memberData = { name: 'Unknown', email: '', avatar: null };
+          }
         }
-        return member;
-      });
+
+        return {
+          ...member,
+          name: memberData.name,
+          email: memberData.email || member.email,
+          avatar: memberData.avatar
+        };
+      }));
 
       // Calculate user's role
       let userRole = null;
@@ -322,7 +347,7 @@ export const listProjects = async (req, res) => {
       } else {
         // Use roleMap for reliable role lookup
         userRole = roleMap.get(project._id.toString());
-        
+
         // Fallback to embedded members if not found in map (legacy support)
         if (!userRole && project.members) {
           const member = project.members.find(m => String(m.userId) === String(userId));
@@ -339,14 +364,14 @@ export const listProjects = async (req, res) => {
       return {
         ...project,
         ownerName,
-        members: enhancedMembers,
+        members: enhancedMembers, // Use the fetched members
         userRole,
         isShared: !isOwner, // Flag to indicate if this is a shared project
         invoiceStats,
         filesCount,
         commentsCount
       };
-    });
+    }));
 
     // Categorize projects
     const myProjects = enhancedProjects.filter(p => !p.isShared);
@@ -364,6 +389,9 @@ export const listProjects = async (req, res) => {
   }
 };
 
+// @desc    Get single project by ID
+// @route   GET /api/projects/:id
+// @access  Protected
 // @desc    Get single project by ID
 // @route   GET /api/projects/:id
 // @access  Protected
@@ -389,7 +417,65 @@ export const getProjectById = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    res.json(project);
+    // Generate invite link if user is owner
+    let inviteLink = null;
+    if (String(project.ownerId) === String(userId)) {
+      const inviteToken = jwt.sign(
+        {
+          projectId: project._id.toString(),
+          invitedBy: userId,
+          role: 'client'
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
+      inviteLink = `${frontendUrl}/invite?token=${inviteToken}`;
+    }
+
+    // Fetch members from ProjectMember collection
+    const projectMembers = await ProjectMember.find({
+      projectId: id,
+      status: { $ne: 'inactive' }
+    }).lean();
+
+    // Enhance members with user details
+    const enhancedMembers = await Promise.all(projectMembers.map(async (member) => {
+      try {
+        const user = await clerkClient.users.getUser(member.userId);
+        const displayName = user.firstName && user.lastName
+          ? `${user.firstName} ${user.lastName}`
+          : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
+
+        return {
+          ...member,
+          name: displayName,
+          email: user.emailAddresses?.[0]?.emailAddress
+        };
+      } catch (e) {
+        return { ...member, name: 'Unknown', email: '' };
+      }
+    }));
+
+    // Calculate permissions
+    console.log('🔐 Permission Check Debug:');
+    console.log('   - Project Owner ID:', project.ownerId, typeof project.ownerId);
+    console.log('   - Request User ID:', userId, typeof userId);
+
+    const isOwner = String(project.ownerId) === String(userId);
+    console.log('   - isOwner Calculated:', isOwner);
+
+    let userRole = isOwner ? 'owner' : (membership?.role || 'client');
+
+    // Attach members to project object
+    // CRITICAL FIX: project is already a plain object due to .lean(), so we CANNOT call .toObject()
+    const projectResponse = { ...project }; // Create a shallow copy to be safe
+    projectResponse.members = enhancedMembers;
+    projectResponse.isOwner = isOwner;
+    projectResponse.userRole = userRole;
+    projectResponse.isShared = !isOwner;
+
+    res.json({ project: projectResponse, inviteLink });
   } catch (error) {
     console.error('Get project error:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -423,9 +509,15 @@ export const getProjectUsage = async (req, res) => {
 export const generateInvite = async (req, res) => {
   try {
     const { id } = req.params;
+    const { role = 'client' } = req.body; // Default to client if not specified
     const userId = req.userId;
 
-    console.log('🔗 Generate invite request:', { projectId: id, userId });
+    console.log('🔗 Generate invite request:', { projectId: id, userId, role });
+
+    // Validate role
+    if (!['client', 'team_member'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be "client" or "team_member"' });
+    }
 
     // Only select fields needed for invite generation
     const project = await Project.findById(id)
@@ -454,7 +546,7 @@ export const generateInvite = async (req, res) => {
       {
         projectId: project._id.toString(),
         invitedBy: userId,
-        role: 'client'
+        role: role
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -575,26 +667,52 @@ export const updateProject = async (req, res) => {
       status: 'active'
     });
 
-    if (!membership) {
-      console.log('❌ User is not a member:', { userId, projectId: id });
-      return res.status(403).json({ error: 'You are not a member of this project' });
+    const isOwner = String(project.ownerId) === String(userId);
+    const userRole = isOwner ? ROLES.OWNER : (membership?.role || null);
+
+    if (!userRole) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
-    const isOwner = membership.role === 'owner';
-    const isClient = membership.role === 'client';
+    // RBAC Check: General Update
 
-    // Allow clients to request revision or approve final
-    const isClientAction = status === 'needs-revision' || status === 'finalized';
-
-    // Only owner can update project details (except client revision/approval)
-    if (!isOwner && !isClientAction) {
-      console.log('❌ User is not owner:', { userId, role: membership.role });
-      return res.status(403).json({ error: 'Only project owner can update project details' });
+    // If trying to update title, brief, or dueDate -> Needs PROJECT_UPDATE
+    if ((title || brief || dueDate) && !checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+      return res.status(403).json({ error: 'You do not have permission to edit project details' });
     }
 
-    // If client action, verify it's actually a client (or owner acting as client for testing)
-    if (isClientAction && !isClient && !isOwner) {
-      return res.status(403).json({ error: 'Only clients can request revisions or finalize' });
+    // If trying to update tasks -> Needs TASK permissions
+    if (tasks) {
+      const canManageTasks = checkPermission(userRole, PERMISSIONS.TASK_CREATE) ||
+        checkPermission(userRole, PERMISSIONS.TASK_UPDATE) ||
+        checkPermission(userRole, PERMISSIONS.TASK_DELETE);
+
+      if (!canManageTasks) {
+        return res.status(403).json({ error: 'You do not have permission to manage tasks' });
+      }
+    }
+
+    // If trying to update status
+    if (status) {
+      if (status === 'needs-revision') {
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_REQUEST_REVISION)) {
+          return res.status(403).json({ error: 'You do not have permission to request revisions' });
+        }
+      } else if (status === 'finalized') {
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_APPROVE)) {
+          return res.status(403).json({ error: 'You do not have permission to approve the project' });
+        }
+      } else {
+        // Other status changes (active, on-hold, etc.) require generic update permission
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+          return res.status(403).json({ error: 'You do not have permission to change project status' });
+        }
+      }
+    }
+
+    // If trying to update progress manually
+    if (progress !== undefined && !checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+      return res.status(403).json({ error: 'You do not have permission to update progress' });
     }
 
     // Validate character limits
@@ -805,17 +923,19 @@ export const deleteProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Check ownership via ProjectMember
+    // Check ownership/permissions via ProjectMember
     const membership = await ProjectMember.findOne({
       projectId: id,
       userId: userId,
-      role: 'owner',
-      status: 'active'
+      status: { $ne: 'inactive' }
     });
 
-    if (!membership) {
-      console.log('❌ Not owner:', { userId, projectId: id });
-      return res.status(403).json({ error: 'Only project owner can delete' });
+    const isOwner = String(project.ownerId) === String(userId);
+    const userRole = isOwner ? ROLES.OWNER : (membership?.role || null);
+
+    if (!checkPermission(userRole, PERMISSIONS.PROJECT_DELETE)) {
+      console.log('❌ Permission denied: Delete Project', { userId, role: userRole });
+      return res.status(403).json({ error: 'You do not have permission to delete this project' });
     }
 
     console.log('✅ Owner verified, proceeding with deletion');

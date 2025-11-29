@@ -40,7 +40,13 @@ import {
   Eye,
   Trash2
 } from 'lucide-react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "../components/ui/avatar"
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { ProjectCard } from '../components/ProjectCard';
 
 export default function Projects() {
   const { getToken } = useAuth();
@@ -362,7 +368,7 @@ export default function Projects() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Project</TableHead>
-                    <TableHead>Client</TableHead>
+                    <TableHead>Members</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Due</TableHead>
@@ -378,7 +384,6 @@ export default function Projects() {
                     </TableRow>
                   ) : (
                     filteredProjects.map((project) => {
-                      const client = project.members?.find(m => m.role === 'client');
                       return (
                         <TableRow
                           key={project._id}
@@ -401,7 +406,22 @@ export default function Projects() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {client?.name || <span className="text-muted-foreground">No client</span>}
+                            <div className="flex -space-x-2 overflow-hidden">
+                              {project.members?.slice(0, 4).map((member, i) => (
+                                <Avatar key={i} className="inline-block border-2 border-background w-8 h-8">
+                                  <AvatarImage src={member.avatar} />
+                                  <AvatarFallback>{member.name?.charAt(0) || 'U'}</AvatarFallback>
+                                </Avatar>
+                              ))}
+                              {project.members?.length > 4 && (
+                                <div className="flex items-center justify-center w-8 h-8 rounded-full border-2 border-background bg-muted text-[10px] font-medium">
+                                  +{project.members.length - 4}
+                                </div>
+                              )}
+                              {(!project.members || project.members.length === 0) && (
+                                <span className="text-muted-foreground text-sm pl-2">No members</span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge
@@ -515,8 +535,20 @@ export default function Projects() {
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <p className="text-muted-foreground text-xs">Client</p>
-                          <p className="truncate">{client?.name || 'No client'}</p>
+                          <p className="text-muted-foreground text-xs">Members</p>
+                          <div className="flex -space-x-2 overflow-hidden mt-1">
+                            {project.members?.slice(0, 3).map((member, i) => (
+                              <Avatar key={i} className="inline-block border-2 border-background w-6 h-6">
+                                <AvatarImage src={member.avatar} />
+                                <AvatarFallback className="text-[10px]">{member.name?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                            ))}
+                            {project.members?.length > 3 && (
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-background bg-muted text-[8px] font-medium">
+                                +{project.members.length - 3}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Due Date</p>
@@ -565,136 +597,113 @@ export default function Projects() {
 
           <div className="flex gap-4 overflow-x-auto pb-4">
             {/* In Progress Column */}
-            <div className="flex-1 min-w-[300px]">
-              <div className="border rounded-lg p-4 bg-card">
+            <div className="flex-1 min-w-[320px]">
+              <div className="border rounded-lg p-4 bg-muted/30 h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">In Progress</h3>
-                  <Badge variant="secondary">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    In Progress
+                  </h3>
+                  <Badge variant="secondary" className="bg-background">
                     {groupedProjects['active'].length}
                   </Badge>
                 </div>
 
                 <div className="space-y-3">
-                  {groupedProjects['active'].map((project) => {
-                    const client = project.members?.find(m => m.role === 'client');
-                    return (
-                      <div
-                        key={project._id}
-                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
-                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                      >
-                        <h4 className="font-semibold mb-1">{project.title}</h4>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-600 border-0">
-                            {project.progress || 0}%
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {groupedProjects['active'].map((project) => (
+                    <ProjectCard
+                      key={project._id}
+                      project={project}
+                      onView={(id) => navigate(`/dashboard/projects/${id}`)}
+                      onOpenFiles={(id) => navigate(`/dashboard/projects/${id}?tab=files`)}
+                      onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
+                      className="bg-background"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Review Column */}
-            <div className="flex-1 min-w-[300px]">
-              <div className="border rounded-lg p-4 bg-card">
+            <div className="flex-1 min-w-[320px]">
+              <div className="border rounded-lg p-4 bg-muted/30 h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Review</h3>
-                  <Badge variant="secondary">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    Review
+                  </h3>
+                  <Badge variant="secondary" className="bg-background">
                     {groupedProjects['on-hold'].length}
                   </Badge>
                 </div>
 
                 <div className="space-y-3">
-                  {groupedProjects['on-hold'].map((project) => {
-                    const client = project.members?.find(m => m.role === 'client');
-                    return (
-                      <div
-                        key={project._id}
-                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
-                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                      >
-                        <h4 className="font-semibold mb-1">{project.title}</h4>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="bg-orange-500/20 text-orange-600 border-0">
-                            {project.progress || 0}%
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {groupedProjects['on-hold'].map((project) => (
+                    <ProjectCard
+                      key={project._id}
+                      project={project}
+                      onView={(id) => navigate(`/dashboard/projects/${id}`)}
+                      onOpenFiles={(id) => navigate(`/dashboard/projects/${id}?tab=files`)}
+                      onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
+                      className="bg-background"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Blocked Column */}
-            <div className="flex-1 min-w-[300px]">
-              <div className="border rounded-lg p-4 bg-card">
+            {/* Blocked/Archived Column */}
+            <div className="flex-1 min-w-[320px]">
+              <div className="border rounded-lg p-4 bg-muted/30 h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Blocked</h3>
-                  <Badge variant="secondary">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-gray-500" />
+                    Archived
+                  </h3>
+                  <Badge variant="secondary" className="bg-background">
                     {groupedProjects['archived'].length}
                   </Badge>
                 </div>
 
                 <div className="space-y-3">
-                  {groupedProjects['archived'].map((project) => {
-                    const client = project.members?.find(m => m.role === 'client');
-                    return (
-                      <div
-                        key={project._id}
-                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
-                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                      >
-                        <h4 className="font-semibold mb-1">{project.title}</h4>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
-                        </p>
-                      </div>
-                    );
-                  })}
+                  {groupedProjects['archived'].map((project) => (
+                    <ProjectCard
+                      key={project._id}
+                      project={project}
+                      onView={(id) => navigate(`/dashboard/projects/${id}`)}
+                      onOpenFiles={(id) => navigate(`/dashboard/projects/${id}?tab=files`)}
+                      onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
+                      className="bg-background opacity-75"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Completed Column */}
-            <div className="flex-1 min-w-[300px]">
-              <div className="border rounded-lg p-4 bg-card">
+            <div className="flex-1 min-w-[320px]">
+              <div className="border rounded-lg p-4 bg-muted/30 h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Completed</h3>
-                  <Badge variant="secondary">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Completed
+                  </h3>
+                  <Badge variant="secondary" className="bg-background">
                     {groupedProjects['completed'].length}
                   </Badge>
                 </div>
 
                 <div className="space-y-3">
-                  {groupedProjects['completed'].map((project) => {
-                    const client = project.members?.find(m => m.role === 'client');
-                    return (
-                      <div
-                        key={project._id}
-                        className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer bg-card"
-                        onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                      >
-                        <h4 className="font-semibold mb-1">{project.title}</h4>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {client?.name || 'No client'} • Due {formatDate(project.dueDate)}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="bg-green-500/20 text-green-600 border-0">
-                            100%
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {groupedProjects['completed'].map((project) => (
+                    <ProjectCard
+                      key={project._id}
+                      project={project}
+                      onView={(id) => navigate(`/dashboard/projects/${id}`)}
+                      onOpenFiles={(id) => navigate(`/dashboard/projects/${id}?tab=files`)}
+                      onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
+                      className="bg-background"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
@@ -704,4 +713,3 @@ export default function Projects() {
     </div>
   );
 }
-

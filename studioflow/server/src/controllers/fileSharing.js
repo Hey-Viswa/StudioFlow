@@ -34,37 +34,48 @@ export const shareFileWithClient = async (req, res) => {
     console.log('[ShareFile] Finding project:', projectId);
     // Only project owner can share files
     const project = await Project.findById(projectId).select('ownerId members');
-    
+
     if (!project) {
       console.log('[ShareFile] Project not found:', projectId);
       return res.status(404).json({ error: 'Project not found' });
     }
-    
+
     console.log('[ShareFile] Project found. Owner:', project.ownerId, 'UserId:', userId);
-    
+
     if (project.ownerId.toString() !== userId.toString()) {
       return res.status(403).json({ error: 'Only project owner can share files' });
     }
 
     // Verify client is a member
-    const isClient = project.members.some(
+    let isClient = project.members.some(
       m => m.userId === clientId && m.role === 'client'
     );
-    
-    console.log('[ShareFile] Is client member:', isClient, 'Members:', project.members);
-    
+
+    if (!isClient) {
+      // Check ProjectMember collection
+      const member = await import('../models/ProjectMember.js').then(m => m.default.findOne({
+        projectId,
+        userId: clientId,
+        role: 'client',
+        status: 'active'
+      }));
+      isClient = !!member;
+    }
+
+    console.log('[ShareFile] Is client member:', isClient);
+
     if (!isClient) {
       return res.status(400).json({ error: 'User is not a client on this project' });
     }
 
     console.log('[ShareFile] Finding file:', { fileId, projectId });
     const file = await ProjectFile.findOne({ fileId, projectId });
-    
+
     if (!file) {
       console.log('[ShareFile] File not found');
       return res.status(404).json({ error: 'File not found' });
     }
-    
+
     console.log('[ShareFile] File found:', file.filename);
 
     // Generate share token

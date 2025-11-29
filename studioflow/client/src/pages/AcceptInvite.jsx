@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, useUser, SignedIn, SignedOut, SignInButton } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, CheckCircle2, XCircle, UserPlus } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { Loader2, CheckCircle2, XCircle, UserPlus, Shield } from 'lucide-react';
 
 export default function AcceptInvite() {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ export default function AcceptInvite() {
     try {
       // Get Clerk token
       const clerkToken = await getToken();
-      
+
       if (!clerkToken) {
         throw new Error('Authentication required. Please sign in.');
       }
@@ -80,7 +81,7 @@ export default function AcceptInvite() {
 
       const data = await response.json();
       setStatus('success');
-      
+
       // Redirect to project after a brief delay
       setTimeout(() => {
         navigate(`/dashboard/projects/${data.project._id}`);
@@ -120,11 +121,11 @@ export default function AcceptInvite() {
             {status === 'error' && error}
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           {status === 'valid' && projectInfo && (
             <>
-              <div className="p-4 bg-muted rounded-lg space-y-2">
+              <div className="p-4 bg-muted rounded-lg space-y-3">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Project</p>
                   <p className="font-semibold">{projectInfo.title}</p>
@@ -135,11 +136,20 @@ export default function AcceptInvite() {
                     <p className="text-sm">{projectInfo.brief}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-500/20 text-emerald-500">
-                    {projectInfo.status}
-                  </span>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Status</p>
+                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-500/20 text-emerald-500 capitalize">
+                      {projectInfo.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Joining As</p>
+                    <Badge variant="outline" className="capitalize bg-primary/10 text-primary border-primary/20">
+                      <Shield className="w-3 h-3 mr-1" />
+                      {projectInfo.role === 'team_member' ? 'Team Member' : projectInfo.role}
+                    </Badge>
+                  </div>
                 </div>
               </div>
 
@@ -159,8 +169,8 @@ export default function AcceptInvite() {
                   <p className="text-sm text-muted-foreground">
                     Sign in or create an account to accept this invite
                   </p>
-                  <SignInButton 
-                    mode="modal" 
+                  <SignInButton
+                    mode="modal"
                     forceRedirectUrl={window.location.href}
                     fallbackRedirectUrl={window.location.href}
                   >

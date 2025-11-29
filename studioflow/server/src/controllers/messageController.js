@@ -21,7 +21,7 @@ export const getMessages = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -114,7 +114,7 @@ export const sendMessage = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    if (!await project.isMember(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

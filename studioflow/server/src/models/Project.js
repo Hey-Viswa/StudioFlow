@@ -151,6 +151,10 @@ const ProjectSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    clientGeneratedId: {
+      type: String,
+      default: null
+    },
     text: {
       type: String,
       required: true
@@ -220,12 +224,29 @@ ProjectSchema.index({ ownerId: 1, deletedAt: 1 }); // For listing user's project
 ProjectSchema.index({ deletedBy: 1, deletedAt: 1 }); // For trash queries
 ProjectSchema.index({ createdAt: -1 }); // For sorting by creation date
 
-ProjectSchema.methods.isMember = function (userId) {
-  return this.members.some(member => String(member.userId) === String(userId));
+import ProjectMember from './ProjectMember.js';
+
+ProjectSchema.methods.isMember = async function (userId) {
+  // Check if owner
+  if (String(this.ownerId) === String(userId)) return true;
+
+  // Check ProjectMember collection
+  const member = await ProjectMember.findOne({
+    projectId: this._id,
+    userId: userId,
+    status: 'active'
+  });
+  return !!member;
 };
 
-ProjectSchema.methods.getUserRole = function (userId) {
-  const member = this.members.find(member => String(member.userId) === String(userId));
+ProjectSchema.methods.getUserRole = async function (userId) {
+  if (String(this.ownerId) === String(userId)) return 'owner';
+
+  const member = await ProjectMember.findOne({
+    projectId: this._id,
+    userId: userId,
+    status: 'active'
+  });
   return member ? member.role : null;
 };
 
