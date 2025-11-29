@@ -159,6 +159,21 @@ const UserSchema = new mongoose.Schema({
                 default: null
             }
         }
+    },
+    // Billing Profile for Payouts (Agency) or Payments (Client)
+    billingProfile: {
+        gst: {
+            type: String,
+            default: null
+        },
+        address: {
+            type: String,
+            default: null
+        },
+        razorpayCustomerId: {
+            type: String,
+            default: null
+        }
     }
 }, {
     timestamps: true,

@@ -33,6 +33,7 @@ import { initializeMessaging } from './src/config/appwriteMessaging.js';
 import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
 import { startNotificationWorker } from './src/workers/notificationWorker.js';
+import { startPaymentWorker } from './src/workers/paymentWorker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -264,6 +265,9 @@ const startServer = async () => {
 
         // Start notification worker
         startNotificationWorker();
+
+        // Start payment worker
+        startPaymentWorker();
 
         httpServer.listen(PORT, () => {
             console.log(`🚀 Server is running on port ${PORT}`);

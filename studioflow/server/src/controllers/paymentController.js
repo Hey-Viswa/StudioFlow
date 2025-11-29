@@ -1,6 +1,7 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import { paymentQueue } from '../queues/paymentQueue.js';
 
 // Initialize Razorpay instance only if keys are configured
 let razorpay = null;
@@ -26,24 +27,24 @@ export const createOrder = async (req, res) => {
         const userId = req.user?.id || req.user?._id;
 
         if (!userId) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'User not authenticated' 
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
             });
         }
 
         if (!plan || !PLAN_PRICES[plan]) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Invalid plan selected' 
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid plan selected'
             });
         }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
 
@@ -78,10 +79,10 @@ export const createOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Create order error:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Failed to create order',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -89,18 +90,18 @@ export const createOrder = async (req, res) => {
 // Verify payment
 export const verifyPayment = async (req, res) => {
     try {
-        const { 
-            razorpay_order_id, 
-            razorpay_payment_id, 
-            razorpay_signature 
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature
         } = req.body;
 
         const userId = req.user?.id || req.user?._id;
 
         if (!userId) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'User not authenticated' 
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
             });
         }
 
@@ -111,18 +112,18 @@ export const verifyPayment = async (req, res) => {
             .digest('hex');
 
         if (generatedSignature !== razorpay_signature) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Payment verification failed' 
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed'
             });
         }
 
         // Update user subscription
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
 
@@ -148,10 +149,10 @@ export const verifyPayment = async (req, res) => {
         });
     } catch (error) {
         console.error('Verify payment error:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Payment verification failed',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -162,17 +163,17 @@ export const getSubscriptionStatus = async (req, res) => {
         const userId = req.user?.id || req.user?._id;
 
         if (!userId) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'User not authenticated' 
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
             });
         }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
 
@@ -195,10 +196,10 @@ export const getSubscriptionStatus = async (req, res) => {
         });
     } catch (error) {
         console.error('Get subscription status error:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Failed to get subscription status',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -209,24 +210,24 @@ export const cancelSubscription = async (req, res) => {
         const userId = req.user?.id || req.user?._id;
 
         if (!userId) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'User not authenticated' 
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
             });
         }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
 
         // Mark subscription as cancelled but keep active until end date
         user.subscription.status = 'cancelled';
         user.subscription.autoRenew = false;
-        
+
         await user.save();
 
         res.json({
@@ -240,10 +241,10 @@ export const cancelSubscription = async (req, res) => {
         });
     } catch (error) {
         console.error('Cancel subscription error:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Failed to cancel subscription',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -261,16 +262,16 @@ const downgradeToFreePlan = async (userId) => {
         const Project = (await import('../models/Project.js')).default;
 
         // Get all active projects owned by user
-        const activeProjects = await Project.find({ 
-            ownerId: userId.toString(), 
-            status: { $ne: 'archived' } 
+        const activeProjects = await Project.find({
+            ownerId: userId.toString(),
+            status: { $ne: 'archived' }
         }).sort({ createdAt: -1 });
 
         // Free plan allows 5 projects - archive extras
         const FREE_PLAN_LIMIT = 5;
         if (activeProjects.length > FREE_PLAN_LIMIT) {
             const projectsToArchive = activeProjects.slice(FREE_PLAN_LIMIT);
-            
+
             for (const project of projectsToArchive) {
                 project.status = 'archived';
                 await project.save();
@@ -292,7 +293,7 @@ const downgradeToFreePlan = async (userId) => {
         await user.save();
 
         console.log(`User ${userId} downgraded to free plan successfully`);
-        
+
         return {
             success: true,
             archivedProjectsCount: activeProjects.length > FREE_PLAN_LIMIT ? activeProjects.length - FREE_PLAN_LIMIT : 0,
@@ -308,7 +309,7 @@ export const handleRazorpayWebhook = async (req, res) => {
     try {
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
         const webhookSignature = req.headers['x-razorpay-signature'];
-        
+
         if (!webhookSecret) {
             console.warn('⚠️  Razorpay webhook secret not configured');
             return res.status(200).json({ status: 'ok' });
@@ -330,35 +331,43 @@ export const handleRazorpayWebhook = async (req, res) => {
 
         console.log(`Razorpay Webhook Event: ${event}`);
 
-        switch (event) {
-            case 'subscription.charged':
-                // Subscription successfully charged
-                await handleSubscriptionCharged(payload);
-                break;
-
-            case 'subscription.cancelled':
-            case 'subscription.expired':
-                // Subscription cancelled or expired - downgrade to free
-                await handleSubscriptionCancelled(payload);
-                break;
-
-            case 'subscription.paused':
-                // Subscription paused - mark as paused
-                await handleSubscriptionPaused(payload);
-                break;
-
-            case 'subscription.resumed':
-                // Subscription resumed - reactivate
-                await handleSubscriptionResumed(payload);
-                break;
-
-            case 'payment.failed':
-                // Payment failed - notify user
-                await handlePaymentFailed(payload);
-                break;
-
-            default:
-                console.log(`Unhandled webhook event: ${event}`);
+        // Add to queue for async processing
+        if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+            await paymentQueue.add({
+                event,
+                payload
+            }, {
+                attempts: 5,
+                backoff: {
+                    type: 'exponential',
+                    delay: 5000
+                },
+                removeOnComplete: true
+            });
+            console.log(`✅ Added ${event} to payment queue`);
+        } else {
+            console.log('⚠️ Redis Queue disabled, processing inline (fallback)');
+            // Fallback to inline processing if queue is disabled
+            switch (event) {
+                case 'subscription.charged':
+                    await handleSubscriptionCharged(payload);
+                    break;
+                case 'subscription.cancelled':
+                case 'subscription.expired':
+                    await handleSubscriptionCancelled(payload);
+                    break;
+                case 'subscription.paused':
+                    await handleSubscriptionPaused(payload);
+                    break;
+                case 'subscription.resumed':
+                    await handleSubscriptionResumed(payload);
+                    break;
+                case 'payment.failed':
+                    await handlePaymentFailed(payload);
+                    break;
+                default:
+                    console.log(`Unhandled webhook event: ${event}`);
+            }
         }
 
         res.status(200).json({ status: 'ok' });
@@ -367,6 +376,8 @@ export const handleRazorpayWebhook = async (req, res) => {
         res.status(500).json({ error: 'Webhook processing failed' });
     }
 };
+
+// --- Helper Functions (Keep for inline fallback) ---
 
 // Handle successful subscription charge
 const handleSubscriptionCharged = async (payload) => {
@@ -394,7 +405,7 @@ const handleSubscriptionCharged = async (payload) => {
         user.subscription.razorpaySubscriptionId = subscriptionId;
         user.subscription.subscriptionEndDate = endDate;
         user.subscription.autoRenew = true;
-        
+
         await user.save();
 
         console.log(`Subscription renewed for user ${userId}`);
@@ -407,10 +418,10 @@ const handleSubscriptionCharged = async (payload) => {
 const handleSubscriptionCancelled = async (payload) => {
     try {
         const subscriptionId = payload.subscription.entity.id;
-        
+
         // Find user by subscription ID
-        const user = await User.findOne({ 
-            'subscription.razorpaySubscriptionId': subscriptionId 
+        const user = await User.findOne({
+            'subscription.razorpaySubscriptionId': subscriptionId
         });
 
         if (!user) {
@@ -419,7 +430,7 @@ const handleSubscriptionCancelled = async (payload) => {
         }
 
         console.log(`Processing cancellation for user ${user._id}`);
-        
+
         // Downgrade user to free plan
         await downgradeToFreePlan(user._id);
 
@@ -433,9 +444,9 @@ const handleSubscriptionCancelled = async (payload) => {
 const handleSubscriptionPaused = async (payload) => {
     try {
         const subscriptionId = payload.subscription.entity.id;
-        
-        const user = await User.findOne({ 
-            'subscription.razorpaySubscriptionId': subscriptionId 
+
+        const user = await User.findOne({
+            'subscription.razorpaySubscriptionId': subscriptionId
         });
 
         if (user) {
@@ -452,9 +463,9 @@ const handleSubscriptionPaused = async (payload) => {
 const handleSubscriptionResumed = async (payload) => {
     try {
         const subscriptionId = payload.subscription.entity.id;
-        
-        const user = await User.findOne({ 
-            'subscription.razorpaySubscriptionId': subscriptionId 
+
+        const user = await User.findOne({
+            'subscription.razorpaySubscriptionId': subscriptionId
         });
 
         if (user) {

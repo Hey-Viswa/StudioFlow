@@ -7,34 +7,49 @@ const projectInvoiceSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  
+
   // Project this invoice belongs to
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
     required: true,
+    required: true,
     index: true
+  },
+
+  // Link to Payment Thread (Milestone/Hourly request)
+  paymentThreadId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PaymentThread',
+    default: null,
+    index: true
+  },
+
+  // Entitlement Key: If true, client has access to deliverables
+  accessGranted: {
+    type: Boolean,
+    default: false
   },
 
   projectTitle: {
     type: String,
     default: ''
   },
-  
+
   // Auto-generated invoice number
   invoiceNumber: {
     type: String,
     unique: true,
     sparse: true
   },
-  
+
   // Client details (from project members)
   client: {
     userId: String,
     name: String,
     email: String
   },
-  
+
   // Invoice items (tasks/services)
   items: [{
     title: {
@@ -58,14 +73,14 @@ const projectInvoiceSchema = new mongoose.Schema({
       min: 0
     }
   }],
-  
+
   // Financial details
   subtotal: {
     type: Number,
     required: true,
     default: 0
   },
-  
+
   tax: {
     percentage: {
       type: Number,
@@ -78,7 +93,7 @@ const projectInvoiceSchema = new mongoose.Schema({
       default: 0
     }
   },
-  
+
   discount: {
     percentage: {
       type: Number,
@@ -91,70 +106,70 @@ const projectInvoiceSchema = new mongoose.Schema({
       default: 0
     }
   },
-  
+
   total: {
     type: Number,
     required: true,
     default: 0
   },
-  
+
   currency: {
     type: String,
     default: 'INR',
     enum: ['INR', 'USD', 'EUR', 'GBP']
   },
-  
+
   // Payment status
   status: {
     type: String,
     enum: ['draft', 'pending', 'paid', 'overdue', 'failed', 'cancelled'],
     default: 'draft'
   },
-  
+
   // Razorpay integration
   razorpayOrderId: {
     type: String,
     default: null
   },
-  
+
   razorpayPaymentId: {
     type: String,
     default: null
   },
-  
+
   razorpaySignature: {
     type: String,
     default: null
   },
-  
+
   // Dates
   issueDate: {
     type: Date,
     default: Date.now
   },
-  
+
   dueDate: {
     type: Date,
     required: true
   },
-  
+
   paidAt: {
     type: Date,
     default: null
   },
-  
+
   // Notes
   notes: {
     type: String,
     default: ''
   },
-  
+
   // PDF
   pdfUrl: {
     type: String,
     default: null
   },
-  
+
   pdfGenerated: {
     type: Boolean,
     default: false
@@ -179,13 +194,13 @@ const projectInvoiceSchema = new mongoose.Schema({
     type: Date,
     default: null
   }
-  
+
 }, {
   timestamps: true
 });
 
 // Auto-generate invoice number: PINV-{timestamp}-{count}
-projectInvoiceSchema.pre('save', async function(next) {
+projectInvoiceSchema.pre('save', async function (next) {
   if (!this.invoiceNumber) {
     const count = await this.constructor.countDocuments();
     const timestamp = Date.now().toString().slice(-6);
@@ -195,23 +210,23 @@ projectInvoiceSchema.pre('save', async function(next) {
 });
 
 // Calculate totals before saving
-projectInvoiceSchema.pre('save', function(next) {
+projectInvoiceSchema.pre('save', function (next) {
   // Calculate subtotal from items
   this.subtotal = this.items.reduce((sum, item) => sum + item.amount, 0);
-  
+
   // Calculate tax amount
   if (this.tax.percentage > 0) {
     this.tax.amount = (this.subtotal * this.tax.percentage) / 100;
   }
-  
+
   // Calculate discount amount
   if (this.discount.percentage > 0) {
     this.discount.amount = (this.subtotal * this.discount.percentage) / 100;
   }
-  
+
   // Calculate total
   this.total = this.subtotal + this.tax.amount - this.discount.amount;
-  
+
   next();
 });
 

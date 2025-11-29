@@ -1,7 +1,7 @@
 import express from 'express';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import { cacheMiddleware } from '../middlewares/cache.js';
-import { checkProjectLimit, getProjectUsage } from '../middlewares/subscriptionLimits.js';
+import { checkResourceLimit } from '../middlewares/entitlementMiddleware.js';
 import {
   createProject,
   listProjects,
@@ -12,7 +12,8 @@ import {
   listTrash,
   restoreProject,
   permanentlyDeleteProject,
-  getProjectMetrics
+  getProjectMetrics,
+  getProjectUsage
 } from '../controllers/projectController.js';
 import {
   getComments,
@@ -29,7 +30,7 @@ const router = express.Router();
 router.use(verifyClerk);
 
 // Project CRUD with caching on GET requests
-router.post('/', checkProjectLimit, createProject);       // Create project (with limit check)
+router.post('/', checkResourceLimit('project'), createProject);       // Create project (with limit check)
 router.get('/', cacheMiddleware(2 * 60 * 1000), listProjects);  // List all user's projects (2 min cache)
 router.get('/usage', getProjectUsage);                     // Get project usage/limits
 router.get('/trash', cacheMiddleware(5 * 60 * 1000), listTrash); // Get trashed projects (5 min cache)
@@ -44,7 +45,7 @@ router.post('/:id/restore', restoreProject);              // Restore from trash
 router.delete('/:id/permanent', permanentlyDeleteProject); // Permanently delete
 
 // Invite generation
-router.post('/:id/invite', generateInvite);               // Generate invite link (owner only)
+router.post('/:id/invite', checkResourceLimit('member'), generateInvite);               // Generate invite link (owner only)
 
 // Comment endpoints (enhanced with threading, reactions, mentions)
 router.get('/:id/comments', getComments);                 // Get all comments for project

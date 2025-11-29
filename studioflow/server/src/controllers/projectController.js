@@ -6,6 +6,7 @@ import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
+import ProjectMember from '../models/ProjectMember.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 
 const clerkClient = createClerkClient({
@@ -71,19 +72,24 @@ export const createProject = async (req, res) => {
       // Continue without user details
     }
 
-    // Create project with owner as first member
+    // Create project (members array is now empty/deprecated)
     const project = await Project.create({
       title,
       brief: brief || '',
       ownerId,
-      members: [{
-        userId: ownerId,
-        email: ownerEmail,
-        name: ownerName,
-        role: 'owner',
-        joinedAt: new Date()
-      }],
+      members: [], // Deprecated: using ProjectMember collection
       dueDate: dueDate ? new Date(dueDate) : undefined
+    });
+
+    // Add owner to ProjectMember collection
+    await ProjectMember.create({
+      projectId: project._id,
+      userId: ownerId,
+      email: ownerEmail,
+      role: 'owner',
+      status: 'active',
+      joinedAt: new Date(),
+      invitedBy: ownerId // Self-invited
     });
 
     // Generate initial invite link for convenience
@@ -131,14 +137,23 @@ export const listProjects = async (req, res) => {
     const userId = req.userId;
     const { status, search, clientId, dateRange } = req.query;
 
+    // 1. Find all project memberships for this user
+    const memberships = await ProjectMember.find({
+      userId,
+      status: { $ne: 'inactive' } // Exclude inactive members if needed
+    }).select('projectId role');
+
+    const projectIds = memberships.map(m => m.projectId);
+
     // Build query filters
+    // BACKWARDS COMPATIBILITY: Include projects where user is owner OR has ProjectMember record
     const query = {
       $and: [
         { deletedAt: null }, // Exclude soft-deleted projects
         {
           $or: [
-            { ownerId: userId },
-            { 'members.userId': userId }
+            { _id: { $in: projectIds } }, // Projects user is a member of (via ProjectMember)
+            { ownerId: userId } // Projects user owns directly (backwards compatibility)
           ]
         }
       ]
@@ -161,8 +176,18 @@ export const listProjects = async (req, res) => {
 
     // Add client filter
     if (clientId && clientId !== 'all') {
-      query['members.userId'] = clientId;
-      query['members.role'] = 'client';
+      // To filter by client, we need to find which of these projects has this specific client
+      // This is a bit more complex with decoupled members.
+      // We can find ProjectMembers where userId = clientId AND role = 'client'
+      // AND projectId is in our allowed list.
+      const clientMemberships = await ProjectMember.find({
+        userId: clientId,
+        role: 'client',
+        projectId: { $in: projectIds }
+      }).select('projectId');
+
+      const clientProjectIds = clientMemberships.map(m => m.projectId);
+      query._id = { $in: clientProjectIds };
     }
 
     // Add date range filter
@@ -192,22 +217,24 @@ export const listProjects = async (req, res) => {
       }
     }
 
-    // Find projects where user is owner OR member, and NOT deleted
+    // Find projects
     // Use lean() for better performance and select only necessary fields
     const projects = await Project.find(query)
-      .select('title brief status progress ownerId members createdAt updatedAt dueDate comments') // Only needed fields
+      .select('title brief status progress ownerId createdAt updatedAt dueDate comments members') // Only needed fields
       .lean() // Return plain objects for better performance
       .sort({ createdAt: -1 }); // Most recent first
+
+    // Create a map of projectId -> userRole for easy lookup
+    const roleMap = new Map(memberships.map(m => [m.projectId.toString(), m.role]));
 
     // OPTIMIZATION: Collect all unique user IDs first to batch fetch from Clerk
     const allUserIds = new Set();
     projects.forEach(project => {
       allUserIds.add(project.ownerId);
-      project.members.forEach(member => {
-        if (!member.name || member.name === '') {
-          allUserIds.add(member.userId);
-        }
-      });
+      // Safely check members if it exists
+      if (project.members && Array.isArray(project.members)) {
+        project.members.forEach(m => allUserIds.add(m.userId));
+      }
     });
 
     // BATCH FETCH: Get all users at once instead of one by one
@@ -236,12 +263,12 @@ export const listProjects = async (req, res) => {
     }
 
     // Get counts for invoices, files, and comments for all projects at once
-    const projectIds = projects.map(p => p._id);
+    const displayedProjectIds = projects.map(p => p._id);
 
     // Batch fetch counts
     const [invoiceCounts, fileCounts] = await Promise.all([
       ProjectInvoice.aggregate([
-        { $match: { projectId: { $in: projectIds } } },
+        { $match: { projectId: { $in: displayedProjectIds } } },
         {
           $group: {
             _id: '$projectId',
@@ -253,7 +280,7 @@ export const listProjects = async (req, res) => {
         }
       ]),
       ProjectFile.aggregate([
-        { $match: { projectId: { $in: projectIds } } },
+        { $match: { projectId: { $in: displayedProjectIds } } },
         { $group: { _id: '$projectId', count: { $sum: 1 } } }
       ])
     ]);
@@ -276,7 +303,7 @@ export const listProjects = async (req, res) => {
       const ownerName = ownerData.name;
 
       // Enhance members with cached data
-      const enhancedMembers = project.members.map((member) => {
+      const enhancedMembers = (project.members || []).map((member) => {
         if (!member.name || member.name === '') {
           const memberData = userCache.get(member.userId) || { name: member.userId, email: member.email };
           return {
@@ -293,8 +320,14 @@ export const listProjects = async (req, res) => {
       if (isOwner) {
         userRole = 'owner';
       } else {
-        const member = project.members.find(m => String(m.userId) === String(userId));
-        userRole = member ? member.role : null;
+        // Use roleMap for reliable role lookup
+        userRole = roleMap.get(project._id.toString());
+        
+        // Fallback to embedded members if not found in map (legacy support)
+        if (!userRole && project.members) {
+          const member = project.members.find(m => String(m.userId) === String(userId));
+          userRole = member ? member.role : null;
+        }
       }
 
       // Get counts from maps
@@ -339,36 +372,48 @@ export const getProjectById = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
-    const project = await Project.findById(id);
+    const project = await Project.findById(id).lean();
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Check if user has access
-    if (!project.isMember(userId)) {
+    // Check if user is a member or owner
+    const membership = await ProjectMember.findOne({
+      projectId: id,
+      userId: userId,
+      status: { $ne: 'inactive' }
+    });
+
+    if (!membership && String(project.ownerId) !== String(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Add user's role
-    const userRole = project.getUserRole(userId);
-    const projectData = {
-      ...project.toObject(),
-      userRole,
-      isOwner: project.isOwner(userId)
-    };
-
-    console.log('🔐 Sending project with role:', {
-      userId,
-      userRole,
-      isOwner: projectData.isOwner,
-      ownerId: project.ownerId
-    });
-
-    res.json({ project: projectData });
+    res.json(project);
   } catch (error) {
     console.error('Get project error:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
+  }
+};
+
+// @desc    Get project usage stats
+// @route   GET /api/projects/usage
+// @access  Protected
+export const getProjectUsage = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const count = await Project.countDocuments({ ownerId: userId, deletedAt: null });
+
+    // Get limit based on plan
+    const user = await User.findOne({ clerkUserId: userId });
+    const plan = user?.subscription?.plan || 'free';
+    const limits = { free: 5, pro: 50, studio: 100 };
+    const limit = limits[plan] || 5;
+
+    res.json({ count, limit, plan });
+  } catch (error) {
+    console.error('Get usage error:', error);
+    res.status(500).json({ error: 'Failed to fetch usage' });
   }
 };
 
@@ -432,6 +477,8 @@ export const generateInvite = async (req, res) => {
   }
 };
 
+
+
 // @desc    Get project metrics for invoice autofill
 // @route   GET /api/projects/:id/metrics
 // @access  Protected (Project members)
@@ -446,7 +493,14 @@ export const getProjectMetrics = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    if (!project.isMember(userId)) {
+    // Check authorization via ProjectMember
+    const membership = await ProjectMember.findOne({
+      projectId: id,
+      userId: userId,
+      status: 'active'
+    });
+
+    if (!membership) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -514,22 +568,33 @@ export const updateProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Check if user is a member of the project
-    const isMember = project.members.some(m => m.userId === userId);
-    const isOwner = project.isOwner(userId);
+    // Check authorization via ProjectMember
+    const membership = await ProjectMember.findOne({
+      projectId: id,
+      userId: userId,
+      status: 'active'
+    });
 
-    if (!isMember && !isOwner) {
-      console.log('❌ User is not a member:', { userId, ownerId: project.ownerId });
+    if (!membership) {
+      console.log('❌ User is not a member:', { userId, projectId: id });
       return res.status(403).json({ error: 'You are not a member of this project' });
     }
+
+    const isOwner = membership.role === 'owner';
+    const isClient = membership.role === 'client';
 
     // Allow clients to request revision or approve final
     const isClientAction = status === 'needs-revision' || status === 'finalized';
 
     // Only owner can update project details (except client revision/approval)
     if (!isOwner && !isClientAction) {
-      console.log('❌ User is not owner:', { userId, ownerId: project.ownerId });
+      console.log('❌ User is not owner:', { userId, role: membership.role });
       return res.status(403).json({ error: 'Only project owner can update project details' });
+    }
+
+    // If client action, verify it's actually a client (or owner acting as client for testing)
+    if (isClientAction && !isClient && !isOwner) {
+      return res.status(403).json({ error: 'Only clients can request revisions or finalize' });
     }
 
     // Validate character limits
@@ -740,15 +805,26 @@ export const deleteProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    console.log('✅ Project found:', { title: project.title, ownerId: project.ownerId });
+    // Check ownership via ProjectMember
+    const membership = await ProjectMember.findOne({
+      projectId: id,
+      userId: userId,
+      role: 'owner',
+      status: 'active'
+    });
 
-    // Only owner can delete
-    if (!project.isOwner(userId)) {
-      console.log('❌ Not owner:', { userId, ownerId: project.ownerId });
+    if (!membership) {
+      console.log('❌ Not owner:', { userId, projectId: id });
       return res.status(403).json({ error: 'Only project owner can delete' });
     }
 
     console.log('✅ Owner verified, proceeding with deletion');
+
+    // Fetch all members for notifications and cache clearing
+    const projectMembers = await ProjectMember.find({
+      projectId: id,
+      status: 'active'
+    });
 
     // Get user details for deletion record
     let userName = '';
@@ -770,7 +846,11 @@ export const deleteProject = async (req, res) => {
       title: project.title,
       brief: project.brief,
       ownerId: project.ownerId,
-      members: project.members,
+      members: projectMembers.map(m => ({
+        userId: m.userId,
+        role: m.role,
+        email: m.email
+      })), // Store current members snapshot
       status: project.status,
       progress: project.progress,
       dueDate: project.dueDate,
@@ -792,100 +872,61 @@ export const deleteProject = async (req, res) => {
     // Clear cache for all project members
     console.log('🔄 Clearing cache for project members...');
     clearUserCache(userId);
-    project.members.forEach(member => {
+
+    // Send notifications and clear cache for other members
+    for (const member of projectMembers) {
       if (member.userId !== userId) {
         clearUserCache(member.userId);
+
+        try {
+          await createNotificationWithIdempotency({
+            projectId: project._id.toString(),
+            recipients: [member.userId],
+            type: 'project-deleted',
+            eventType: 'project.deleted',
+            actorId: userId,
+            title: '🗑️ Project Deleted',
+            message: `Project "${project.title}" has been moved to trash by ${userName}`,
+            link: `/dashboard/trash`, // Or just dashboard since it's gone
+            priority: 'high',
+            category: 'project',
+            metadata: {
+              projectTitle: project.title,
+              deletedBy: userName
+            }
+          });
+        } catch (notifError) {
+          console.error(`Failed to notify member ${member.userId} of deletion:`, notifError);
+        }
       }
-    });
-    console.log('✅ Cache cleared');
-
-    // Emit Socket.IO event for real-time update
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('project-deleted', {
-        projectId: id,
-        ownerId: project.ownerId
-      });
-      console.log('📡 Socket.IO: Emitted project-deleted event globally');
     }
-
-    // Notify all project members
-    try {
-      const memberUserIds = project.members
-        .map(m => m.userId)
-        .filter(uid => uid !== userId); // Don't notify the person who deleted it
-
-      if (memberUserIds.length > 0) {
-        await createNotificationWithIdempotency({
-          projectId: project._id.toString(),
-          recipients: memberUserIds,
-          type: 'project-deleted',
-          eventType: 'project.deleted',
-          actorId: userId,
-          title: '🗑️ Project Deleted',
-          message: `Project "${project.title}" has been moved to trash by ${userName}`,
-          link: `/dashboard/trash`,
-          priority: 'high',
-          category: 'project',
-          metadata: {
-            projectTitle: project.title,
-            deletedBy: userName
-          }
-        });
-      }
-    } catch (notifError) {
-      console.error('Error sending deletion notifications:', notifError);
-    }
+    console.log('✅ Cache cleared and notifications sent');
 
     res.json({
       message: 'Project moved to trash. Will be permanently deleted after 30 days.',
       trashId: trashEntry._id
     });
   } catch (error) {
-    console.error('❌ Delete project error:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({
-      error: 'Failed to delete project',
-      details: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
+    console.error('Delete project error:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
   }
 };
 
-// @desc    Get trash (soft-deleted projects)
+// @desc    List trashed projects
 // @route   GET /api/projects/trash
 // @access  Protected
 export const listTrash = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Find projects that were deleted by this user and haven't been 30 days yet
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const trashItems = await Trash.find({
+      $or: [
+        { deletedBy: userId },
+        { ownerId: userId }
+      ]
+    }).sort({ deletedAt: -1 });
 
-    // Use lean() and select only needed fields
-    const trashedProjects = await Project.find({
-      deletedBy: userId,
-      deletedAt: { $ne: null, $gte: thirtyDaysAgo }
-    })
-      .select('title brief status deletedAt ownerId createdAt')
-      .lean()
-      .sort({ deletedAt: -1 });
-
-    // Calculate days remaining for each project
-    const projectsWithDaysRemaining = trashedProjects.map(project => {
-      const deletedDate = new Date(project.deletedAt);
-      const expiryDate = new Date(deletedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const daysRemaining = Math.ceil((expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
-
-      return {
-        ...project,
-        daysRemaining
-      };
-    });
-
-    res.json({
-      projects: projectsWithDaysRemaining,
-      count: projectsWithDaysRemaining.length
-    });
+    res.json(trashItems);
   } catch (error) {
     console.error('List trash error:', error);
     res.status(500).json({ error: 'Failed to fetch trash' });

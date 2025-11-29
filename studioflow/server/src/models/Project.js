@@ -54,6 +54,46 @@ const ProjectSchema = new mongoose.Schema({
   dueDate: {
     type: Date
   },
+  // Pricing & Payment Configuration
+  pricing: {
+    model: {
+      type: String,
+      enum: ['fixed', 'milestone', 'hourly'],
+      default: 'fixed'
+    },
+    currency: {
+      type: String,
+      default: 'INR'
+    },
+    totalAmount: {
+      type: Number,
+      default: 0
+    },
+    hourlyRate: {
+      type: Number,
+      default: 0
+    },
+    milestones: [{
+      title: String,
+      amount: Number,
+      status: {
+        type: String,
+        enum: ['pending', 'funded', 'released'],
+        default: 'pending'
+      }
+    }]
+  },
+  // Project Settings
+  settings: {
+    allowClientUploads: {
+      type: Boolean,
+      default: true
+    },
+    requireApprovalForDownloads: {
+      type: Boolean,
+      default: true
+    }
+  },
   finalizedAt: {
     type: Date,
     default: null

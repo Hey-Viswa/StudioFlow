@@ -126,9 +126,11 @@ export default function ProjectDetail() {
       }
 
       const data = await response.json();
-      setProject(data.project);
-      setProgressValue(data.project.progress || 0);
-      setInviteLink(data.inviteLink);
+      // API returns the project object directly
+      setProject(data);
+      setProgressValue(data.progress || 0);
+      // inviteLink is not returned by getProjectById, it's generated on demand
+      setInviteLink(null); 
       setError(null);
     } catch (err) {
       console.error('Fetch project error:', err);
