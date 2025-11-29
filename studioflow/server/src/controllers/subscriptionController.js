@@ -921,8 +921,41 @@ async function handleSubscriptionCharged(subscription, payment, timestamp) {
       console.log(`[${timestamp}] ✅ Subscription charged successfully`);
       console.log(`[${timestamp}]   Status: ${previousStatus} → ${newStatus}`);
 
-      // Create Invoice Logic (kept same as before)
-      // ... (invoice creation logic is separate, just ensuring state is correct here)
+      // Create Invoice
+      const planId = user.subscription.plan;
+      const planConfig = SUBSCRIPTION_PLANS[planId];
+      
+      if (planConfig) {
+          try {
+            const Invoice = await import('../models/Invoice.js').then(m => m.default);
+            const invoice = await Invoice.create({
+                userId: user.clerkUserId,
+                subscriptionId: subscription.id,
+                planId: planId,
+                planName: planConfig.name,
+                amount: planConfig.price, // Use plan price or payment.amount / 100
+                currency: 'INR',
+                type: 'renewal',
+                status: 'paid',
+                razorpayPaymentId: payment.id,
+                billingPeriodStart: new Date(subscription.current_start * 1000),
+                billingPeriodEnd: new Date(subscription.current_end * 1000),
+                description: `${planConfig.name} plan subscription renewal`,
+                metadata: {
+                    userEmail: user.email,
+                    userName: user.name
+                }
+            });
+            console.log(`[${timestamp}] ✅ Invoice created: ${invoice.invoiceNumber}`);
+            
+            // Generate PDF asynchronously
+            generateInvoiceWithPDF(invoice, user).catch(err => {
+                console.error(`[${timestamp}] ⚠️  Background invoice PDF generation failed:`, err.message);
+            });
+          } catch (invError) {
+              console.error(`[${timestamp}] ⚠️  Failed to create invoice:`, invError.message);
+          }
+      }
 
     } catch (error) {
       console.error(`[${timestamp}] ❌ State transition failed:`, error.message);
@@ -1488,8 +1521,9 @@ export const getBillingHistory = async (req, res) => {
 
           // SAFETY FILTER: Ensure payments actually belong to this subscription
           // This protects against SDK/API bugs returning global data
+          // Relaxed filter: Allow if subscription_id is missing (trusting the query) OR matches exactly
           const filteredPayments = payments.items.filter(p => 
-             p.subscription_id === user.subscription.razorpaySubscriptionId
+             !p.subscription_id || p.subscription_id === user.subscription.razorpaySubscriptionId
           );
           
           console.log(`🔍 Filtered payments: ${filteredPayments.length}`);
