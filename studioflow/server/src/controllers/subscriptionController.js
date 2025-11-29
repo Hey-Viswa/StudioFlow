@@ -1331,9 +1331,13 @@ export const getInvoices = async (req, res) => {
   try {
     const userId = req.userId;
 
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID required' });
+    }
+
     console.log('📄 Fetching invoices for user:', userId);
 
-    const invoices = await Invoice.find({ userId })
+    const invoices = await Invoice.find({ userId: { $eq: userId } })
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -1366,6 +1370,10 @@ export const getInvoices = async (req, res) => {
 export const getBillingHistory = async (req, res) => {
   try {
     const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User ID required' });
+    }
 
     console.log('📊 Fetching billing history for user:', userId);
 
@@ -1433,7 +1441,17 @@ export const getBillingHistory = async (req, res) => {
         });
 
         if (payments.items && payments.items.length > 0) {
-          billingHistory.paymentHistory = payments.items.map(payment => ({
+          // SAFETY FILTER: Ensure payments actually belong to this subscription
+          // This protects against SDK/API bugs returning global data
+          const filteredPayments = payments.items.filter(p => 
+             p.subscription_id === user.subscription.razorpaySubscriptionId
+          );
+          
+          if (filteredPayments.length !== payments.items.length) {
+             console.warn(`⚠️  Razorpay returned ${payments.items.length} payments, but only ${filteredPayments.length} match subscription ${user.subscription.razorpaySubscriptionId}`);
+          }
+
+          billingHistory.paymentHistory = filteredPayments.map(payment => ({
             id: payment.id,
             amount: payment.amount / 100, // Convert paise to rupees
             currency: payment.currency,
@@ -1447,7 +1465,7 @@ export const getBillingHistory = async (req, res) => {
           }));
 
           // Calculate total spent (only successful payments)
-          billingHistory.totalSpent = payments.items
+          billingHistory.totalSpent = filteredPayments
             .filter(p => p.status === 'captured' || p.status === 'authorized')
             .reduce((sum, p) => sum + (p.amount / 100), 0);
         }
@@ -1457,7 +1475,7 @@ export const getBillingHistory = async (req, res) => {
     }
 
     // Get local invoices (for refunds and other records)
-    const localInvoices = await Invoice.find({ userId })
+    const localInvoices = await Invoice.find({ userId: { $eq: userId } })
       .sort({ createdAt: -1 })
       .limit(50);
 

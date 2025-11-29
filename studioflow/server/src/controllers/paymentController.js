@@ -1,6 +1,7 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import ProcessedWebhook from '../models/ProcessedWebhook.js';
 import { paymentQueue } from '../queues/paymentQueue.js';
 
 // Initialize Razorpay instance only if keys are configured
@@ -309,10 +310,20 @@ export const handleRazorpayWebhook = async (req, res) => {
     try {
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
         const webhookSignature = req.headers['x-razorpay-signature'];
+        const eventId = req.headers['x-razorpay-event-id'];
 
         if (!webhookSecret) {
             console.warn('⚠️  Razorpay webhook secret not configured');
             return res.status(200).json({ status: 'ok' });
+        }
+
+        // Idempotency check
+        if (eventId) {
+            const processed = await ProcessedWebhook.findOne({ eventId });
+            if (processed) {
+                console.log(`ℹ️  Event ${eventId} already processed, skipping.`);
+                return res.status(200).json({ status: 'ok', message: 'Already processed' });
+            }
         }
 
         // Verify webhook signature
@@ -367,6 +378,18 @@ export const handleRazorpayWebhook = async (req, res) => {
                     break;
                 default:
                     console.log(`Unhandled webhook event: ${event}`);
+            }
+        }
+
+        // Mark as processed
+        if (eventId) {
+            try {
+                await ProcessedWebhook.create({
+                    eventId,
+                    eventType: event
+                });
+            } catch (err) {
+                console.warn('Failed to save webhook event ID:', err.message);
             }
         }
 

@@ -138,8 +138,10 @@ export const verifySubscriptionStatus = async () => {
                 if (dbStatus !== expectedStatus) {
                     log(`⚠️  Status mismatch for ${userEmail}: DB=${dbStatus}, Razorpay=${razorpayStatus}`);
                     
-                    user.subscription.status = expectedStatus;
-                    user.subscription.lastStatusChange = new Date();
+                    // FIX: Do not automatically update status on startup/deploy to prevent accidental revocations.
+                    // Subscriptions should only change via webhooks or user actions.
+                    // user.subscription.status = expectedStatus;
+                    // user.subscription.lastStatusChange = new Date();
                     
                     // Update dates if available
                     if (subscription.current_end) {
@@ -151,7 +153,7 @@ export const verifySubscriptionStatus = async () => {
                     
                     await user.save();
                     mismatchCount++;
-                    log(`✓ Updated ${userEmail} status to: ${expectedStatus}`);
+                    log(`✓ Updated dates for ${userEmail} (Status update skipped for safety)`);
                 } else {
                     verifiedCount++;
                 }
