@@ -446,19 +446,19 @@ export default function Subscription() {
   return (
     <div className="min-h-screen bg-background/50">
       {/* Hero Section */}
-      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-12 pt-10 px-8">
+      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-8 pt-8 px-4 md:pb-12 md:pt-10 md:px-8">
         <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
             Choose the Perfect Plan
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
             Unlock the full potential of StudioFlow with our premium plans.
             Scale your business with advanced features and priority support.
           </p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-8 py-12">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
         {/* Current Subscription Status */}
         {currentPlan !== 'free' && (
           <div className="mb-12">
@@ -595,7 +595,7 @@ export default function Subscription() {
         {/* Features Comparison */}
         <Card className="bg-card border-slate-800 p-6 mt-12">
           <h3 className="text-lg font-semibold text-white mb-4">All Plans Include</h3>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
                 <Zap className="w-5 h-5 text-primary" />

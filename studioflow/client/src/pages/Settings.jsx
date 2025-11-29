@@ -279,29 +279,29 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Section */}
-      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-8 pt-10 px-8">
+      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-6 pt-6 px-4 md:pb-8 md:pt-10 md:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-4 mb-2">
             <div className="p-2 bg-primary/10 rounded-lg">
               <SettingsIcon className="w-6 h-6 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Settings</h1>
           </div>
-          <p className="text-muted-foreground text-lg ml-14">
+          <p className="text-muted-foreground text-base md:text-lg ml-14">
             Manage your account settings, preferences, and subscription
           </p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8">
         {subscription && <SubscriptionAlert subscription={subscription.subscription} />}
 
         {loading ? (
           <DashboardSkeleton />
         ) : (
-          <div className="grid grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
             {/* Sidebar Navigation */}
-            <div className="col-span-12 md:col-span-3 space-y-2">
+            <div className="md:col-span-3 space-y-2">
               <div className="sticky top-6 space-y-1">
                 {navItems.map((item) => (
                   <button
@@ -325,7 +325,7 @@ export default function Settings() {
             </div>
 
             {/* Main Content Area */}
-            <div className="col-span-12 md:col-span-9 space-y-6">
+            <div className="md:col-span-9 space-y-6">
               {/* Account Section */}
               {activeSection === 'account' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -357,7 +357,7 @@ export default function Settings() {
 
                       <Separator />
 
-                      <div className="grid gap-6 md:grid-cols-2">
+                      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Full Name</Label>
                           <Input

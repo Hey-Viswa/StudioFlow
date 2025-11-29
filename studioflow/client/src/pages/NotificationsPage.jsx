@@ -174,7 +174,7 @@ const NotificationsPage = () => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3">
               Notifications
               {unreadCount > 0 && (
                 <Badge variant="default" className="rounded-full px-3 py-1 text-sm">
@@ -182,22 +182,22 @@ const NotificationsPage = () => {
                 </Badge>
               )}
             </h1>
-            <p className="text-muted-foreground mt-1 text-lg">
+            <p className="text-muted-foreground mt-1 text-base md:text-lg">
               Stay updated with your projects and team activity
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/dashboard/settings')}
-              className="hidden md:flex"
+              className="flex-1 md:flex-none md:flex"
             >
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </Button>
             {unreadCount > 0 && (
-              <Button onClick={markAllAsRead} size="sm" className="shadow-sm">
+              <Button onClick={markAllAsRead} size="sm" className="flex-1 md:flex-none shadow-sm">
                 <Check className="w-4 h-4 mr-2" />
                 Mark all read
               </Button>
@@ -212,7 +212,7 @@ const NotificationsPage = () => {
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <Tabs value={filter} onValueChange={setFilter} className="w-full">
-                    <TabsList className="grid w-full max-w-[400px] grid-cols-3">
+                    <TabsList className="grid w-full md:max-w-[400px] grid-cols-3">
                       <TabsTrigger value="all">All</TabsTrigger>
                       <TabsTrigger value="unread">Unread</TabsTrigger>
                       <TabsTrigger value="read">Archived</TabsTrigger>
@@ -448,8 +448,8 @@ const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon
         </div>
       </div>
 
-      {/* Actions (Hover) */}
-      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions (Hover on desktop, always visible on mobile) */}
+      <div className="flex flex-col gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {!notification.read && (
           <Button
             variant="ghost"
