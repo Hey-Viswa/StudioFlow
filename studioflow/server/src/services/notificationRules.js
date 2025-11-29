@@ -52,8 +52,14 @@ export const NotificationRulesService = {
                 return [];
         }
 
+        console.log(`🔍 Calculating recipients for ${eventType} (Actor: ${actorId})`);
+        console.log(`   Found ${recipients.length} potential recipients:`, recipients.map(r => r.userId));
+
         // Always exclude the actor (user who triggered the event)
-        return recipients.filter(r => String(r.userId) !== String(actorId));
+        const finalRecipients = recipients.filter(r => String(r.userId) !== String(actorId));
+
+        console.log(`   Filtered to ${finalRecipients.length} recipients:`, finalRecipients.map(r => r.userId));
+        return finalRecipients;
     },
 
     /**

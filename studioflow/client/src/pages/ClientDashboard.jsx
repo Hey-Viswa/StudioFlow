@@ -222,9 +222,12 @@ export default function ClientDashboard() {
     }
   }
 
-  const uniqueClients = [...new Set(projects.flatMap(p =>
-    p.members?.filter(m => m.role === 'client').map(m => ({ id: m.userId, name: m.name || m.email })) || []
-  ))]
+  const uniqueClients = useMemo(() => {
+    const allClients = projects.flatMap(p =>
+      p.members?.filter(m => m.role === 'client').map(m => ({ id: m.userId, name: m.name || m.email })) || []
+    )
+    return Array.from(new Map(allClients.map(c => [c.id, c])).values())
+  }, [projects])
 
   const filteredProjects = projects
 
@@ -266,16 +269,16 @@ export default function ClientDashboard() {
             value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
             description="Total amount invoiced"
             icon={IndianRupee}
-            trend="up"
-            trendValue="+12.5%"
+            trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
+            trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
           />
           <KpiCard
             title="Paid"
             value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
             description="Successfully collected"
             icon={CheckCircle2}
-            trend="up"
-            trendValue="+8.2%"
+            trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
+            trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
           />
           <KpiCard
             title="Outstanding"
@@ -288,8 +291,9 @@ export default function ClientDashboard() {
             value={`₹${metrics.overdue?.toLocaleString() || 0}`}
             description="Past due date"
             icon={AlertCircle}
-            trend="down"
-            trendValue="-3.1%"
+            trend={metrics.overdueChange >= 0 ? "up" : "down"}
+            trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
+            reverseColor={true}
           />
         </div>
 

@@ -2,18 +2,22 @@ import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "./card"
 import { cn } from "../../lib/utils"
 
-const KpiCard = React.forwardRef(({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
+const KpiCard = React.forwardRef(({
+  title,
+  value,
+  description,
+  icon: Icon,
   trend,
   trendValue,
+  reverseColor = false,
   className,
-  ...props 
+  ...props
 }, ref) => {
   const getTrendColor = () => {
     if (!trend) return ""
+    if (reverseColor) {
+      return trend === "up" ? "text-red-600 dark:text-red-500" : "text-green-600 dark:text-green-500"
+    }
     return trend === "up" ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
   }
 

@@ -1,40 +1,43 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import { toast } from 'sonner'
+import { useSocket } from './useSocket'
 
 export function useProjects(filters = {}) {
   const { getToken } = useAuth()
+  const { user } = useUser()
+  const socket = useSocket()
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Memoize filter values to prevent unnecessary rerenders
-  const filterKey = useMemo(() => 
+  const filterKey = useMemo(() =>
     JSON.stringify({
       status: filters.status || 'all',
       search: filters.search || '',
       clientId: filters.clientId || 'all',
       dateRange: filters.dateRange || 'all'
-    }), 
+    }),
     [filters.status, filters.search, filters.clientId, filters.dateRange]
   )
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const queryParams = new URLSearchParams()
       if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status)
       if (filters.search) queryParams.append('search', filters.search)
       if (filters.clientId && filters.clientId !== 'all') queryParams.append('clientId', filters.clientId)
       if (filters.dateRange && filters.dateRange !== 'all') queryParams.append('dateRange', filters.dateRange)
-      
+
       const url = `${apiUrl}/projects${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-      
+
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include',
@@ -68,11 +71,46 @@ export function useProjects(filters = {}) {
     return () => clearTimeout(timeoutId)
   }, [fetchProjects])
 
+  // Real-time updates
+  useEffect(() => {
+    if (!socket) return
+
+    const handleProjectUpdated = (data) => {
+      setProjects(prev => {
+        const exists = prev.find(p => p._id === data.projectId)
+        if (exists) {
+          return prev.map(p =>
+            p._id === data.projectId
+              ? { ...p, ...data.updates }
+              : p
+          )
+        }
+        return prev
+      })
+    }
+
+    const handleProjectCreated = (data) => {
+      // Only refetch if the current user is the owner (or we could check if we should see it)
+      // Since we don't have the full project object, refetching is safer
+      if (user && data.ownerId === user.id) {
+        fetchProjects()
+      }
+    }
+
+    socket.on('project-updated', handleProjectUpdated)
+    socket.on('project-created', handleProjectCreated)
+
+    return () => {
+      socket.off('project-updated', handleProjectUpdated)
+      socket.off('project-created', handleProjectCreated)
+    }
+  }, [socket, fetchProjects, user])
+
   const updateProject = useCallback(async (projectId, updates) => {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'PATCH',
         credentials: 'include',
@@ -88,12 +126,12 @@ export function useProjects(filters = {}) {
       }
 
       const data = await response.json()
-      
+
       // Optimistically update local state
-      setProjects(prev => prev.map(p => 
+      setProjects(prev => prev.map(p =>
         p._id === projectId ? { ...p, ...updates } : p
       ))
-      
+
       toast.success('Project updated successfully')
       return data
     } catch (err) {
@@ -104,14 +142,14 @@ export function useProjects(filters = {}) {
   }, [getToken])
 
   const requestRevision = useCallback(async (projectId, notes) => {
-    return updateProject(projectId, { 
+    return updateProject(projectId, {
       status: 'needs-revision',
       revisionNotes: notes
     })
   }, [updateProject])
 
   const approveFinal = useCallback(async (projectId) => {
-    return updateProject(projectId, { 
+    return updateProject(projectId, {
       status: 'finalized',
       finalizedAt: new Date().toISOString()
     })
@@ -148,11 +186,11 @@ export function useProjectMetrics() {
     if (now - lastFetch < 30000) {
       return
     }
-    
+
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/dashboard/metrics`, {
         method: 'GET',
         credentials: 'include',

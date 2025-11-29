@@ -15,38 +15,6 @@ export const useNotifications = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Initialize socket connection
-  useEffect(() => {
-    if (!user?.id) return;
-
-    if (!socket) {
-      socket = io(API_BASE_URL, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-      });
-
-      socket.on('connect', () => {
-        console.log('🔌 Socket connected');
-        socket.emit('authenticate', user.id);
-      });
-
-      socket.on('authenticated', (data) => {
-        console.log('✅ Socket authenticated:', data);
-      });
-
-      socket.on('disconnect', () => {
-        console.log('🔌 Socket disconnected');
-      });
-    }
-
-    return () => {
-      // Don't disconnect socket on component unmount
-      // Keep it alive for other components that might need it
-    };
-  }, [user?.id]);
-
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
@@ -215,20 +183,46 @@ export const useNotifications = () => {
     [user?.id, getToken]
   );
 
-  // Listen for real-time notifications
+  // Initialize socket and listeners
   useEffect(() => {
-    if (!socket || !user?.id) return;
+    if (!user?.id) return;
 
+    // Initialize socket if needed
+    if (!socket) {
+      console.log('🔌 Initializing socket connection...');
+      socket = io(API_BASE_URL, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
+      });
+
+      socket.on('connect', () => {
+        console.log('✅ Socket connected:', socket.id);
+        socket.emit('authenticate', user.id);
+      });
+
+      socket.on('authenticated', (data) => {
+        console.log('✅ Socket authenticated:', data);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('🔌 Socket disconnected');
+      });
+    }
+
+    // Define handlers
     const playNotificationSound = () => {
       try {
-        const audio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+        const audio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
         audio.play().catch(e => console.log('Audio play failed:', e));
       } catch (e) {
         console.error('Error playing sound:', e);
       }
     };
 
-    const handleNewNotification = (notification) => {
+    const handleNewNotification = (data) => {
+      const notification = data.notification || data;
       console.log('🔔 New notification received:', notification);
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
@@ -249,18 +243,25 @@ export const useNotifications = () => {
       setUnreadCount(0);
     };
 
+    const handleNotificationDeleted = (data) => {
+      console.log('🗑️ Notification deleted:', data);
+      setNotifications(prev => prev.filter(n => !data.ids.includes(n._id)));
+    };
+
+    // Attach listeners
+    console.log('🎧 Attaching socket listeners for user:', user.id);
     socket.on('notification:new', handleNewNotification);
     socket.on('notification:updated', handleNotificationRead);
     socket.on('notification:all-read', handleAllNotificationsRead);
-    socket.on('notification:deleted', (data) => {
-      setNotifications(prev => prev.filter(n => !data.ids.includes(n._id)));
-    });
+    socket.on('notification:deleted', handleNotificationDeleted);
 
+    // Cleanup listeners on unmount or user change
     return () => {
+      console.log('🧹 Cleaning up socket listeners');
       socket.off('notification:new', handleNewNotification);
       socket.off('notification:updated', handleNotificationRead);
       socket.off('notification:all-read', handleAllNotificationsRead);
-      socket.off('notification:deleted');
+      socket.off('notification:deleted', handleNotificationDeleted);
     };
   }, [user?.id]);
 

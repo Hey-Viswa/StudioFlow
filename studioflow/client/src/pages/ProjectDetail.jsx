@@ -492,7 +492,8 @@ export default function ProjectDetail() {
       completed: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
       'on-hold': 'bg-orange-500/20 text-orange-500 border-orange-500/30',
       archived: 'bg-gray-500/20 text-gray-500 border-gray-500/30',
-      'needs-revision': 'bg-red-500/20 text-red-500 border-red-500/30'
+      'needs-revision': 'bg-red-500/20 text-red-500 border-red-500/30',
+      finalized: 'bg-green-600/20 text-green-600 border-green-600/30'
     };
     return colors[status] || colors.active;
   };
@@ -590,8 +591,8 @@ export default function ProjectDetail() {
                         className="mt-1"
                       />
                       <p className={`text-xs mt-1 ${editForm.title.length > 50 ? 'text-red-500' :
-                          editForm.title.length > 40 ? 'text-yellow-500' :
-                            'text-muted-foreground'
+                        editForm.title.length > 40 ? 'text-yellow-500' :
+                          'text-muted-foreground'
                         }`}>
                         {editForm.title.length}/50 characters
                       </p>
@@ -607,8 +608,8 @@ export default function ProjectDetail() {
                         className="mt-1 resize-none min-h-[80px] max-h-[200px]"
                       />
                       <p className={`text-xs mt-1 ${editForm.brief.length > 100 ? 'text-red-500' :
-                          editForm.brief.length > 80 ? 'text-yellow-500' :
-                            'text-muted-foreground'
+                        editForm.brief.length > 80 ? 'text-yellow-500' :
+                          'text-muted-foreground'
                         }`}>
                         {editForm.brief.length}/100 characters
                       </p>

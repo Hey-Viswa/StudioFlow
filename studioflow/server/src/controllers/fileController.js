@@ -3,12 +3,12 @@ import Project from '../models/Project.js';
 import User from '../models/User.js';
 import storageAdapter from '../utils/storageAdapter.js';
 import mongoose from 'mongoose';
-import { 
-  getMaxFileSize, 
-  getMaxTotalStorage, 
+import {
+  getMaxFileSize,
+  getMaxTotalStorage,
   getMaxFilesPerProject,
   isFileTypeAllowed,
-  formatBytes 
+  formatBytes
 } from '../config/fileLimits.js';
 
 /**
@@ -17,7 +17,7 @@ import {
 async function isProjectCollaborator(projectId, userId) {
   const project = await Project.findById(projectId).select('members ownerId').lean();
   if (!project) return false;
-  
+
   // Check if user is owner or in members list
   if (project.ownerId === userId) return true;
   return project.members.some(m => m.userId === userId);
@@ -58,8 +58,8 @@ export const signUpload = async (req, res) => {
 
     // File size validation based on subscription
     if (size > maxFileSize) {
-      return res.status(400).json({ 
-        error: 'File too large', 
+      return res.status(400).json({
+        error: 'File too large',
         message: `Your ${userPlan} plan allows files up to ${formatBytes(maxFileSize)}. This file is ${formatBytes(size)}.`,
         maxSize: maxFileSize,
         currentPlan: userPlan,
@@ -69,8 +69,8 @@ export const signUpload = async (req, res) => {
 
     // File type validation
     if (!isFileTypeAllowed(contentType, userPlan)) {
-      return res.status(400).json({ 
-        error: 'File type not allowed', 
+      return res.status(400).json({
+        error: 'File type not allowed',
         message: `Your ${userPlan} plan does not support this file type.`,
         currentPlan: userPlan,
         upgradeRequired: true,
@@ -79,8 +79,8 @@ export const signUpload = async (req, res) => {
 
     // Check total storage limit
     const userFiles = await ProjectFile.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           uploaderId: userId,
           status: { $in: ['uploading', 'active', 'archived'] }
         }
@@ -95,8 +95,8 @@ export const signUpload = async (req, res) => {
 
     const currentUsage = userFiles[0]?.totalSize || 0;
     if (currentUsage + size > maxTotalStorage) {
-      return res.status(400).json({ 
-        error: 'Storage limit exceeded', 
+      return res.status(400).json({
+        error: 'Storage limit exceeded',
         message: `Your ${userPlan} plan allows ${formatBytes(maxTotalStorage)} total storage. Current usage: ${formatBytes(currentUsage)}. This file would exceed your limit.`,
         currentUsage,
         maxStorage: maxTotalStorage,
@@ -112,8 +112,8 @@ export const signUpload = async (req, res) => {
     });
 
     if (projectFileCount >= maxFiles) {
-      return res.status(400).json({ 
-        error: 'Project file limit exceeded', 
+      return res.status(400).json({
+        error: 'Project file limit exceeded',
         message: `Your ${userPlan} plan allows ${maxFiles} files per project. This project has ${projectFileCount} files.`,
         currentCount: projectFileCount,
         maxFiles,
@@ -248,6 +248,28 @@ export const confirmUpload = async (req, res) => {
       const io = req.app?.get('io');
       if (io) {
         io.to(`project-${projectId}`).emit('project:files:added', { file: populatedFile });
+      }
+
+      // Trigger Notification
+      try {
+        const { triggerNotification } = await import('../services/notificationService.js');
+        const project = await Project.findById(projectId).select('title').lean();
+
+        await triggerNotification(
+          'file.uploaded',
+          {
+            projectId,
+            fileId: fileRecord.fileId,
+            fileName: fileRecord.filename,
+            projectTitle: project?.title || 'Project',
+            uploadedBy: userId,
+            link: `/dashboard/projects/${projectId}?tab=files`,
+            category: 'file'
+          },
+          userId
+        );
+      } catch (notifError) {
+        console.error('⚠️ Failed to trigger file upload notification:', notifError);
       }
 
       res.status(200).json({

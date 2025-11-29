@@ -19,7 +19,21 @@ const getRedisConfig = () => {
                 // Bull/ioredis specific TLS handling
                 tls: isTls ? { rejectUnauthorized: false } : undefined,
                 // Ensure we don't pass null/undefined for db if not present
-                db: redisUrl.pathname ? Number(redisUrl.pathname.substring(1)) : 0
+                db: redisUrl.pathname ? Number(redisUrl.pathname.substring(1)) : 0,
+                // Robust connection options
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+                retryStrategy(times) {
+                    const delay = Math.min(times * 50, 2000);
+                    return delay;
+                },
+                reconnectOnError(err) {
+                    const targetError = 'READONLY';
+                    if (err.message.slice(0, targetError.length) === targetError) {
+                        return true;
+                    }
+                    return false;
+                }
             };
         } catch (e) {
             console.warn('⚠️ Invalid REDIS_URL, falling back to individual variables:', e.message);
@@ -38,7 +52,14 @@ const getRedisConfig = () => {
         port,
         host,
         password,
-        tls: useTls ? { rejectUnauthorized: false } : undefined
+        tls: useTls ? { rejectUnauthorized: false } : undefined,
+        // Robust connection options
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        retryStrategy(times) {
+            const delay = Math.min(times * 50, 2000);
+            return delay;
+        }
     };
 };
 

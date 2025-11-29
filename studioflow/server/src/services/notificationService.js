@@ -59,10 +59,13 @@ export const createNotification = async ({
   link = null,
   metadata = {},
   priority = 'medium',
-  category = 'general',
+  category = 'info',
   sendEmail = false,
   sendPush = false,
-  idempotencyKey = null
+  idempotencyKey = null,
+  actorId,
+  resourceId,
+  resourceType
 }) => {
   try {
     // Generate idempotency key if not provided
@@ -79,16 +82,17 @@ export const createNotification = async ({
 
     // Step 1: Persist to database FIRST
     const notification = await Notification.create({
-      userId,
+      recipientId: userId,
+      actorId,
+      resourceId,
+      resourceType,
       type,
       title,
       message,
       link,
-      metadata,
-      priority,
-      category,
-      idempotencyKey,
-      read: false
+      data: { metadata, url: link }, // Map to 'data' field in schema
+      isRead: false, // Schema uses isRead, not read
+      category
     });
 
     console.log(`✅ Notification persisted: ${notification._id} for user ${userId}`);
@@ -98,20 +102,6 @@ export const createNotification = async ({
       notificationId: notification._id,
       timestamp: Date.now()
     });
-
-    // Step 2: Emit realtime event (Socket.IO)
-    try {
-      const io = getIO();
-      if (io) {
-        io.to(`user:${userId}`).emit('notification:new', {
-          notification: notification.toObject()
-        });
-        console.log(`📡 Realtime notification sent to user:${userId}`);
-      }
-    } catch (realtimeError) {
-      console.error('⚠️  Realtime emit error:', realtimeError.message);
-      // Non-critical, continue
-    }
 
     // Step 3: Send email if requested
     if (sendEmail) {
@@ -505,16 +495,43 @@ export const processNotificationEvent = async (type, data, actorId) => {
       // 4. Get Enabled Channels
       const channels = await NotificationRulesService.getEnabledChannels(userId, context.isUrgent);
 
+      // Map event type to model enum
+      const typeMapping = {
+        'comment.created': 'comment_created',
+        'task.assigned': 'assigned',
+        'project.needs_revision': 'project_needs_revision',
+        'project.finalized': 'project_finalized',
+        'file.uploaded': 'file_uploaded',
+        'invoice.created': 'invoice_created',
+        'invoice.paid': 'invoice_paid'
+      };
+
+      const modelType = typeMapping[type] || 'mention'; // Default fallback
+
+      // Map category to model enum
+      const categoryMapping = {
+        'comment': 'info',
+        'task': 'action',
+        'project': 'info',
+        'invoice': 'urgent',
+        'file': 'info'
+      };
+
+      const modelCategory = categoryMapping[data.category] || 'info';
+
       // 5. Create Notification using Service
       await createNotification({
         userId,
-        type,
+        type: modelType,
+        actorId,
+        resourceId: data.resourceId || data.taskId || data.projectId || data._id,
+        resourceType: data.resourceType || 'project',
         title: notificationTitle,
         message: data.message,
         link: data.link,
         metadata: data,
         priority: notificationPriority,
-        category: data.category || 'info',
+        category: modelCategory,
         sendEmail: channels.email,
         sendPush: channels.push
       });
@@ -539,7 +556,8 @@ export const triggerNotification = async (type, data, actorId) => {
   // Ideally we should import isQueueEnabled from the queue file.
   // For now, let's rely on the queue.add throwing or check process.env
 
-  const useQueue = process.env.ENABLE_REDIS_QUEUE === 'true';
+  // Forcing Direct Mode for local development reliability
+  const useQueue = false; // process.env.ENABLE_REDIS_QUEUE === 'true';
 
   if (!useQueue) {
     console.log(`DIRECT MODE: Processing notification ${type} immediately.`);

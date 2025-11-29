@@ -12,14 +12,14 @@ export function useComments(projectId) {
 
   const fetchComments = useCallback(async () => {
     if (!projectId) return
-    
+
     setLoading(true)
     setError(null)
-    
+
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments`, {
         credentials: 'include',
         headers: {
@@ -71,7 +71,7 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       // Optimistic update
       const optimisticComment = {
         _id: `temp-${Date.now()}`,
@@ -87,6 +87,31 @@ export function useComments(projectId) {
 
       setComments(prev => [...prev, optimisticComment])
 
+      let uploadedAttachments = [];
+      if (data.files && data.files.length > 0) {
+        const formData = new FormData();
+        data.files.forEach(file => formData.append('files', file));
+
+        const uploadResponse = await fetch(`${apiUrl}/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          body: formData
+        });
+
+        if (!uploadResponse.ok) throw new Error('Failed to upload files');
+        const uploadResult = await uploadResponse.json();
+        uploadedAttachments = uploadResult.files;
+      }
+
+      const commentData = {
+        ...data,
+        attachments: uploadedAttachments
+      };
+      // Remove raw files from payload
+      delete commentData.files;
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments`, {
         method: 'POST',
         credentials: 'include',
@@ -94,18 +119,18 @@ export function useComments(projectId) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(commentData)
       })
 
       if (!response.ok) throw new Error('Failed to create comment')
 
       const result = await response.json()
-      
+
       // Replace optimistic with real
-      setComments(prev => prev.map(c => 
+      setComments(prev => prev.map(c =>
         c._id === optimisticComment._id ? { ...result.comment, replies: [] } : c
       ))
-      
+
       return result.comment
     } catch (err) {
       console.error('Add comment error:', err)
@@ -120,7 +145,7 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments`, {
         method: 'POST',
         credentials: 'include',
@@ -134,7 +159,7 @@ export function useComments(projectId) {
       if (!response.ok) throw new Error('Failed to reply to comment')
 
       const result = await response.json()
-      
+
       // Add reply to tree
       const addReplyToTree = (comments) => {
         return comments.map(comment => {
@@ -154,7 +179,7 @@ export function useComments(projectId) {
       }
 
       setComments(prev => addReplyToTree(prev))
-      
+
       return result.comment
     } catch (err) {
       console.error('Reply comment error:', err)
@@ -167,7 +192,7 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments/${commentId}`, {
         method: 'PATCH',
         credentials: 'include',
@@ -181,7 +206,7 @@ export function useComments(projectId) {
       if (!response.ok) throw new Error('Failed to edit comment')
 
       const result = await response.json()
-      
+
       // Update in tree
       const updateInTree = (comments) => {
         return comments.map(comment => {
@@ -207,7 +232,7 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments/${commentId}`, {
         method: 'DELETE',
         credentials: 'include',
@@ -242,14 +267,14 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       // Optimistic update
       const updateReactions = (comments) => {
         return comments.map(comment => {
           if (comment._id === commentId) {
             const reactions = { ...comment.reactions }
             if (!reactions[emoji]) reactions[emoji] = []
-            
+
             const userIndex = reactions[emoji].indexOf(user?.id)
             if (userIndex > -1) {
               reactions[emoji].splice(userIndex, 1)
@@ -257,7 +282,7 @@ export function useComments(projectId) {
             } else {
               reactions[emoji].push(user?.id)
             }
-            
+
             return { ...comment, reactions }
           } else if (comment.replies?.length > 0) {
             return { ...comment, replies: updateReactions(comment.replies) }
@@ -290,7 +315,7 @@ export function useComments(projectId) {
     try {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-      
+
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments/${commentId}/resolve`, {
         method: 'POST',
         credentials: 'include',

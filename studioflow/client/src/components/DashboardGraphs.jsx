@@ -35,6 +35,14 @@ const invoiceChartConfig = {
     label: "Overdue",
     color: "hsl(346.8, 77.2%, 49.8%)", // Red
   },
+  cancelled: {
+    label: "Cancelled",
+    color: "hsl(215, 16%, 47%)", // Gray
+  },
+  failed: {
+    label: "Failed",
+    color: "hsl(0, 84%, 60%)", // Light Red
+  },
 }
 
 const projectChartConfig = {
@@ -240,9 +248,11 @@ const InvoiceStatusChart = React.forwardRef(({
       { status: 'draft', count: data.find(d => d.status === 'draft')?.count || 0, fill: invoiceChartConfig.draft.color },
       { status: 'sent', count: data.find(d => d.status === 'sent')?.count || 0, fill: invoiceChartConfig.sent.color },
       { status: 'paid', count: data.find(d => d.status === 'paid')?.count || 0, fill: invoiceChartConfig.paid.color },
-      { status: 'overdue', count: data.find(d => d.status === 'overdue')?.count || 0, fill: invoiceChartConfig.overdue.color }
+      { status: 'overdue', count: data.find(d => d.status === 'overdue')?.count || 0, fill: invoiceChartConfig.overdue.color },
+      { status: 'cancelled', count: data.find(d => d.status === 'cancelled')?.count || 0, fill: invoiceChartConfig.cancelled.color },
+      { status: 'failed', count: data.find(d => d.status === 'failed')?.count || 0, fill: invoiceChartConfig.failed.color }
     ]
-    return transformed.filter(d => d.count > 0)
+    return transformed
   }, [data])
 
   const totalInvoices = React.useMemo(() =>
@@ -356,6 +366,7 @@ const InvoiceStatusChart = React.forwardRef(({
   )
 })
 
+
 InvoiceStatusChart.displayName = "InvoiceStatusChart"
 
 const ProjectProgressChart = React.forwardRef(({
@@ -439,7 +450,7 @@ const ProjectProgressChart = React.forwardRef(({
                   content={
                     <ChartTooltipContent
                       className="w-[200px]"
-                      labelFormatter={(value) => `Week ${value}`}
+                      labelFormatter={(value) => value}
                     />
                   }
                 />

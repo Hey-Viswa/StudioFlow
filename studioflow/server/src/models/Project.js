@@ -42,7 +42,7 @@ const ProjectSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['active', 'completed', 'on-hold', 'archived', 'needs-revision'],
+    enum: ['active', 'completed', 'on-hold', 'archived', 'needs-revision', 'finalized'],
     default: 'active'
   },
   progress: {
@@ -53,6 +53,10 @@ const ProjectSchema = new mongoose.Schema({
   },
   dueDate: {
     type: Date
+  },
+  finalizedAt: {
+    type: Date,
+    default: null
   },
   tasks: [{
     title: {

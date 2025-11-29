@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight, Zap, Shield, Globe, Move, Layers, MousePointer2, MessageSquare, FileText, Download, CheckCircle2, ListTodo, Clock } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -838,12 +838,12 @@ const Landing = () => {
               <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-6 w-auto hidden dark:block" />
               <img src="/studioflow-black.svg" alt="StudioFlow" className="h-6 w-auto block dark:hidden" />
             </div>
-            <span className="text-sm text-muted-foreground">© 2025 StudioFlow. All rights reserved.</span>
+            <span className="text-sm text-muted-foreground">© 2024 StudioFlow. All rights reserved.</span>
           </div>
           <div className="flex gap-6 text-sm text-muted-foreground">
-            <a href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy</a>
-            <a href="/terms-conditions" className="hover:text-foreground transition-colors">Terms</a>
-            <a href="/contact-us" className="hover:text-foreground transition-colors">Contact Us</a>
+            <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link to="/terms-conditions" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link to="/contact-us" className="hover:text-foreground transition-colors">Contact Us</Link>
           </div>
         </div>
       </footer>

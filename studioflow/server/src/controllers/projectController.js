@@ -546,6 +546,9 @@ export const updateProject = async (req, res) => {
     if (brief !== undefined) project.brief = brief;
     if (dueDate !== undefined) project.dueDate = dueDate ? new Date(dueDate) : null;
 
+    // Capture old tasks for notification comparison
+    const oldTasks = project.tasks ? JSON.parse(JSON.stringify(project.tasks)) : [];
+
     // Update tasks if provided
     if (tasks !== undefined) {
       project.tasks = tasks;
@@ -620,7 +623,7 @@ export const updateProject = async (req, res) => {
 
     // Check for Task Assignments and Trigger Notifications
     if (tasks && tasks.length > 0) {
-      const oldTasksMap = new Map(project.tasks.map(t => [t._id?.toString(), t]));
+      const oldTasksMap = new Map(oldTasks.map(t => [t._id?.toString(), t]));
 
       for (const newTask of tasks) {
         // Check if it's a new assignment

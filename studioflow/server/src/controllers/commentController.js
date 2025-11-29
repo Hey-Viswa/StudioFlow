@@ -103,53 +103,27 @@ export const addComment = async (req, res) => {
       });
     }
 
-    // Notify project owner and mentioned users
+    // Notify project members
     try {
-      const notifyUserIds = [];
+      // Import dynamically to avoid circular dependency issues
+      const { triggerNotification } = await import('../services/notificationService.js');
 
-      // Notify project owner if not the commenter
-      if (project.ownerId !== userId) {
-        notifyUserIds.push(project.ownerId);
-      }
-
-      // Notify mentioned users
-      if (mentions && mentions.length > 0) {
-        mentions.forEach(mentionedUserId => {
-          if (mentionedUserId !== userId && !notifyUserIds.includes(mentionedUserId)) {
-            notifyUserIds.push(mentionedUserId);
-          }
-        });
-      }
-
-      // Notify parent comment author if replying
-      if (parentId) {
-        const parentComment = project.comments.id(parentId);
-        if (parentComment && parentComment.userId !== userId && !notifyUserIds.includes(parentComment.userId)) {
-          notifyUserIds.push(parentComment.userId);
-        }
-      }
-
-      if (notifyUserIds.length > 0) {
-        // Import dynamically to avoid circular dependency issues
-        const { triggerNotification } = await import('../services/notificationService.js');
-
-        await triggerNotification(
-          'comment.created',
-          {
-            projectId,
-            commentId: commentObj._id,
-            commenterName: userName,
-            text: text,
-            title: '💬 New Comment', // Worker will override if mentioned
-            message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
-            link: `/dashboard/projects/${projectId}?tab=comments`,
-            priority: 'medium', // Worker will override if mentioned
-            category: 'comment',
-            mentions: mentions || []
-          },
-          userId // Actor
-        );
-      }
+      await triggerNotification(
+        'comment.created',
+        {
+          projectId,
+          commentId: commentObj._id,
+          commenterName: userName,
+          text: text,
+          title: '💬 New Comment', // Worker will override if mentioned
+          message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+          link: `/dashboard/projects/${projectId}?tab=comments`,
+          priority: 'medium', // Worker will override if mentioned
+          category: 'comment',
+          mentions: mentions || []
+        },
+        userId // Actor
+      );
     } catch (notifError) {
       console.error('Error sending comment notifications:', notifError);
     }

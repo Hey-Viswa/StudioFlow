@@ -14,12 +14,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu"
-import { 
-  Reply, 
-  Edit3, 
-  Trash2, 
-  MoreHorizontal, 
-  CheckCircle, 
+import {
+  Reply,
+  Edit3,
+  Trash2,
+  MoreHorizontal,
+  CheckCircle,
   RefreshCw,
   Send,
   Paperclip,
@@ -35,7 +35,7 @@ const formatTime = (dateString) => {
   const date = new Date(dateString)
   const now = new Date()
   const diffHours = (now - date) / (1000 * 60 * 60)
-  
+
   if (diffHours < 24) {
     return formatDistanceToNow(date, { addSuffix: true })
   }
@@ -43,7 +43,7 @@ const formatTime = (dateString) => {
 }
 
 const ReactionBar = ({ reactions = {}, currentUserId, onReact }) => {
-  const reactionEntries = Object.entries(reactions).filter(([emoji, users]) => 
+  const reactionEntries = Object.entries(reactions).filter(([emoji, users]) =>
     users.length > 0 && emoji !== 'null' && emoji !== 'undefined' && emoji !== null
   )
 
@@ -53,15 +53,15 @@ const ReactionBar = ({ reactions = {}, currentUserId, onReact }) => {
     <div className="flex flex-wrap gap-1">
       {reactionEntries.map(([emoji, users]) => {
         const hasReacted = users.includes(currentUserId)
-        
+
         return (
           <button
             key={emoji}
             onClick={() => onReact(emoji)}
             className={cn(
               "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border transition-all",
-              hasReacted 
-                ? "bg-primary/10 border-primary text-primary" 
+              hasReacted
+                ? "bg-primary/10 border-primary text-primary"
                 : "bg-muted border-border hover:border-primary"
             )}
             aria-label={`React with ${emoji}`}
@@ -88,7 +88,7 @@ const getInitials = (raw = "") => {
   return `${first}${last}`.toUpperCase()
 }
 
-const CommentComposer = React.forwardRef(({ 
+const CommentComposer = React.forwardRef(({
   projectMembers = [],
   placeholder = "Write a comment...",
   onSubmit,
@@ -98,7 +98,7 @@ const CommentComposer = React.forwardRef(({
   showCancel = false,
   variant = "full",
   className,
-  ...props 
+  ...props
 }, ref) => {
   const textareaRef = React.useRef(null)
   const { user } = useUser()
@@ -162,13 +162,13 @@ const CommentComposer = React.forwardRef(({
     const textBeforeCursor = text.slice(0, cursorPos)
     const textAfterCursor = text.slice(cursorPos)
     const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
-    
+
     if (mentionMatch) {
       const beforeMention = textBeforeCursor.slice(0, mentionMatch.index)
       const mentionText = `@${member.name || member.email} `
       setText(beforeMention + mentionText + textAfterCursor)
     }
-    
+
     setShowMentions(false)
     textareaRef.current?.focus()
   }
@@ -257,7 +257,7 @@ const CommentComposer = React.forwardRef(({
               )}
               aria-label="Comment text"
             />
-            
+
             <MentionAutocomplete
               members={projectMembers}
               query={mentionQuery}
@@ -354,8 +354,8 @@ const CommentComposer = React.forwardRef(({
 
 CommentComposer.displayName = "CommentComposer"
 
-const CommentItem = ({ 
-  comment, 
+const CommentItem = ({
+  comment,
   projectMembers = [],
   currentUserId,
   isNested = false,
@@ -377,7 +377,7 @@ const CommentItem = ({
   const isOwner = comment.userId === currentUserId
   const canReply = nestLevel < maxNestLevel
 
-  const authorInitials = comment.userName 
+  const authorInitials = comment.userName
     ? getInitials(comment.userName)
     : getInitials(comment.userEmail || "")
 
@@ -421,9 +421,9 @@ const CommentItem = ({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -443,7 +443,7 @@ const CommentItem = ({
                       <Edit3 className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => onDelete?.(comment._id)}
                       className="text-destructive"
                     >
@@ -491,23 +491,43 @@ const CommentItem = ({
               </div>
 
               {comment.attachments?.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {comment.attachments.map((file, idx) => (
-                    <Badge key={idx} variant="outline">
-                      <Paperclip className="h-3 w-3 mr-1" />
-                      {file.name}
-                    </Badge>
-                  ))}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {comment.attachments.map((file, idx) => {
+                    const isImage = file.type?.startsWith('image/');
+                    return (
+                      <div key={idx} className="group relative">
+                        {isImage ? (
+                          <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="max-h-48 rounded-md border border-border/50 object-cover hover:opacity-95 transition-opacity"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
+                          >
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-foreground/90">{file.name}</span>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
               <div className="flex items-center gap-3 pt-1">
-                <ReactionBar 
+                <ReactionBar
                   reactions={comment.reactions || {}}
                   currentUserId={currentUserId}
                   onReact={(emoji) => onReact?.(comment._id, emoji)}
                 />
-                
+
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <EmojiPicker
                     onEmojiSelect={(emoji) => onReact?.(comment._id, emoji)}
@@ -518,7 +538,7 @@ const CommentItem = ({
                     <Smile className="h-3 w-3 mr-1" />
                     React
                   </EmojiPicker>
-                  
+
                   {canReply && (
                     <Button
                       variant="ghost"
@@ -594,7 +614,7 @@ const CommentItem = ({
   )
 }
 
-const CommentThread = React.forwardRef(({ 
+const CommentThread = React.forwardRef(({
   comments = [],
   projectMembers = [],
   currentUserId,
@@ -609,7 +629,7 @@ const CommentThread = React.forwardRef(({
   canModerate = false,
   loading = false,
   className,
-  ...props 
+  ...props
 }, ref) => {
   const scrollRef = React.useRef(null)
   const composerRef = React.useRef(null)
@@ -633,7 +653,7 @@ const CommentThread = React.forwardRef(({
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 50
       wasAtBottomRef.current = isNearBottom
-      
+
       if (isNearBottom) {
         setShowNewIndicator(false)
       }
@@ -650,7 +670,7 @@ const CommentThread = React.forwardRef(({
         })
       }
     }
-    
+
     logRects()
     window.addEventListener('resize', logRects)
     return () => window.removeEventListener('resize', logRects)
@@ -694,8 +714,8 @@ const CommentThread = React.forwardRef(({
       </div>
 
       <div className="relative flex-1 min-h-0">
-        <div 
-          ref={scrollRef} 
+        <div
+          ref={scrollRef}
           onScroll={handleScroll}
           className="h-full overflow-y-auto overflow-x-hidden pr-4 scroll-smooth"
           style={{ maxHeight: 'calc(100vh - 250px)' }}

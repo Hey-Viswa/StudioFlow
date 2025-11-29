@@ -57,7 +57,7 @@ export default function InvoicesPage() {
         setShowDetailModal(true);
       }
     }
-  }, [searchParams, invoices, showDetailModal]);
+  }, [searchParams, invoices]);
 
   const stats = getStats();
 
