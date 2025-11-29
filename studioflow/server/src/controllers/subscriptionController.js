@@ -587,7 +587,17 @@ export const cancelSubscription = async (req, res) => {
 
     if (user.subscription.status === 'cancelled') {
       console.error(`[${timestamp}] ❌ Subscription already cancelled`);
-      return res.status(400).json({ error: 'Subscription is already cancelled' });
+      // If already cancelled, just return success with current status
+      return res.json({
+        message: 'Subscription is already cancelled.',
+        subscription: {
+          plan: user.subscription.plan,
+          status: user.subscription.status,
+          cancelledAt: user.subscription.cancelledAt,
+          accessUntil: user.subscription.subscriptionEndDate,
+          autoRenew: false
+        }
+      });
     }
 
     console.log(`[${timestamp}] ✓ Subscription ID:`, user.subscription.razorpaySubscriptionId);
@@ -1507,38 +1517,51 @@ export const getBillingHistory = async (req, res) => {
     }
 
     // Fetch payment history from Razorpay
-    if (user.subscription.razorpaySubscriptionId) {
+    // Prefer fetching by Customer ID to get full history across all subscriptions
+    if (user.subscription.razorpayCustomerId || user.subscription.razorpaySubscriptionId) {
       try {
-        // Get all payments for this subscription
-        const payments = await razorpay.payments.all({
-          subscription_id: user.subscription.razorpaySubscriptionId,
-          count: 100
-        });
+        let payments;
+        
+        if (user.subscription.razorpayCustomerId) {
+            console.log(`🔍 Fetching payments for Customer ID: ${user.subscription.razorpayCustomerId}`);
+            payments = await razorpay.payments.all({
+                'customer_id': user.subscription.razorpayCustomerId,
+                count: 100
+            });
+        } else {
+            console.log(`🔍 Fetching payments for Subscription ID: ${user.subscription.razorpaySubscriptionId}`);
+            payments = await razorpay.payments.all({
+                subscription_id: user.subscription.razorpaySubscriptionId,
+                count: 100
+            });
+        }
 
         if (payments.items && payments.items.length > 0) {
           console.log(`🔍 Raw payments from Razorpay: ${payments.items.length}`);
-          payments.items.forEach(p => console.log(`  - ${p.id} (${p.status}) Sub: ${p.subscription_id}`));
+          payments.items.forEach(p => console.log(`  - ${p.id} (${p.status}) Sub: ${p.subscription_id} Cust: ${p.customer_id}`));
 
-          // SAFETY FILTER: Ensure payments actually belong to this subscription
-          // This protects against SDK/API bugs returning global data
+          // SAFETY FILTER: Ensure payments actually belong to this user
           const filteredPayments = payments.items.filter(p => {
-             // 1. Match by Subscription ID (Strongest link)
+             // 1. Match by Customer ID (Strongest link for full history)
+             if (user.subscription.razorpayCustomerId && p.customer_id === user.subscription.razorpayCustomerId) {
+                 return true;
+             }
+
+             // 2. Match by Subscription ID (Current)
              if (p.subscription_id && p.subscription_id === user.subscription.razorpaySubscriptionId) {
                  return true;
              }
              
-             // 2. Match by User ID in notes (Secondary link)
+             // 3. Match by User ID in notes (Secondary link)
              if (p.notes && p.notes.userId === userId) {
                  return true;
              }
 
-             // 3. Match by Email in notes (Fallback)
+             // 4. Match by Email in notes (Fallback)
              if (p.notes && p.notes.email === user.email) {
                  return true;
              }
              
-             // 4. If neither, be safe and exclude.
-             // We cannot trust payments with missing subscription_id unless they have user notes.
              return false;
           });
           
