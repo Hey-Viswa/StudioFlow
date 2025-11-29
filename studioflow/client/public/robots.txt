@@ -7,4 +7,4 @@ Disallow: /dashboard/
 Disallow: /invite
 
 # Sitemap
-Sitemap: https://www.studioflow.studio/sitemap.xml
+Sitemap: https://studioflow.studio/sitemap.xml

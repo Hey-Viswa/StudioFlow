@@ -31,6 +31,11 @@ import Settings from './pages/Settings';
 import ClientDashboard from './pages/ClientDashboard';
 import NotificationsPage from './pages/NotificationsPage';
 
+import Features from './pages/Features';
+import ClientPortal from './pages/features/ClientPortal';
+import Invoicing from './pages/features/Invoicing';
+import Compare from './pages/Compare';
+
 function ProtectedRoute({ children }) {
   return (
     <>
@@ -59,6 +64,11 @@ function App() {
             <Route path="/cancellation-refund" element={<CancellationRefund />} />
             <Route path="/shipping-delivery" element={<ShippingDelivery />} />
 
+            {/* SEO Pages */}
+            <Route path="/features" element={<Features />} />
+            <Route path="/features/client-portal" element={<ClientPortal />} />
+            <Route path="/features/invoicing" element={<Invoicing />} />
+            <Route path="/compare" element={<Compare />} />
 
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}

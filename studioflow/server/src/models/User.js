@@ -8,33 +8,33 @@ const UserSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
-    name: { 
-        type: String, 
+    name: {
+        type: String,
         required: false,
         trim: true,
         default: '',
         maxlength: [100, 'Name cannot exceed 100 characters']
     },
-    email: { 
-        type: String, 
+    email: {
+        type: String,
         required: false,
         lowercase: true,
         trim: true,
         default: '',
         match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address']
     },
-    passwordHash: { 
-        type: String, 
+    passwordHash: {
+        type: String,
         required: false,
         select: false // Don't include password hash by default in queries
     },
-    role: { 
-        type: String, 
+    role: {
+        type: String,
         enum: {
             values: ['editor', 'client', 'admin'],
             message: '{VALUE} is not a valid role'
         },
-        default: 'editor' 
+        default: 'editor'
     },
     isActive: {
         type: Boolean,
@@ -160,10 +160,10 @@ const UserSchema = new mongoose.Schema({
             }
         }
     }
-}, { 
+}, {
     timestamps: true,
     toJSON: {
-        transform: function(doc, ret) {
+        transform: function (doc, ret) {
             delete ret.passwordHash;
             return ret;
         }
@@ -171,7 +171,7 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-UserSchema.index({ clerkUserId: 1 }, { unique: true });
+// UserSchema.index({ clerkUserId: 1 }, { unique: true }); // Defined in schema
 UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ createdAt: -1 });

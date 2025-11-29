@@ -3,28 +3,41 @@ import nodemailer from 'nodemailer';
 import Notification from '../models/Notification.js';
 
 // Redis configuration - supports both REDIS_URL and individual config
-const redisConfig = process.env.REDIS_URL 
+const redisConfig = process.env.REDIS_URL
   ? process.env.REDIS_URL  // Railway/Cloud Redis URL (e.g., redis://default:pass@host:6379)
   : {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-      retryStrategy: (times) => Math.min(times * 50, 2000)
-    };
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    retryStrategy: (times) => Math.min(times * 50, 2000)
+  };
 
 // Create email queue
-export const emailQueue = new Bull('email', {
-  redis: redisConfig,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000
-    },
-    removeOnComplete: true,
-    removeOnFail: false
-  }
-});
+let emailQueue;
+const isQueueEnabled = process.env.ENABLE_REDIS_QUEUE === 'true';
+
+if (isQueueEnabled) {
+  emailQueue = new Bull('email', {
+    redis: redisConfig,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      },
+      removeOnComplete: true,
+      removeOnFail: false
+    }
+  });
+} else {
+  console.log('⚠️ Redis Queue DISABLED. Using Mock Email Queue.');
+  emailQueue = {
+    process: () => { },
+    add: async () => { console.log('ℹ️ Mock Email Queue: Job added (skipped)'); },
+    on: () => { },
+    isReady: () => false
+  };
+}
 
 // Email transporter configuration
 const createTransporter = () => {
@@ -181,4 +194,5 @@ emailQueue.on('failed', (job, err) => {
 
 console.log('📧 Email queue initialized');
 
+export { emailQueue };
 export default emailQueue;

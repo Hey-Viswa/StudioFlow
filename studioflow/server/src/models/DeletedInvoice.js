@@ -74,18 +74,18 @@ const deletedInvoiceSchema = new mongoose.Schema({
 });
 
 // Indexes
-deletedInvoiceSchema.index({ userId: 1 });
+// deletedInvoiceSchema.index({ userId: 1 }); // Defined in schema
 deletedInvoiceSchema.index({ deletedBy: 1 });
-deletedInvoiceSchema.index({ deletedAt: 1 }); // For TTL and sorting
-deletedInvoiceSchema.index({ originalInvoiceId: 1 });
+// deletedInvoiceSchema.index({ deletedAt: 1 }); // Defined in schema (TTL)
+// deletedInvoiceSchema.index({ originalInvoiceId: 1 }); // Defined in schema
 
 // Helper method to check if user can restore
-deletedInvoiceSchema.methods.canRestore = function(userId) {
+deletedInvoiceSchema.methods.canRestore = function (userId) {
   return this.userId === userId || this.deletedBy === userId;
 };
 
 // Helper method to get days remaining before auto-deletion
-deletedInvoiceSchema.methods.getDaysRemaining = function() {
+deletedInvoiceSchema.methods.getDaysRemaining = function () {
   const now = new Date();
   const deleteDate = new Date(this.deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
   const daysLeft = Math.ceil((deleteDate - now) / (1000 * 60 * 60 * 24));

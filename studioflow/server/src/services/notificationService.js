@@ -4,6 +4,8 @@ import { sendEmail, isMessagingAvailable } from '../config/appwriteMessaging.js'
 import { sendPushNotification as sendFCMPush, isFirebaseAvailable } from '../config/firebase.js';
 import { emailQueue } from '../config/queue.js';
 import crypto from 'crypto';
+import { NotificationRulesService } from './notificationRules.js';
+import { notificationQueue } from '../queues/notificationQueue.js';
 
 // In-memory cache for idempotency (use Redis in production)
 const idempotencyCache = new Map();
@@ -455,15 +457,97 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
 };
 
 /**
- * Trigger a notification event (adds to queue)
+ * Process a notification event (Direct execution logic)
+ * This contains the logic previously only in the worker.
+ */
+export const processNotificationEvent = async (type, data, actorId) => {
+  console.log(`🔄 Processing notification event: ${type}`);
+
+  try {
+    // 1. Determine Recipients
+    const recipients = await NotificationRulesService.getRecipients(type, data, actorId);
+
+    if (!recipients || recipients.length === 0) {
+      console.log('ℹ️ No recipients found for this event.');
+      return;
+    }
+
+    console.log(`👥 Found ${recipients.length} potential recipients`);
+
+    // 2. Process for each recipient
+    for (const recipient of recipients) {
+      const userId = recipient.userId;
+
+      // Context for preference checking
+      const context = {
+        projectId: data.projectId || data._id, // Assuming data has project info
+        isMention: data.mentions?.includes(userId),
+        isUrgent: data.priority === 'high'
+      };
+
+      // 3. Check Preferences
+      const shouldNotify = await NotificationRulesService.shouldNotify(userId, type, context);
+
+      if (!shouldNotify) {
+        console.log(`🔕 Notification suppressed for user ${userId} by preferences`);
+        continue;
+      }
+
+      // Customization for Mentions
+      let notificationTitle = data.title;
+      let notificationPriority = data.priority || 'medium';
+
+      if (context.isMention) {
+        notificationTitle = '🔔 You were mentioned';
+        notificationPriority = 'high';
+      }
+
+      // 4. Get Enabled Channels
+      const channels = await NotificationRulesService.getEnabledChannels(userId, context.isUrgent);
+
+      // 5. Create Notification using Service
+      await createNotification({
+        userId,
+        type,
+        title: notificationTitle,
+        message: data.message,
+        link: data.link,
+        metadata: data,
+        priority: notificationPriority,
+        category: data.category || 'info',
+        sendEmail: channels.email,
+        sendPush: channels.push
+      });
+    }
+    console.log(`✅ Successfully processed notification event: ${type}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error processing notification event:', error);
+    return false;
+  }
+};
+
+/**
+ * Trigger a notification event (adds to queue with fallback)
  * @param {string} type - Event type (e.g., 'task.assigned', 'comment.created')
  * @param {Object} data - Event data (payload)
  * @param {string} actorId - ID of user who triggered the event
  */
 export const triggerNotification = async (type, data, actorId) => {
+  // Check if queue is enabled (import dynamically to avoid circular deps if possible, or use the one imported at top)
+  // We imported notificationQueue at the top, let's check its property or the exported flag if we updated imports
+  // Ideally we should import isQueueEnabled from the queue file.
+  // For now, let's rely on the queue.add throwing or check process.env
+
+  const useQueue = process.env.ENABLE_REDIS_QUEUE === 'true';
+
+  if (!useQueue) {
+    console.log(`DIRECT MODE: Processing notification ${type} immediately.`);
+    return await processNotificationEvent(type, data, actorId);
+  }
+
   try {
-    // Import queue dynamically to avoid circular dependency issues if any
-    const { notificationQueue } = await import('../queues/notificationQueue.js');
+    console.log(`📨 Triggering notification: ${type} (Actor: ${actorId})`);
 
     const job = await notificationQueue.add({
       type,
@@ -480,13 +564,13 @@ export const triggerNotification = async (type, data, actorId) => {
       removeOnFail: false
     });
 
-    console.log(`📨 Notification job added to queue: ${job.id} (${type})`);
+    console.log(`✅ Notification job added to queue: ${job.id} (${type})`);
     return job;
   } catch (error) {
-    console.error('❌ Failed to trigger notification:', error);
-    // Fallback: Try to process immediately if queue fails? 
-    // For now, just log error to avoid blocking main flow
-    return null;
+    console.error('❌ Failed to queue notification (Redis issue?), falling back to direct execution:', error);
+
+    // Fallback: Execute directly
+    return await processNotificationEvent(type, data, actorId);
   }
 };
 

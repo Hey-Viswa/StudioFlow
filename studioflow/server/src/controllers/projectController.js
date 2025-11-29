@@ -549,7 +549,7 @@ export const updateProject = async (req, res) => {
     // Update tasks if provided
     if (tasks !== undefined) {
       project.tasks = tasks;
-      console.log('� Tasks updated, auto-calculating progress...');
+      console.log('📝 Tasks updated, auto-calculating progress...');
     }
 
     // Manual status override (only if not letting auto-calc handle it)
@@ -630,7 +630,13 @@ export const updateProject = async (req, res) => {
         const newAssigneeId = newTask.assignedTo?.userId;
         const oldAssigneeId = oldTask?.assignedTo?.userId;
 
-        if (newAssigneeId && newAssigneeId !== userId) { // Don't notify if assigning to self
+        // DEBUG LOGGING
+        if (newAssigneeId) {
+          console.log(`🔍 Checking task assignment: Task "${newTask.title}" assigned to ${newAssigneeId} (Actor: ${userId})`);
+        }
+
+        // Allow self-notifications for testing purposes
+        if (newAssigneeId) {
           if (!oldTask || (oldAssigneeId !== newAssigneeId)) {
             console.log(`🔔 Triggering task assignment notification for user ${newAssigneeId}`);
 
@@ -641,11 +647,11 @@ export const updateProject = async (req, res) => {
               'task.assigned',
               {
                 projectId: project._id,
-                taskId: newTask._id || 'new', // Might be new, so ID might not be stable yet if not re-fetched
+                taskId: newTask._id || 'new',
                 taskTitle: newTask.title,
                 projectTitle: project.title,
                 assignedTo: newTask.assignedTo,
-                priority: 'medium', // Default
+                priority: 'medium',
                 link: `/dashboard/projects/${project._id}`
               },
               userId // Actor
@@ -714,7 +720,6 @@ export const updateProject = async (req, res) => {
 };
 
 // @desc    Soft delete project (move to trash)
-// @desc    Delete project (move to trash)
 // @route   DELETE /api/projects/:id
 // @access  Protected (Owner only)
 export const deleteProject = async (req, res) => {
@@ -937,11 +942,19 @@ export const permanentlyDeleteProject = async (req, res) => {
       return res.status(403).json({ error: 'Only project owner can permanently delete' });
     }
 
-    await project.deleteOne();
+    // Delete from Trash collection if it exists there
+    await Trash.findOneAndDelete({ originalProjectId: id });
+
+    // Delete from Project collection
+    await Project.findByIdAndDelete(id);
+
+    // Also delete related data (invoices, files, etc.)
+    await ProjectInvoice.deleteMany({ projectId: id });
+    await ProjectFile.deleteMany({ projectId: id });
 
     res.json({ message: 'Project permanently deleted' });
   } catch (error) {
-    console.error('Delete project error:', error);
-    res.status(500).json({ error: 'Failed to delete project' });
+    console.error('Permanent delete error:', error);
+    res.status(500).json({ error: 'Failed to permanently delete project' });
   }
 };

@@ -73,7 +73,7 @@ const invoiceSchema = new mongoose.Schema({
 });
 
 // Generate invoice number
-invoiceSchema.pre('save', async function(next) {
+invoiceSchema.pre('save', async function (next) {
   if (!this.invoiceNumber) {
     const count = await this.constructor.countDocuments();
     const timestamp = Date.now().toString().slice(-6);
