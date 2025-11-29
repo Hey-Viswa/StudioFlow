@@ -1456,12 +1456,17 @@ export const getBillingHistory = async (req, res) => {
         });
 
         if (payments.items && payments.items.length > 0) {
+          console.log(`🔍 Raw payments from Razorpay: ${payments.items.length}`);
+          payments.items.forEach(p => console.log(`  - ${p.id} (${p.status}) Sub: ${p.subscription_id}`));
+
           // SAFETY FILTER: Ensure payments actually belong to this subscription
           // This protects against SDK/API bugs returning global data
           const filteredPayments = payments.items.filter(p => 
              p.subscription_id === user.subscription.razorpaySubscriptionId
           );
           
+          console.log(`🔍 Filtered payments: ${filteredPayments.length}`);
+
           if (filteredPayments.length !== payments.items.length) {
              console.warn(`⚠️  Razorpay returned ${payments.items.length} payments, but only ${filteredPayments.length} match subscription ${user.subscription.razorpaySubscriptionId}`);
           }
