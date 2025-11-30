@@ -248,6 +248,16 @@ export const useInvoices = () => {
   }, [getToken, fetchInvoices]);
 
   const updateInvoice = useCallback(async (invoiceId, payload) => {
+    const previousInvoices = invoices;
+
+    // Optimistic update
+    setInvoices((current) => current.map((invoice) => {
+      if (invoice._id === invoiceId) {
+        return { ...invoice, ...payload };
+      }
+      return invoice;
+    }));
+
     try {
       await invoicesApi.setAuthToken(getToken);
       const response = await invoicesApi.updateInvoice(invoiceId, payload);
@@ -256,10 +266,11 @@ export const useInvoices = () => {
       return response;
     } catch (err) {
       console.error('Failed to update invoice:', err);
+      setInvoices(previousInvoices);
       toast.error('Failed to update invoice', { description: err.message });
       throw err;
     }
-  }, [getToken, fetchInvoices]);
+  }, [getToken, fetchInvoices, invoices]);
 
   const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
     const previousInvoices = invoices;

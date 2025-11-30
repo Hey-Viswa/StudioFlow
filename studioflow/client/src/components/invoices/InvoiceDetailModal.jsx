@@ -717,9 +717,10 @@ export default function InvoiceDetailModal({
                       variant="outline"
                       size="sm"
                       onClick={handleDownloadClick}
-                      disabled={loading}
+                      disabled={loading || invoice.status !== 'paid'}
+                      title={invoice.status !== 'paid' ? "Only paid invoices can be downloaded" : "Download PDF"}
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Download className={cn("w-4 h-4 mr-1", invoice.status !== 'paid' && "opacity-50")} />
                       Download
                     </Button>
                   )}

@@ -346,6 +346,7 @@ export default function InvoicesPage() {
           onSave={handleSaveInvoice}
           onDelete={handleDeleteInvoice}
           onResend={handleResendInvoice}
+          onStatusUpdate={handleStatusUpdate}
           onDownload={downloadInvoice}
         />
 

@@ -13,6 +13,14 @@ export const NotificationRulesService = {
      * @returns {Promise<Array>} List of recipient objects with userId and role
      */
     async getRecipients(eventType, resource, actorId) {
+        // If explicit recipients are provided in the resource (payload), use them
+        if (resource.recipients && Array.isArray(resource.recipients) && resource.recipients.length > 0) {
+            console.log(`📝 Using explicit recipients for ${eventType}`);
+            return resource.recipients.map(r =>
+                typeof r === 'string' ? { userId: r, role: 'recipient' } : r
+            );
+        }
+
         let recipients = [];
 
         switch (eventType) {
@@ -29,7 +37,7 @@ export const NotificationRulesService = {
             case 'project.status_changed':
             case 'project.needs_revision':
             case 'project.finalized':
-                recipients = await this.getProjectMembers(resource._id);
+                recipients = await this.getProjectMembers(resource.projectId || resource._id);
                 break;
 
             case 'file.uploaded':
@@ -65,14 +73,36 @@ export const NotificationRulesService = {
     /**
      * Get all members of a project
      */
+    /**
+     * Get all members of a project (including owner)
+     */
     async getProjectMembers(projectId) {
         const project = await Project.findById(projectId);
         if (!project) return [];
 
-        return project.members.map(m => ({
+        // Import ProjectMember dynamically to avoid circular dependencies if any
+        const ProjectMember = (await import('../models/ProjectMember.js')).default;
+
+        const members = await ProjectMember.find({
+            projectId,
+            status: 'active'
+        });
+
+        const recipients = members.map(m => ({
             userId: m.userId,
             role: m.role
         }));
+
+        // Ensure owner is included if not in members list
+        const ownerExists = recipients.some(r => String(r.userId) === String(project.ownerId));
+        if (!ownerExists) {
+            recipients.push({
+                userId: project.ownerId,
+                role: 'owner'
+            });
+        }
+
+        return recipients;
     },
 
     /**

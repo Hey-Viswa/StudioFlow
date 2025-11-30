@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Plus, FileText, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, FileText, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { getProjectInvoices } from '../lib/projectInvoiceApi';
+import { getProjectInvoices, resendInvoice } from '../lib/projectInvoiceApi';
 
 export default function ProjectInvoiceList({ projectId, clients, userRole }) {
   const { getToken } = useAuth();
@@ -25,6 +25,16 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
       toast.error('Failed to fetch invoices');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async (invoiceId) => {
+    try {
+      await resendInvoice(invoiceId, getToken);
+      toast.success('Invoice resent successfully');
+    } catch (error) {
+      console.error('Failed to resend invoice:', error);
+      toast.error(error.message || 'Failed to resend invoice');
     }
   };
 
@@ -72,7 +82,7 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
         <div className="space-y-2">
           {invoices.map((invoice) => {
             const StatusIcon = statusConfig[invoice.status]?.icon || FileText;
-            
+
             return (
               <Card key={invoice._id} className="bg-card border-border p-4">
                 <div className="flex items-center justify-between">
@@ -93,10 +103,23 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
                       <p className="text-lg font-semibold text-white">
                         {formatCurrency(invoice.total)}
                       </p>
-                      <Badge variant="outline" className={statusConfig[invoice.status]?.color}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {invoice.status}
-                      </Badge>
+                      <div className="flex items-center justify-end gap-2">
+                        <Badge variant="outline" className={statusConfig[invoice.status]?.color}>
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {invoice.status}
+                        </Badge>
+                        {!isClient && ['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-blue-50 hover:text-blue-600"
+                            onClick={() => handleResend(invoice._id)}
+                            title="Resend Invoice"
+                          >
+                            <Send className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

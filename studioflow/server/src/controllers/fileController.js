@@ -339,15 +339,35 @@ export const getProjectFiles = async (req, res) => {
       query.status = includeArchived === 'true' ? { $in: ['active', 'archived'] } : status;
     }
 
-    const files = await ProjectFile.find(query)
-      .sort({ createdAt: -1 })
-      .lean();
+    const files = await ProjectFile.findOne({ projectId }) ? await ProjectFile.find(query).sort({ createdAt: -1 }).lean() : [];
+
+    // Check entitlement once for the user
+    let isEntitled = false;
+    if (role === ROLES.CLIENT) {
+      isEntitled = await verifyEntitlement(userId, projectId);
+    }
+
+    // Process files to add permission flags
+    const processedFiles = files.map(file => {
+      const canDownload = role === ROLES.OWNER || isEntitled;
+      const canView = role === ROLES.OWNER || isEntitled; // Or if shared explicitly?
+
+      // If we want to support legacy sharedWith array as fallback:
+      // const legacyShared = file.sharedWith?.some(s => s.userId === userId);
+      // return { ...file, canDownload: canDownload || legacyShared, canView: canView || legacyShared };
+
+      return {
+        ...file,
+        canDownload,
+        canView
+      };
+    });
 
     // Group by baseFileId to show version history
     const fileGroups = {};
     const standaloneFiles = [];
 
-    files.forEach(file => {
+    processedFiles.forEach(file => {
       if (file.baseFileId) {
         if (!fileGroups[file.baseFileId]) {
           fileGroups[file.baseFileId] = [];
@@ -359,10 +379,10 @@ export const getProjectFiles = async (req, res) => {
     });
 
     res.status(200).json({
-      files,
+      files: processedFiles,
       fileGroups,
       standaloneFiles,
-      totalCount: files.length,
+      totalCount: processedFiles.length,
     });
   } catch (error) {
     console.error('❌ Error fetching project files:', error);

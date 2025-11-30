@@ -1,4 +1,5 @@
 import ProjectInvoice from '../models/ProjectInvoice.js';
+import Entitlement from '../models/Entitlement.js';
 import Project from '../models/Project.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { ROLES } from '../utils/permissions.js';
@@ -849,25 +850,14 @@ export const resendProjectInvoice = async (req, res) => {
       return res.status(400).json({ error: 'Client email not available' });
     }
 
-    const { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } = await import('../utils/pdfGenerator.js');
-    let pdfPath = getInvoicePDFPath(invoice.invoiceNumber);
-
-    if (!invoicePDFExists(invoice.invoiceNumber)) {
-      const user = {
-        email: invoice.client.email,
-        name: invoice.client.name || 'Client'
-      };
-      pdfPath = await generateInvoicePDF(invoice, user);
-      invoice.pdfUrl = `/api/invoices/project/${invoice.invoiceNumber}/download`;
-      invoice.pdfGenerated = true;
-    }
-
+    // STRICT ACCESS: Do NOT attach PDF for unpaid invoices
+    // Only send the email with the link to the payment page
     const { sendInvoiceEmail } = await import('../utils/emailService.js');
     await sendInvoiceEmail({
       to: invoice.client.email,
       userName: invoice.client.name || 'Client',
       invoice,
-      pdfPath
+      pdfPath: null // Explicitly no PDF
     });
 
     invoice.emailSent = true;
@@ -994,6 +984,18 @@ export const verifyProjectInvoicePayment = async (req, res) => {
     invoice.razorpaySignature = razorpay_signature;
     invoice.paidAt = new Date();
     await invoice.save();
+
+    // Create Entitlement for Client
+    if (invoice.client.userId) {
+      await Entitlement.create({
+        userId: invoice.client.userId,
+        projectId: invoice.projectId,
+        scope: 'project_download',
+        grantedAt: new Date(),
+        expiresAt: null // Permanent access
+      });
+      console.log('✓ Entitlement granted to client');
+    }
 
     console.log('✓ Invoice marked as paid');
 
@@ -1154,6 +1156,18 @@ async function handlePaymentCaptured(payment, timestamp) {
       invoice.paidAt = new Date(payment.created_at * 1000);
       await invoice.save();
 
+      // Create Entitlement for Client
+      if (invoice.client.userId) {
+        await Entitlement.create({
+          userId: invoice.client.userId,
+          projectId: invoice.projectId,
+          scope: 'project_download',
+          grantedAt: new Date(),
+          expiresAt: null // Permanent access
+        });
+        console.log(`[${timestamp}] ✓ Entitlement granted to client`);
+      }
+
       console.log(`[${timestamp}] ✓ Invoice ${invoice.invoiceNumber} marked as paid`);
 
       // Generate PDF automatically after payment success
@@ -1248,8 +1262,11 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     // Find invoice by number or ObjectId
     let invoice = await ProjectInvoice.findOne({ invoiceNumber: invoiceIdentifier });
 
-    if (!invoice && mongoose.Types.ObjectId.isValid(invoiceIdentifier)) {
-      invoice = await ProjectInvoice.findById(invoiceIdentifier);
+    if (!invoice) {
+      // Try by ID
+      if (mongoose.Types.ObjectId.isValid(invoiceIdentifier)) {
+        invoice = await ProjectInvoice.findById(invoiceIdentifier);
+      }
     }
 
     if (!invoice) {
@@ -1259,6 +1276,14 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     // Check access: owner or client
     if (invoice.userId !== userId && invoice.client.userId !== userId) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // STRICT ACCESS: Only PAID invoices can be downloaded
+    if (invoice.status !== 'paid') {
+      return res.status(403).json({
+        error: 'Invoice is locked. Only paid invoices can be downloaded.',
+        status: invoice.status
+      });
     }
 
     await ensureInvoiceProject(invoice);

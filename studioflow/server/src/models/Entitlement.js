@@ -17,6 +17,11 @@ const EntitlementSchema = new mongoose.Schema({
         ref: 'PaymentThread',
         required: true
     },
+    invoiceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ProjectInvoice',
+        default: null
+    },
     scope: {
         type: String,
         enum: ['project_download', 'source_files', 'view_only'],
@@ -25,6 +30,10 @@ const EntitlementSchema = new mongoose.Schema({
     grantedAt: {
         type: Date,
         default: Date.now
+    },
+    expiresAt: {
+        type: Date,
+        required: true
     },
     revokedAt: {
         type: Date,

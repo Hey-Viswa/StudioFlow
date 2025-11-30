@@ -18,6 +18,7 @@ export default function InvoiceItemRow({
   canRemove,
   errors,
 }) {
+  if (!item) return null;
   const amount = (item.quantity || 0) * (item.rate || 0);
   const titleError = errors?.title?.message;
   const quantityError = errors?.quantity?.message;

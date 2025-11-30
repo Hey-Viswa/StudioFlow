@@ -869,6 +869,9 @@ export const updateProject = async (req, res) => {
     // Send Notifications for Client Actions
     if (status === 'needs-revision' && revisionNotes) {
       console.log('🔔 Attempting to send revision notification to owner:', project.ownerId);
+      console.log('   - Actor (Client):', userId);
+      console.log('   - Recipient (Owner):', project.ownerId);
+
       try {
         await createNotificationWithIdempotency({
           projectId: project._id.toString(),
@@ -881,6 +884,7 @@ export const updateProject = async (req, res) => {
           link: `/dashboard/projects/${project._id}?tab=comments`,
           priority: 'high',
           category: 'project',
+          idempotencyKey: `rev-${project._id}-${Date.now()}`, // FORCE UNIQUE FOR DEBUGGING
           metadata: {
             projectTitle: project.title,
             requestedBy: userName
@@ -903,6 +907,7 @@ export const updateProject = async (req, res) => {
           link: `/dashboard/projects/${project._id}`,
           priority: 'high',
           category: 'project',
+          idempotencyKey: `fin-${project._id}-${Date.now()}`, // FORCE UNIQUE FOR DEBUGGING
           metadata: {
             projectTitle: project.title,
             approvedBy: userName

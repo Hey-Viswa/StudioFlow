@@ -50,6 +50,18 @@ const projectInvoiceSchema = new mongoose.Schema({
     default: 1
   },
 
+  revisionHistory: [{
+    version: Number,
+    changedBy: String, // User ID
+    changedAt: { type: Date, default: Date.now },
+    changes: mongoose.Schema.Types.Mixed // Diff or summary of changes
+  }],
+
+  immutableSnapshot: {
+    type: mongoose.Schema.Types.Mixed, // Stores the full invoice object at the time of sending
+    default: null
+  },
+
   isFinalized: {
     type: Boolean,
     default: false
@@ -153,8 +165,18 @@ const projectInvoiceSchema = new mongoose.Schema({
   // Payment status
   status: {
     type: String,
-    enum: ['draft', 'pending', 'paid', 'overdue', 'failed', 'cancelled'],
+    enum: ['draft', 'pending', 'sent', 'paid', 'overdue', 'failed', 'cancelled', 'refunded'],
     default: 'draft'
+  },
+
+  sentAt: {
+    type: Date,
+    default: null
+  },
+
+  accessDurationDays: {
+    type: Number,
+    default: 90 // 3 months default access
   },
 
   // Razorpay integration

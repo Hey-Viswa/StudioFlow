@@ -41,6 +41,9 @@ import { DashboardSkeleton } from '../components/DashboardSkeleton';
 const NotificationsPage = () => {
   const { notifications: allNotifications = [], unreadCount, loading, markAsRead, markAllAsRead, deleteNotification, refetch } = useNotifications();
   const [notifications, setNotifications] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filter notifications based on selected filters
   useEffect(() => {

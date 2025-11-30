@@ -214,7 +214,7 @@ export const useNotifications = () => {
     // Define handlers
     const playNotificationSound = () => {
       try {
-        const audio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+        const audio = new Audio('/notification.mp3');
         audio.play().catch(e => console.log('Audio play failed:', e));
       } catch (e) {
         console.error('Error playing sound:', e);

@@ -124,6 +124,7 @@ export const createNotificationWithIdempotency = async ({
         metadata,
         sendEmail,
         emailTemplate,
+        idempotencyKey: idemKey, // Pass the key to the worker
         ...metadata // Spread metadata into top-level data for easier access in worker
       }
     };

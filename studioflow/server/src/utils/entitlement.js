@@ -17,9 +17,10 @@ export const verifyEntitlement = async (userId, projectId, scope = 'project_down
 
         if (!entitlement) return false;
 
-        // If scope is specific, check it (optional, depending on how strict we want to be)
-        // For now, any active entitlement allows access, but we can enforce scope later
-        // if (entitlement.scope !== scope && entitlement.scope !== 'all') return false;
+        // Check expiry
+        if (entitlement.expiresAt && new Date() > new Date(entitlement.expiresAt)) {
+            return false;
+        }
 
         return true;
     } catch (error) {

@@ -606,12 +606,18 @@ const handlePaymentCaptured = async (payload) => {
                     const invoiceAccessType = invoice.accessType || 'all';
 
                     if (invoiceAccessType === 'all') {
+                        // Calculate expiry (90 days)
+                        const expiresAt = new Date();
+                        expiresAt.setDate(expiresAt.getDate() + (invoice.accessDurationDays || 90));
+
                         await Entitlement.create({
                             userId: clientId,
                             projectId: paymentThread.projectId,
                             paymentThreadId: paymentThread._id,
+                            invoiceId: invoice._id, // Link to invoice
                             scope: 'project_download',
-                            grantedAt: new Date()
+                            grantedAt: new Date(),
+                            expiresAt: expiresAt // Set expiry
                         });
 
                         console.log(`Full Entitlement created for user ${clientId} on project ${paymentThread.projectId}`);

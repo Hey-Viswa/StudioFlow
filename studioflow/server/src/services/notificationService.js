@@ -557,7 +557,8 @@ export const processNotificationEvent = async (type, data, actorId) => {
         priority: notificationPriority,
         category: modelCategory,
         sendEmail: channels.email,
-        sendPush: channels.push
+        sendPush: channels.push,
+        idempotencyKey: data.idempotencyKey // Pass the key from the job data
       });
     }
     console.log(`✅ Successfully processed notification event: ${type}`);

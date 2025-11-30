@@ -16,13 +16,13 @@ export const PERMISSIONS = {
   PROJECT_DELETE: 'project:delete',
   PROJECT_INVITE: 'project:invite',
   PROJECT_TRANSFER: 'project:transfer',
-  
+
   // Task permissions
   TASK_CREATE: 'task:create',
   TASK_EDIT: 'task:edit',
   TASK_DELETE: 'task:delete',
   TASK_ASSIGN: 'task:assign',
-  
+
   // File permissions
   FILE_UPLOAD: 'file:upload',
   FILE_DELETE: 'file:delete',
@@ -30,7 +30,7 @@ export const PERMISSIONS = {
   FILE_MANAGE_SHARING: 'file:manage_sharing',
   FILE_DOWNLOAD: 'file:download',
   FILE_VIEW: 'file:view',
-  
+
   // Invoice permissions
   INVOICE_CREATE: 'invoice:create',
   INVOICE_EDIT: 'invoice:edit',
@@ -38,7 +38,7 @@ export const PERMISSIONS = {
   INVOICE_SEND: 'invoice:send',
   INVOICE_VIEW: 'invoice:view',
   INVOICE_PAY: 'invoice:pay',
-  
+
   // Comment permissions
   COMMENT_CREATE: 'comment:create',
   COMMENT_EDIT_OWN: 'comment:edit_own',
@@ -57,13 +57,13 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.PROJECT_DELETE,
     PERMISSIONS.PROJECT_INVITE,
     PERMISSIONS.PROJECT_TRANSFER,
-    
+
     // All task permissions
     PERMISSIONS.TASK_CREATE,
     PERMISSIONS.TASK_EDIT,
     PERMISSIONS.TASK_DELETE,
     PERMISSIONS.TASK_ASSIGN,
-    
+
     // All file permissions
     PERMISSIONS.FILE_UPLOAD,
     PERMISSIONS.FILE_DELETE,
@@ -71,7 +71,7 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.FILE_MANAGE_SHARING,
     PERMISSIONS.FILE_DOWNLOAD,
     PERMISSIONS.FILE_VIEW,
-    
+
     // All invoice permissions
     PERMISSIONS.INVOICE_CREATE,
     PERMISSIONS.INVOICE_EDIT,
@@ -79,7 +79,7 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.INVOICE_SEND,
     PERMISSIONS.INVOICE_VIEW,
     PERMISSIONS.INVOICE_PAY,
-    
+
     // All comment permissions
     PERMISSIONS.COMMENT_CREATE,
     PERMISSIONS.COMMENT_EDIT_OWN,
@@ -89,16 +89,16 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.COMMENT_REACT,
     PERMISSIONS.COMMENT_REPLY,
   ],
-  
+
   [ROLES.CLIENT]: [
     // Limited file permissions (view and download shared files only)
     PERMISSIONS.FILE_VIEW,
     PERMISSIONS.FILE_DOWNLOAD, // Only for files shared with them
-    
+
     // Invoice permissions (view and pay only)
     PERMISSIONS.INVOICE_VIEW,
     PERMISSIONS.INVOICE_PAY,
-    
+
     // Comment permissions (create, edit own, react, reply)
     PERMISSIONS.COMMENT_CREATE,
     PERMISSIONS.COMMENT_EDIT_OWN,
@@ -131,15 +131,15 @@ export function hasPermission(role, permission) {
 export function canPerformAction(user, role, permission, resource = null) {
   // Owner bypass - owners can do anything
   if (role === ROLES.OWNER) return true;
-  
+
   // Check if role has the permission
   if (!hasPermission(role, permission)) return false;
-  
+
   // For "own" permissions, verify ownership
   if (permission.includes('_own') && resource) {
     return resource.userId === user?.id || resource.uploaderId === user?.id;
   }
-  
+
   return true;
 }
 
@@ -168,7 +168,7 @@ export function getPermissionErrorMessage(action) {
     'comment:edit_any': 'You can only edit your own comments',
     'comment:delete_any': 'You can only delete your own comments',
   };
-  
+
   return messages[action] || 'You do not have permission to perform this action';
 }
 
@@ -193,13 +193,18 @@ export function isFileSharedWithUser(file, userId) {
 export function canDownloadFile(file, userId, role) {
   // Owners can download any file
   if (role === ROLES.OWNER) return true;
-  
+
+  // Use server-provided flag if available
+  if (file && typeof file.canDownload === 'boolean') {
+    return file.canDownload;
+  }
+
   // Clients can only download if file is shared with them AND allowDownload is true
   if (role === ROLES.CLIENT) {
     const sharedInfo = file.sharedWith?.find(s => s.userId === userId);
     return sharedInfo && sharedInfo.allowDownload === true;
   }
-  
+
   return false;
 }
 
@@ -213,11 +218,16 @@ export function canDownloadFile(file, userId, role) {
 export function canViewFile(file, userId, role) {
   // Owners can view any file
   if (role === ROLES.OWNER) return true;
-  
+
+  // Use server-provided flag if available
+  if (file && typeof file.canView === 'boolean') {
+    return file.canView;
+  }
+
   // Clients can only view if file is shared with them
   if (role === ROLES.CLIENT) {
     return isFileSharedWithUser(file, userId);
   }
-  
+
   return false;
 }
