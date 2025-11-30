@@ -103,24 +103,46 @@ export const createNotification = async ({
       timestamp: Date.now()
     });
 
-    // Step 3: Send email if requested
-    if (sendEmail) {
-      try {
-        await sendNotificationEmail(userId, notification);
-      } catch (emailError) {
-        console.error('⚠️  Email delivery error:', emailError.message);
-        // Non-critical, notification still delivered
+    // Step 2: Check if user is online
+    const io = getIO();
+    let isUserOnline = false;
+
+    if (io) {
+      const roomName = `user:${userId}`;
+      const room = io.sockets.adapter.rooms.get(roomName);
+      isUserOnline = room && room.size > 0;
+
+      if (isUserOnline) {
+        // User is online - Send Real-time Notification
+        io.to(roomName).emit('notification:new', notification);
+        console.log(`⚡ Real-time notification sent to online user ${userId}`);
+      } else {
+        console.log(`zzz User ${userId} is offline. Proceeding to fallback channels.`);
       }
     }
 
-    // Step 4: Send push notification if requested
-    if (sendPush) {
-      try {
-        await sendNotificationPush(userId, notification);
-      } catch (pushError) {
-        console.error('⚠️  Push notification error:', pushError.message);
-        // Non-critical, notification still delivered
+    // Step 3: Fallback - Send Email/Push ONLY if user is offline
+    // (Or if we want to force send regardless of status, we could add a force flag, but per req we fallback)
+    if (!isUserOnline) {
+      if (sendEmail) {
+        try {
+          await sendNotificationEmail(userId, notification);
+        } catch (emailError) {
+          console.error('⚠️  Email delivery error:', emailError.message);
+          // Non-critical, notification still delivered
+        }
       }
+
+      if (sendPush) {
+        try {
+          await sendNotificationPush(userId, notification);
+        } catch (pushError) {
+          console.error('⚠️  Push notification error:', pushError.message);
+          // Non-critical, notification still delivered
+        }
+      }
+    } else {
+      console.log(`🔕 Suppressed email/push for online user ${userId}`);
     }
 
     return notification;

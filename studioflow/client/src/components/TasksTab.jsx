@@ -32,6 +32,9 @@ import { useProjectSocket } from '../hooks/useSocket';
 export default function TasksTab({ projectId, project }) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = useState([]);
+  
+  const userRole = project?.userRole || 'client';
+  const isClient = userRole === 'client';
   const [taskStats, setTaskStats] = useState({
     total: 0,
     completed: 0,
@@ -282,13 +285,15 @@ export default function TasksTab({ projectId, project }) {
             </p>
           )}
         </div>
-        <Button onClick={() => setShowAddTask(!showAddTask)} size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Task
-        </Button>
+        {!isClient && (
+          <Button onClick={() => setShowAddTask(!showAddTask)} size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Task
+          </Button>
+        )}
       </div>
 
-      {showAddTask && (
+      {showAddTask && !isClient && (
         <div className="border rounded-lg p-4 bg-muted/50">
           <form onSubmit={handleCreateTask} className="space-y-4">
             <div>
@@ -386,13 +391,15 @@ export default function TasksTab({ projectId, project }) {
                       <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteTask(task._id)}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
+                  {!isClient && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteTask(task._id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   {task.assignedTo && (
@@ -411,19 +418,25 @@ export default function TasksTab({ projectId, project }) {
                     {task.status.replace('-', ' ')}
                   </Badge>
                 </div>
-                <Select
-                  value={task.status}
-                  onValueChange={(value) => handleUpdateTaskStatus(task._id, value)}
-                >
-                  <SelectTrigger className="w-[180px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
+                {!isClient ? (
+                  <Select
+                    value={task.status}
+                    onValueChange={(value) => handleUpdateTaskStatus(task._id, value)}
+                  >
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-8 flex items-center">
+                    <span className="text-xs text-muted-foreground">Status: {task.status}</span>
+                  </div>
+                )}
               </div>
             </div>
           ))}

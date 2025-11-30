@@ -52,10 +52,16 @@ export default function CreateInvoicePage() {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [projectFiles, setProjectFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
-    defaultValues: defaultInvoiceValues(),
+    defaultValues: {
+      ...defaultInvoiceValues(),
+      accessType: 'all',
+      linkedFileIds: [],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -88,6 +94,18 @@ export default function CreateInvoicePage() {
     }
   };
 
+  const fetchProjectFiles = async (projectId) => {
+    try {
+      setLoadingFiles(true);
+      const response = await api.get(`/projects/${projectId}/files`, { getToken });
+      setProjectFiles(response.files || []);
+    } catch (error) {
+      console.error('Failed to fetch project files:', error);
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
   const onSubmit = async (data) => {
     setLoading(true);
     try {
@@ -107,6 +125,8 @@ export default function CreateInvoicePage() {
           percentage: Math.round(parseInt(data.discount?.percentage, 10) || 0),
         },
         notes: data.notes || '',
+        accessType: data.accessType || 'all',
+        linkedFileIds: data.accessType === 'specific_files' ? data.linkedFileIds : [],
       };
 
       await createInvoice(payload);
@@ -182,6 +202,11 @@ export default function CreateInvoicePage() {
                           field.onChange(value);
                           const project = projects.find((p) => p._id === value);
                           setSelectedProject(project);
+                          if (project) {
+                            fetchProjectFiles(project._id);
+                          } else {
+                            setProjectFiles([]);
+                          }
                         }}
                         value={field.value}
                         disabled={loadingProjects}
@@ -204,16 +229,109 @@ export default function CreateInvoicePage() {
                   )}
                 />
 
-                {selectedProject && (
-                  <div className="mt-4 p-3 bg-muted rounded-md">
-                    <p className="text-sm font-medium">Client: {selectedProject.clientName || 'N/A'}</p>
-                    {selectedProject.clientEmail && (
-                      <p className="text-xs text-muted-foreground">{selectedProject.clientEmail}</p>
-                    )}
-                  </div>
-                )}
+                {selectedProject && (() => {
+                  const client = selectedProject.members?.find(m => m.role === 'client');
+                  return (
+                    <div className="mt-4 p-3 bg-muted rounded-md">
+                      <p className="text-sm font-medium">Client: {client?.name || client?.email || 'Not assigned'}</p>
+                      {client?.email && (
+                        <p className="text-xs text-muted-foreground">{client.email}</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
+
+            {/* Access Type & File Linking */}
+            {selectedProject && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Access & Permissions</CardTitle>
+                  <CardDescription>Control what the client can access upon payment</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="accessType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Access Scope</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select access scope" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="all">Full Project Access (Default)</SelectItem>
+                            <SelectItem value="specific_files">Milestone (Specific Files)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {field.value === 'all'
+                            ? 'Payment grants access to all project files.'
+                            : 'Payment grants access only to selected files.'}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch('accessType') === 'specific_files' && (
+                    <FormField
+                      control={form.control}
+                      name="linkedFileIds"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Link Files</FormLabel>
+                          <div className="border rounded-md p-2 max-h-60 overflow-y-auto bg-background space-y-2">
+                            {loadingFiles ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Loading files...
+                              </div>
+                            ) : projectFiles.length === 0 ? (
+                              <p className="text-sm text-muted-foreground p-2">No files found in this project.</p>
+                            ) : (
+                              projectFiles.map((file) => (
+                                <div key={file._id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded">
+                                  <input
+                                    type="checkbox"
+                                    id={`file-${file._id}`}
+                                    checked={field.value?.includes(file._id)}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const current = field.value || [];
+                                      if (checked) {
+                                        field.onChange([...current, file._id]);
+                                      } else {
+                                        field.onChange(current.filter((id) => id !== file._id));
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                  />
+                                  <label
+                                    htmlFor={`file-${file._id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 truncate"
+                                  >
+                                    {file.originalFilename}
+                                  </label>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Invoice Items */}
             <Card>

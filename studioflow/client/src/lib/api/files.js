@@ -295,7 +295,7 @@ export function getFileIcon(mimeType) {
 /**
  * Validate file before upload
  */
-export function validateFile(file, maxSize = 500 * 1024 * 1024) {
+export function validateFile(file, maxSize = 500 * 1024 * 1024, accept = null) {
   if (!file) {
     return { valid: false, error: 'No file selected' };
   }
@@ -311,6 +311,30 @@ export function validateFile(file, maxSize = 500 * 1024 * 1024) {
     return { valid: false, error: 'File is empty' };
   }
 
+  if (accept) {
+    const acceptedTypes = accept.split(',').map(t => t.trim());
+    const fileType = file.type;
+    const fileName = file.name;
+
+    const isValidType = acceptedTypes.some(type => {
+      if (type.endsWith('/*')) {
+        // Handle wildcards like image/*
+        const baseType = type.split('/')[0];
+        return fileType.startsWith(`${baseType}/`);
+      } else if (type.startsWith('.')) {
+        // Handle extensions like .pdf
+        return fileName.toLowerCase().endsWith(type.toLowerCase());
+      } else {
+        // Handle exact mime types
+        return fileType === type;
+      }
+    });
+
+    if (!isValidType) {
+      return { valid: false, error: 'File type not supported' };
+    }
+  }
+
   return { valid: true };
 }
 
@@ -319,7 +343,7 @@ export function validateFile(file, maxSize = 500 * 1024 * 1024) {
  */
 export async function shareFileWithClient(projectId, fileId, clientId, options, token) {
   console.log('[ShareFile] Request:', { projectId, fileId, clientId, options });
-  
+
   const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/share`, {
     method: 'POST',
     headers: {
@@ -337,7 +361,7 @@ export async function shareFileWithClient(projectId, fileId, clientId, options, 
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type');
-    
+
     if (contentType && contentType.includes('application/json')) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to share file');

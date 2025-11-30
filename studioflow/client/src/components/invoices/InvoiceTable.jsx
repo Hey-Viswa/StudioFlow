@@ -247,6 +247,7 @@ export default function InvoiceTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-muted-foreground">Invoice</TableHead>
+                <TableHead className="text-muted-foreground">Type</TableHead>
                 <TableHead className="text-muted-foreground">Project</TableHead>
                 <TableHead className="text-muted-foreground">Client</TableHead>
                 <TableHead className="text-muted-foreground">Status</TableHead>
@@ -292,6 +293,18 @@ export default function InvoiceTable({
                       </div>
                     </TableCell>
                     <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          {invoice.accessType === 'specific_files' ? 'Milestone' : 'Full Access'}
+                        </span>
+                        {invoice.linkedFileIds?.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {invoice.linkedFileIds.length} files linked
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <p className="text-sm truncate max-w-[200px]">
                         {invoice.projectId?.title || invoice.projectTitle || 'N/A'}
                       </p>
@@ -308,7 +321,8 @@ export default function InvoiceTable({
                     </TableCell>
                     <TableCell>
                       <InvoiceStatusBadge
-                        status={invoice.status === 'pending' && new Date(invoice.dueDate) < new Date() ? 'overdue' : invoice.status}
+                        status={invoice.status}
+                        isOverdue={invoice.isOverdue}
                         invoiceId={invoice._id}
                         onStatusChange={handleStatusChange}
                         loading={statusUpdating === invoice._id}
@@ -452,6 +466,16 @@ export default function InvoiceTable({
                     <div>
                       <p className="font-mono font-medium text-sm">{invoice.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(invoice.dueDate)}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground">
+                          {invoice.accessType === 'specific_files' ? 'Milestone' : 'Full Access'}
+                        </span>
+                        {invoice.linkedFileIds?.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            • {invoice.linkedFileIds.length} files
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <InvoiceStatusBadge

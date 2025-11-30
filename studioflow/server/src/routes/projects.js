@@ -23,6 +23,10 @@ import {
   reactToComment,
   resolveComment
 } from '../controllers/commentController.js';
+import {
+  requestTransfer,
+  acceptTransfer
+} from '../controllers/ownershipController.js';
 
 const router = express.Router();
 
@@ -43,6 +47,10 @@ router.delete('/:id', deleteProject);                     // Soft delete project
 // Trash management
 router.post('/:id/restore', restoreProject);              // Restore from trash
 router.delete('/:id/permanent', permanentlyDeleteProject); // Permanently delete
+
+// Ownership Transfer
+router.post('/:id/ownership/request', requestTransfer);
+router.post('/:id/ownership/accept', acceptTransfer);
 
 // Invite generation
 router.post('/:id/invite', checkResourceLimit('member'), generateInvite);               // Generate invite link (owner only)

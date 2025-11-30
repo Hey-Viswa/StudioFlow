@@ -62,8 +62,10 @@ import {
   Upload,
   Home,
   MoreVertical,
-  RefreshCw
+  RefreshCw,
+  ArrowRightLeft
 } from 'lucide-react';
+import OwnershipTransferModal from '../components/OwnershipTransferModal';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -108,6 +110,7 @@ export default function ProjectDetail() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState('');
   const [submittingRevision, setSubmittingRevision] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
 
   // Fetch project function that can be called from socket listeners
   const fetchProject = useCallback(async () => {
@@ -711,65 +714,77 @@ export default function ProjectDetail() {
 
                       {/* Dropdown menu */}
                       <div className="absolute right-0 top-10 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
-                        {project.isOwner ? (
+                        {(project.isOwner || project.userRole === 'team_member') && (
+                          <button
+                            onClick={() => {
+                              setShowDropdown(false);
+                              startEditing();
+                            }}
+                            className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Project
+                          </button>
+                        )}
+
+                        {project.isOwner && (
+                          <button
+                            onClick={() => {
+                              setShowDropdown(false);
+                              openDeleteConfirm();
+                            }}
+                            disabled={deleting}
+                            className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deleting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Project
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {project.isOwner && (
+                          <button
+                            onClick={() => {
+                              setShowDropdown(false);
+                              setShowTransferModal(true);
+                            }}
+                            className="w-full flex items-center px-3 py-2 text-sm text-amber-600 hover:bg-accent cursor-pointer"
+                          >
+                            <ArrowRightLeft className="w-4 h-4 mr-2" />
+                            Transfer Ownership
+                          </button>
+                        )}
+
+                        {project.userRole === 'client' && (
                           <>
                             <button
                               onClick={() => {
                                 setShowDropdown(false);
-                                startEditing();
+                                setShowRevisionModal(true);
                               }}
                               className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
                             >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Project
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Request Revision
                             </button>
                             <button
                               onClick={() => {
                                 setShowDropdown(false);
-                                openDeleteConfirm();
+                                setShowApproveModal(true);
                               }}
-                              disabled={deleting}
-                              className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
                             >
-                              {deleting ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Delete Project
-                                </>
-                              )}
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Approve Final
                             </button>
-                          </>
-                        ) : (
-                          <>
-                            {project.userRole === 'client' && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setShowDropdown(false);
-                                    setShowRevisionModal(true);
-                                  }}
-                                  className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                                >
-                                  <RefreshCw className="w-4 h-4 mr-2" />
-                                  Request Revision
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setShowDropdown(false);
-                                    setShowApproveModal(true);
-                                  }}
-                                  className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
-                                >
-                                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                                  Approve Final
-                                </button>
-                              </>
-                            )}
                           </>
                         )}
                       </div>
@@ -977,6 +992,7 @@ export default function ProjectDetail() {
                 <ProjectInvoiceList
                   projectId={projectId}
                   clients={project.members?.filter(m => m.role === 'client')}
+                  userRole={project.userRole}
                 />
               </TabsContent>
 
@@ -1157,6 +1173,16 @@ export default function ProjectDetail() {
           </DialogContent>
         </Dialog>
       )}
+      {/* Ownership Transfer Modal */}
+      <OwnershipTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        project={project}
+        onSuccess={() => {
+          fetchProject();
+          toast.success('Ownership transfer initiated');
+        }}
+      />
     </div>
   );
 }

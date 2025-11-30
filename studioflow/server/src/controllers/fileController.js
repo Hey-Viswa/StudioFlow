@@ -13,6 +13,7 @@ import {
 
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+import { verifyEntitlement } from '../utils/entitlement.js';
 
 /**
  * Helper: Check if user is a project collaborator
@@ -389,6 +390,18 @@ export const getFileDetails = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
+    // Entitlement Check for Clients
+    if (role === ROLES.CLIENT) {
+      const isEntitled = await verifyEntitlement(userId, projectId);
+      if (!isEntitled) {
+        return res.status(403).json({
+          error: 'Payment Required',
+          message: 'You must pay the invoice to access these files.',
+          code: 'ENTITLEMENT_REQUIRED'
+        });
+      }
+    }
+
     const file = await ProjectFile.findOne({ fileId, projectId });
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -597,6 +610,18 @@ export const getFilePreviewUrl = async (req, res) => {
 
     if (!checkPermission(role, PERMISSIONS.FILE_VIEW)) {
       return res.status(403).json({ error: 'You do not have permission to view files.' });
+    }
+
+    // Entitlement Check for Clients
+    if (role === ROLES.CLIENT) {
+      const isEntitled = await verifyEntitlement(userId, projectId);
+      if (!isEntitled) {
+        return res.status(403).json({
+          error: 'Payment Required',
+          message: 'You must pay the invoice to view this file.',
+          code: 'ENTITLEMENT_REQUIRED'
+        });
+      }
     }
 
     const file = await ProjectFile.findOne({ fileId, projectId });

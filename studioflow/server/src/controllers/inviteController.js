@@ -30,7 +30,7 @@ export const acceptInvite = async (req, res) => {
       return res.status(400).json({ error: 'Invalid invite token' });
     }
 
-    const { projectId, role } = decoded;
+    const { projectId, role, invitedBy } = decoded;
 
     // Find the project
     const project = await Project.findById(projectId);
@@ -83,7 +83,7 @@ export const acceptInvite = async (req, res) => {
           role: role || 'client',
           status: 'active',
           joinedAt: new Date(),
-          invitedBy: project.ownerId // Assuming owner invited, or we could track this in token
+          invitedBy: invitedBy || project.ownerId // Use token's invitedBy, fallback to owner
         },
         { upsert: true, new: true }
       );

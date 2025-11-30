@@ -17,6 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '../ui/form';
 import {
   Select,
@@ -53,10 +54,16 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [projectFiles, setProjectFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
-    defaultValues: defaultInvoiceValues(),
+    defaultValues: {
+      ...defaultInvoiceValues(),
+      accessType: 'all',
+      linkedFileIds: [],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -101,10 +108,29 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
+  const fetchProjectFiles = async (projectId) => {
+    try {
+      setLoadingFiles(true);
+      const response = await api.get(`/projects/${projectId}/files`, { getToken });
+      setProjectFiles(response.files || []);
+    } catch (error) {
+      console.error('Failed to fetch project files:', error);
+      // Don't show error toast to avoid clutter, just log it
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
+
   // Handle project selection and auto-populate
   const handleProjectSelect = (projectId) => {
     const project = projects.find((p) => p._id === projectId);
     setSelectedProject(project);
+
+    if (project) {
+      fetchProjectFiles(projectId);
+    } else {
+      setProjectFiles([]);
+    }
 
     if (project) {
       const client = project.members?.find((m) => m.role === 'client');
@@ -169,6 +195,8 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
           percentage: Math.round(parseInt(data.discount.percentage, 10) || 0),
         },
         notes: data.notes || '',
+        accessType: data.accessType || 'all',
+        linkedFileIds: data.accessType === 'specific_files' ? data.linkedFileIds : [],
       };
 
       await onSuccess(data.projectId, invoiceData);
@@ -254,6 +282,90 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                   </FormItem>
                 )}
               />
+
+              {/* Access Type & File Linking */}
+              {selectedProject && (
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
+                  <FormField
+                    control={form.control}
+                    name="accessType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Access Scope</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select access scope" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="all">Full Project Access (Default)</SelectItem>
+                            <SelectItem value="specific_files">Milestone (Specific Files)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription className="text-xs">
+                          {field.value === 'all'
+                            ? 'Payment grants access to all project files.'
+                            : 'Payment grants access only to selected files.'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch('accessType') === 'specific_files' && (
+                    <FormField
+                      control={form.control}
+                      name="linkedFileIds"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Link Files</FormLabel>
+                          <div className="border rounded-md p-2 max-h-40 overflow-y-auto bg-background space-y-2">
+                            {loadingFiles ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Loading files...
+                              </div>
+                            ) : projectFiles.length === 0 ? (
+                              <p className="text-sm text-muted-foreground p-2">No files found in this project.</p>
+                            ) : (
+                              projectFiles.map((file) => (
+                                <div key={file._id} className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`file-${file._id}`}
+                                    checked={field.value?.includes(file._id)}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const current = field.value || [];
+                                      if (checked) {
+                                        field.onChange([...current, file._id]);
+                                      } else {
+                                        field.onChange(current.filter((id) => id !== file._id));
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                  />
+                                  <label
+                                    htmlFor={`file-${file._id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 truncate"
+                                  >
+                                    {file.originalFilename}
+                                  </label>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+              )}
 
               {/* Invoice Items */}
               <div className="space-y-3">
@@ -377,8 +489,8 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                           min={new Date().toISOString().split('T')[0]}
                           className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
                         />
-                        <CalendarIcon 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer z-10" 
+                        <CalendarIcon
+                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer z-10"
                           onClick={() => {
                             const input = document.getElementById('invoice-due-date');
                             if (input) input.showPicker();

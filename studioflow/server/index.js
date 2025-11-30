@@ -279,3 +279,5 @@ const startServer = async () => {
 }
 
 startServer();
+
+// Force restart for debugging ownership transfer

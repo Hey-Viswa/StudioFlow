@@ -36,4 +36,7 @@ router.delete('/', deleteAllNotifications);
 // POST /api/notifications/register-token - Register FCM token
 router.post('/register-token', registerDeviceToken);
 
+// POST /api/notifications/test - Trigger a test notification (Debug)
+
+
 export default router;

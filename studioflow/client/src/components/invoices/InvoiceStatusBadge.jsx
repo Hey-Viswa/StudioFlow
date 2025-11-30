@@ -52,6 +52,7 @@ const AVAILABLE_STATUSES = ['draft', 'pending', 'paid', 'overdue', 'cancelled'];
  */
 export default function InvoiceStatusBadge({
   status,
+  isOverdue,
   invoiceId,
   onStatusChange,
   disabled = false,
@@ -64,6 +65,13 @@ export default function InvoiceStatusBadge({
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
   const Icon = config.icon;
 
+  // Override style if overdue
+  const badgeStyle = isOverdue ? {
+    ...config.style,
+    borderColor: 'rgb(239 68 68 / 0.5)', // Red border
+    color: 'rgb(239 68 68)', // Red text
+  } : config.style;
+
   const handleStatusSelect = async (newStatus) => {
     if (newStatus === status || !onStatusChange || updating) return;
 
@@ -73,7 +81,7 @@ export default function InvoiceStatusBadge({
       setOpen(false);
 
       await onStatusChange(invoiceId, newStatus);
-      
+
       toast.success(`Status updated to ${STATUS_CONFIG[newStatus].label}`);
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -88,9 +96,10 @@ export default function InvoiceStatusBadge({
   // If editing not allowed, just show the badge
   if (!allowEdit || disabled) {
     return (
-      <Badge variant="outline" className="flex items-center gap-1" style={config.style}>
+      <Badge variant="outline" className="flex items-center gap-1" style={badgeStyle}>
         <Icon className="w-3 h-3" />
         {config.label}
+        {isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
       </Badge>
     );
   }
@@ -103,12 +112,13 @@ export default function InvoiceStatusBadge({
             'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-all hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
             loading || updating ? 'opacity-50 cursor-wait' : 'cursor-pointer'
           )}
-          style={config.style}
+          style={badgeStyle}
           disabled={loading || updating}
           aria-label={`Change status from ${config.label}`}
         >
           <Icon className="w-3 h-3" />
           {config.label}
+          {isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-48 p-2 bg-popover border-border" align="end">
@@ -133,7 +143,7 @@ export default function InvoiceStatusBadge({
                 onClick={() => handleStatusSelect(statusKey)}
                 disabled={isCurrentStatus || updating}
               >
-                <span 
+                <span
                   className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5 text-xs font-semibold"
                   style={statusConfig.style}
                 >

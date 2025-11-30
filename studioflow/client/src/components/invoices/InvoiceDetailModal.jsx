@@ -56,6 +56,7 @@ import {
   AlertCircle,
   Clock,
   Calendar as CalendarIcon,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -102,7 +103,9 @@ export default function InvoiceDetailModal({
       dueDate: invoice?.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       tax: { percentage: invoice?.tax?.percentage || 0 },
       discount: { percentage: invoice?.discount?.percentage || 0 },
+      discount: { percentage: invoice?.discount?.percentage || 0 },
       notes: invoice?.notes || '',
+      gstin: invoice?.gstin || '',
     },
   });
 
@@ -135,7 +138,9 @@ export default function InvoiceDetailModal({
         dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         tax: { percentage: invoice.tax?.percentage || 0 },
         discount: { percentage: invoice.discount?.percentage || 0 },
+        discount: { percentage: invoice.discount?.percentage || 0 },
         notes: invoice.notes || '',
+        gstin: invoice.gstin || '',
       });
       setIsEditMode(mode === 'edit');
     }
@@ -143,7 +148,7 @@ export default function InvoiceDetailModal({
 
   const handleSaveClick = async (data) => {
     if (!onSave || !invoice) return;
-    
+
     setLoading(true);
     try {
       // Note: API expects integer percentages (0-100), not fractions
@@ -158,7 +163,9 @@ export default function InvoiceDetailModal({
         })),
         tax: { percentage: Math.round(parseInt(data.tax.percentage, 10) || 0) },
         discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
+        discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
         notes: data.notes || '',
+        gstin: data.gstin || '',
       };
 
       await onSave(invoice._id, payload);
@@ -176,7 +183,7 @@ export default function InvoiceDetailModal({
 
   const handleDeleteClick = async () => {
     if (!onDelete || !invoice) return;
-    
+
     setLoading(true);
     try {
       await onDelete(invoice._id);
@@ -195,7 +202,7 @@ export default function InvoiceDetailModal({
 
   const handleResendClick = async () => {
     if (!onResend || !invoice) return;
-    
+
     setLoading(true);
     try {
       await onResend(invoice._id);
@@ -210,7 +217,7 @@ export default function InvoiceDetailModal({
 
   const handleDownloadClick = async () => {
     if (!onDownload || !invoice) return;
-    
+
     setLoading(true);
     try {
       await onDownload(invoice.invoiceNumber);
@@ -239,50 +246,87 @@ export default function InvoiceDetailModal({
                   {invoice.projectId?.title || invoice.projectTitle || 'Project details unavailable'}
                 </DialogDescription>
               </div>
-              <Badge variant={statusConfig.variant} className="flex items-center gap-1">
+              <Badge
+                variant={invoice.isOverdue ? 'destructive' : statusConfig.variant}
+                className="flex items-center gap-1"
+                style={invoice.isOverdue ? { borderColor: 'rgb(239 68 68 / 0.5)', color: 'rgb(239 68 68)', backgroundColor: 'rgb(239 68 68 / 0.1)' } : {}}
+              >
                 <StatusIcon className="w-3 h-3" />
                 {statusConfig.label}
+                {invoice.isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
               </Badge>
             </div>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-200px)] px-6 py-6 bg-card">
+          <ScrollArea className="max-h-[calc(90vh-200px)] px-8 py-8 bg-card">
             {/* Client & Date Info */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <Card className="bg-muted/30 border-border">
-                <CardContent className="pt-4">
-                  <p className="text-sm text-muted-foreground">Client</p>
-                  <p className="font-medium">{invoice.client?.name || 'N/A'}</p>
+            <div className="grid grid-cols-2 gap-6 mb-8">
+              <Card className="bg-muted/30 border-border shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-1">Client</p>
+                  <p className="font-semibold text-lg">{invoice.client?.name || 'N/A'}</p>
                   <p className="text-sm text-muted-foreground">{invoice.client?.email || ''}</p>
+                  {invoice.gstin && (
+                    <p className="text-sm text-muted-foreground mt-2">GSTIN: {invoice.gstin}</p>
+                  )}
                 </CardContent>
               </Card>
-              <Card className="bg-muted/30 border-border">
-                <CardContent className="pt-4">
-                  <p className="text-sm text-muted-foreground">Due Date</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <CalendarIcon className="w-4 h-4" />
+              <Card className="bg-muted/30 border-border shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-1">Due Date</p>
+                  <p className="font-semibold text-lg flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5 text-primary" />
                     {invoice.dueDate ? format(new Date(invoice.dueDate), 'PPP') : 'Not set'}
                   </p>
                 </CardContent>
               </Card>
             </div>
 
+            {/* Access & Linked Files */}
+            {(invoice.accessType === 'specific_files' || invoice.linkedFileIds?.length > 0) && (
+              <Card className="bg-muted/30 border-border mb-8 shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">Access Type</p>
+                    <Badge variant="outline" className="px-3 py-1">
+                      {invoice.accessType === 'specific_files' ? 'Milestone (Specific Files)' : 'Full Project Access'}
+                    </Badge>
+                  </div>
+                  {invoice.linkedFileIds?.length > 0 && (
+                    <div className="space-y-3 mt-4">
+                      <p className="text-sm font-medium">Linked Files ({invoice.linkedFileIds.length})</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {invoice.linkedFileIds.map((fileId, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-3 bg-background rounded-md border text-sm shadow-sm">
+                            <FileText className="w-4 h-4 text-muted-foreground" />
+                            <span className="truncate font-mono text-xs">
+                              {typeof fileId === 'object' ? fileId.originalFilename || 'File' : 'File ID: ' + fileId}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {isEditMode ? (
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleSaveClick)} className="space-y-6 pb-6">
+                <form onSubmit={form.handleSubmit(handleSaveClick)} className="space-y-8 pb-6">
                   {/* Status Selection */}
                   <FormField
                     control={form.control}
                     name="status"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Status</FormLabel>
+                        <FormLabel className="text-base">Status</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           value={field.value}
                         >
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-11">
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                           </FormControl>
@@ -300,20 +344,21 @@ export default function InvoiceDetailModal({
                   />
 
                   {/* Invoice Items */}
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <FormLabel>Invoice Items *</FormLabel>
+                      <FormLabel className="text-base">Invoice Items *</FormLabel>
                       <Button
                         type="button"
                         size="sm"
                         variant="secondary"
                         onClick={() => append({ title: '', description: '', quantity: 1, rate: 0 })}
                       >
+                        <Plus className="w-4 h-4 mr-1" />
                         Add Item
                       </Button>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {fields.map((field, index) => (
                         <InvoiceItemRow
                           key={field.id}
@@ -336,7 +381,7 @@ export default function InvoiceDetailModal({
                     name="dueDate"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Due Date</FormLabel>
+                        <FormLabel className="text-base">Due Date</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Input
@@ -348,10 +393,10 @@ export default function InvoiceDetailModal({
                                 field.onChange(dateValue);
                               }}
                               min={new Date().toISOString().split('T')[0]}
-                              className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                              className="pr-10 h-11 [&::-webkit-calendar-picker-indicator]:opacity-0"
                             />
-                            <CalendarIcon 
-                              className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer z-10" 
+                            <CalendarIcon
+                              className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground cursor-pointer z-10"
                               onClick={() => {
                                 const input = document.getElementById('invoice-detail-due-date');
                                 if (input) input.showPicker();
@@ -364,36 +409,54 @@ export default function InvoiceDetailModal({
                     )}
                   />
 
+                  {/* GSTIN */}
+                  <FormField
+                    control={form.control}
+                    name="gstin"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-base">GSTIN (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. 29ABCDE1234F1Z5" {...field} className="h-11" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {/* Tax & Discount */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="tax.percentage"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Tax (%)</FormLabel>
+                          <FormLabel className="text-base">Tax (%)</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              placeholder="0"
-                              {...field}
-                              value={field.value || ''}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                                field.onChange(isNaN(val) ? 0 : val);
-                              }}
-                              onBlur={(e) => {
-                                let val = parseInt(e.target.value, 10);
-                                if (isNaN(val)) val = 0;
-                                // Clamp between 0 and 100
-                                val = Math.max(0, Math.min(100, Math.round(val)));
-                                field.onChange(val);
-                                field.onBlur();
-                              }}
-                            />
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                placeholder="0"
+                                {...field}
+                                value={field.value || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                  field.onChange(isNaN(val) ? 0 : val);
+                                }}
+                                onBlur={(e) => {
+                                  let val = parseInt(e.target.value, 10);
+                                  if (isNaN(val)) val = 0;
+                                  val = Math.max(0, Math.min(100, Math.round(val)));
+                                  field.onChange(val);
+                                  field.onBlur();
+                                }}
+                                className="h-11 pr-8"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -404,29 +467,32 @@ export default function InvoiceDetailModal({
                       name="discount.percentage"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Discount (%)</FormLabel>
+                          <FormLabel className="text-base">Discount (%)</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              placeholder="0"
-                              {...field}
-                              value={field.value || ''}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                                field.onChange(isNaN(val) ? 0 : val);
-                              }}
-                              onBlur={(e) => {
-                                let val = parseInt(e.target.value, 10);
-                                if (isNaN(val)) val = 0;
-                                // Clamp between 0 and 100
-                                val = Math.max(0, Math.min(100, Math.round(val)));
-                                field.onChange(val);
-                                field.onBlur();
-                              }}
-                            />
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                placeholder="0"
+                                {...field}
+                                value={field.value || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                  field.onChange(isNaN(val) ? 0 : val);
+                                }}
+                                onBlur={(e) => {
+                                  let val = parseInt(e.target.value, 10);
+                                  if (isNaN(val)) val = 0;
+                                  val = Math.max(0, Math.min(100, Math.round(val)));
+                                  field.onChange(val);
+                                  field.onBlur();
+                                }}
+                                className="h-11 pr-8"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                            </div>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -440,12 +506,12 @@ export default function InvoiceDetailModal({
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notes</FormLabel>
+                        <FormLabel className="text-base">Notes</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Additional notes..."
-                            className="resize-none"
-                            rows={3}
+                            className="resize-none min-h-[100px]"
+                            rows={4}
                             {...field}
                           />
                         </FormControl>
@@ -455,29 +521,29 @@ export default function InvoiceDetailModal({
                   />
 
                   {/* Totals Summary */}
-                  <Card className="bg-muted/30 border-border">
+                  <Card className="bg-muted/30 border-border shadow-sm">
                     <CardContent className="pt-6">
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Subtotal:</span>
-                          <span className="font-medium">{formatINR(totals.subtotal)}</span>
+                          <span className="font-medium font-mono">{formatINR(totals.subtotal)}</span>
                         </div>
                         {watchedTax > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Tax ({watchedTax}%):</span>
-                            <span className="font-medium">{formatINR(totals.taxAmount)}</span>
+                            <span className="font-medium font-mono">{formatINR(totals.taxAmount)}</span>
                           </div>
                         )}
                         {watchedDiscount > 0 && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Discount ({watchedDiscount}%):</span>
-                            <span className="font-medium text-destructive">-{formatINR(totals.discountAmount)}</span>
+                            <span className="font-medium text-destructive font-mono">-{formatINR(totals.discountAmount)}</span>
                           </div>
                         )}
-                        <Separator />
-                        <div className="flex justify-between text-lg font-bold">
+                        <Separator className="my-2" />
+                        <div className="flex justify-between text-xl font-bold">
                           <span>Total:</span>
-                          <span>{formatINR(totals.total)}</span>
+                          <span className="font-mono">{formatINR(totals.total)}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -485,25 +551,25 @@ export default function InvoiceDetailModal({
                 </form>
               </Form>
             ) : (
-              <div className="space-y-6 pb-6">
+              <div className="space-y-8 pb-6">
                 {/* View Mode - Invoice Items */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold">Invoice Items</h3>
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Invoice Items</h3>
                   {invoice.items?.map((item, index) => (
-                    <Card key={index} className="bg-muted/30 border-border">
-                      <CardContent className="pt-4">
-                        <div className="flex justify-between items-start mb-2">
+                    <Card key={index} className="bg-muted/30 border-border shadow-sm">
+                      <CardContent className="pt-6">
+                        <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <p className="font-medium">{item.title}</p>
+                            <p className="font-medium text-base">{item.title}</p>
                             {item.description && (
-                              <p className="text-sm text-muted-foreground">{item.description}</p>
+                              <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
                             )}
                           </div>
-                          <p className="font-medium">{formatINR(item.quantity * item.rate)}</p>
+                          <p className="font-bold font-mono text-lg">{formatINR(item.quantity * item.rate)}</p>
                         </div>
-                        <div className="flex gap-4 text-sm text-muted-foreground">
-                          <span>Qty: {item.quantity}</span>
-                          <span>Rate: {formatINR(item.rate)}</span>
+                        <div className="flex gap-6 text-sm text-muted-foreground border-t pt-3 mt-3">
+                          <span>Qty: <span className="font-medium text-foreground">{item.quantity}</span></span>
+                          <span>Rate: <span className="font-medium text-foreground">{formatINR(item.rate)}</span></span>
                         </div>
                       </CardContent>
                     </Card>
@@ -511,29 +577,29 @@ export default function InvoiceDetailModal({
                 </div>
 
                 {/* View Mode - Totals */}
-                <Card className="bg-muted/30 border-border">
+                <Card className="bg-muted/30 border-border shadow-sm">
                   <CardContent className="pt-6">
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal:</span>
-                        <span className="font-medium">{formatINR(invoice.subtotal || 0)}</span>
+                        <span className="font-medium font-mono">{formatINR(invoice.subtotal || 0)}</span>
                       </div>
                       {invoice.tax?.percentage > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Tax ({invoice.tax.percentage}%):</span>
-                          <span className="font-medium">{formatINR(invoice.tax.amount || 0)}</span>
+                          <span className="font-medium font-mono">{formatINR(invoice.tax.amount || 0)}</span>
                         </div>
                       )}
                       {invoice.discount?.percentage > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Discount ({invoice.discount.percentage}%):</span>
-                          <span className="font-medium text-destructive">-{formatINR(invoice.discount.amount || 0)}</span>
+                          <span className="font-medium text-destructive font-mono">-{formatINR(invoice.discount.amount || 0)}</span>
                         </div>
                       )}
-                      <Separator />
-                      <div className="flex justify-between text-lg font-bold">
+                      <Separator className="my-2" />
+                      <div className="flex justify-between text-xl font-bold">
                         <span>Total:</span>
-                        <span>{formatINR(invoice.total || 0)}</span>
+                        <span className="font-mono">{formatINR(invoice.total || 0)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -541,10 +607,10 @@ export default function InvoiceDetailModal({
 
                 {/* Notes */}
                 {invoice.notes && (
-                  <Card className="bg-muted/30 border-border">
-                    <CardContent className="pt-4">
-                      <p className="text-sm text-muted-foreground mb-1">Notes</p>
-                      <p className="text-sm">{invoice.notes}</p>
+                  <Card className="bg-muted/30 border-border shadow-sm">
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-muted-foreground mb-2 font-medium">Notes</p>
+                      <p className="text-sm whitespace-pre-wrap">{invoice.notes}</p>
                     </CardContent>
                   </Card>
                 )}

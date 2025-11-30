@@ -24,15 +24,15 @@ export default function InvoiceItemRow({
   const rateError = errors?.rate?.message;
 
   return (
-    <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+    <div className="p-4 rounded-lg border border-border bg-card space-y-4 shadow-sm">
       {/* Title and Remove Button */}
-      <div className="flex gap-2">
-        <div className="flex-1 space-y-1">
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1.5">
           <Input
             placeholder="Item title *"
             value={item.title}
             onChange={(e) => onChange(index, 'title', e.target.value)}
-            className={cn(titleError && 'border-destructive focus-visible:ring-destructive/50')}
+            className={cn("font-medium", titleError && 'border-destructive focus-visible:ring-destructive/50')}
             aria-invalid={Boolean(titleError)}
           />
           {titleError && (
@@ -45,7 +45,7 @@ export default function InvoiceItemRow({
             size="icon"
             variant="ghost"
             onClick={() => onRemove(index)}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-10 w-10"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -53,20 +53,20 @@ export default function InvoiceItemRow({
       </div>
 
       {/* Description */}
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <Textarea
           placeholder="Description (optional)"
           value={item.description || ''}
           onChange={(e) => onChange(index, 'description', e.target.value)}
-          className="resize-none"
+          className="resize-none min-h-[60px]"
           rows={2}
         />
       </div>
 
       {/* Quantity, Rate, Amount */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Quantity</Label>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground font-medium">Quantity</Label>
           <Input
             type="number"
             min="1"
@@ -80,28 +80,31 @@ export default function InvoiceItemRow({
             <p className="text-xs text-destructive">{quantityError}</p>
           )}
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Rate (₹)</Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            value={item.rate}
-            onChange={(e) => onChange(index, 'rate', parseFloat(e.target.value) || 0)}
-            className={cn(rateError && 'border-destructive focus-visible:ring-destructive/50')}
-            aria-invalid={Boolean(rateError)}
-          />
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground font-medium">Rate</Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={item.rate}
+              onChange={(e) => onChange(index, 'rate', parseFloat(e.target.value) || 0)}
+              className={cn("pl-7", rateError && 'border-destructive focus-visible:ring-destructive/50')}
+              aria-invalid={Boolean(rateError)}
+            />
+          </div>
           {rateError && (
             <p className="text-xs text-destructive">{rateError}</p>
           )}
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Amount</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground font-medium">Amount</Label>
           <Input
             type="text"
             value={formatINR(amount)}
             disabled
-            className="bg-muted/50 text-muted-foreground"
+            className="bg-muted/50 text-muted-foreground font-mono font-medium"
           />
         </div>
       </div>

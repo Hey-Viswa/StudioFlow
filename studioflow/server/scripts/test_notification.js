@@ -1,71 +1,51 @@
-import { triggerNotification } from '../src/services/notificationService.js';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import Notification from '../src/models/Notification.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Try loading from project root (3 levels up from scripts)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+console.log('Current directory:', process.cwd());
+console.log('Env file path:', path.resolve(__dirname, '../../../.env'));
+console.log('MONGO_URI loaded:', !!process.env.MONGO_URI);
 
 const testNotification = async () => {
     try {
-        console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Found' : 'Missing');
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('MongoDB Connected');
+        const uri = process.env.MONGO_URI;
+        if (!uri) throw new Error('MONGO_URI is undefined');
 
-        const Project = (await import('../src/models/Project.js')).default;
-        const Notification = (await import('../src/models/Notification.js')).default;
+        await mongoose.connect(uri);
+        console.log('Connected to MongoDB');
 
-        const project = await Project.findOne();
-        if (!project) {
-            console.error('No projects found');
-            process.exit(1);
-        }
-
-        const userId = project.ownerId;
-        console.log(`Targeting user: ${userId}`);
-
-        // Mock data for task assignment
-        const type = 'task.assigned';
-        const data = {
-            taskId: 'test-task-id',
-            projectId: project._id,
-            title: 'Test Task Assignment',
-            message: 'You have been assigned to a test task',
-            link: `/dashboard/projects/${project._id}`,
-            priority: 'high',
+        const notificationData = {
+            recipientId: 'test_recipient_id',
+            actorId: 'test_actor_id',
+            resourceId: 'test_project_id',
+            resourceType: 'project',
+            type: 'ownership_transfer_request', // This is the new type
+            title: 'Ownership Transfer Request',
+            message: 'You have been requested to take ownership of project "Test Project"',
+            data: {
+                url: '/dashboard/projects/test_project_id',
+                metadata: { requestId: new mongoose.Types.ObjectId() }
+            },
             category: 'action'
         };
-        const actorId = 'system-test';
 
-        // Add assigneeId for rule matching
-        data.assigneeId = userId;
+        console.log('Attempting to create notification:', notificationData);
 
-        await triggerNotification(type, data, actorId);
+        const notification = await Notification.create(notificationData);
+        console.log('Notification created successfully:', notification);
 
-        // Allow some time for async processing
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Check DB
-        const notification = await Notification.findOne({
-            recipientId: userId,
-            type: 'assigned', // Mapped type
-            title: 'Test Task Assignment'
-        }).sort({ createdAt: -1 });
-
-        if (notification) {
-            console.log('✅ Notification found in DB:', notification._id);
-            console.log('Title:', notification.title);
-        } else {
-            console.error('❌ Notification NOT found in DB');
-        }
-
-        process.exit(0);
     } catch (error) {
-        console.error('Notification trigger failed:', error);
-        process.exit(1);
+        console.error('Error creating notification:', error);
+    } finally {
+        await mongoose.disconnect();
     }
 };
 

@@ -97,7 +97,7 @@ export default function InvoicesPage() {
   // Handle download invoice
   const handleDownloadInvoice = async (invoice) => {
     try {
-      await downloadInvoice(invoice.invoiceNumber);
+      await downloadInvoice(invoice);
     } catch (error) {
       // Error already toasted in hook
       console.error('Download failed:', error);

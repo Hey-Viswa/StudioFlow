@@ -9,6 +9,7 @@ import ProjectFile from '../models/ProjectFile.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+import { logAudit } from '../services/auditService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -43,12 +44,12 @@ export const createProject = async (req, res) => {
 
     // Check subscription limits
     const user = await User.findOne({ clerkUserId: ownerId });
-    
+
     // RBAC: Clients cannot create projects
     if (user?.role === 'client') {
-      return res.status(403).json({ 
-        error: 'Permission denied', 
-        message: 'Clients cannot create projects. Please contact support if you believe this is an error.' 
+      return res.status(403).json({
+        error: 'Permission denied',
+        message: 'Clients cannot create projects. Please contact support if you believe this is an error.'
       });
     }
 
@@ -100,6 +101,15 @@ export const createProject = async (req, res) => {
       status: 'active',
       joinedAt: new Date(),
       invitedBy: ownerId // Self-invited
+    });
+
+    await logAudit({
+      userId: ownerId,
+      action: 'create_project',
+      resourceType: 'project',
+      resourceId: project._id,
+      details: { title: project.title },
+      req
     });
 
     // Generate initial invite link for convenience
@@ -474,7 +484,7 @@ export const getProjectById = async (req, res) => {
     const isOwner = String(project.ownerId) === String(userId);
     console.log('   - isOwner Calculated:', isOwner);
 
-    let userRole = isOwner ? 'owner' : (membership?.role || 'client');
+    let userRole = isOwner ? 'owner' : membership?.role;
 
     // Attach members to project object
     // CRITICAL FIX: project is already a plain object due to .lean(), so we CANNOT call .toObject()
@@ -998,6 +1008,15 @@ export const deleteProject = async (req, res) => {
     await Project.findByIdAndDelete(id);
     console.log('✅ Project deleted from main collection');
 
+    await logAudit({
+      userId,
+      action: 'archive_project', // Soft delete is effectively archive/trash
+      resourceType: 'project',
+      resourceId: id,
+      details: { reason },
+      req
+    });
+
     // Clear cache for all project members
     console.log('🔄 Clearing cache for project members...');
     clearUserCache(userId);
@@ -1124,6 +1143,14 @@ export const permanentlyDeleteProject = async (req, res) => {
     // Also delete related data (invoices, files, etc.)
     await ProjectInvoice.deleteMany({ projectId: id });
     await ProjectFile.deleteMany({ projectId: id });
+
+    await logAudit({
+      userId,
+      action: 'delete_project_permanent',
+      resourceType: 'project',
+      resourceId: id,
+      req
+    });
 
     res.json({ message: 'Project permanently deleted' });
   } catch (error) {

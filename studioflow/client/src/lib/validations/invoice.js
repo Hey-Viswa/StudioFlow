@@ -33,6 +33,7 @@ export const newInvoiceSchema = z.object({
       .max(100, 'Discount cannot exceed 100%'),
   }),
   notes: z.string().optional(),
+  gstin: z.string().optional(),
 });
 
 /**
@@ -45,4 +46,5 @@ export const defaultInvoiceValues = () => ({
   tax: { percentage: 0 },
   discount: { percentage: 0 },
   notes: '',
+  gstin: '',
 });

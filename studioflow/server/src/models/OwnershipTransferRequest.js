@@ -17,8 +17,13 @@ const OwnershipTransferRequestSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'accepted', 'rejected', 'cancelled'],
+        enum: ['pending', 'accepted', 'rejected', 'cancelled', 'forced'],
         default: 'pending'
+    },
+    type: {
+        type: String,
+        enum: ['consensual', 'forced'],
+        default: 'consensual'
     },
     expiresAt: {
         type: Date,

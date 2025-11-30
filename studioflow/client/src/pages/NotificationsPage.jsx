@@ -39,26 +39,12 @@ import { useNotifications } from '../hooks/useNotifications';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 const NotificationsPage = () => {
-  const navigate = useNavigate();
-  const { user } = useUser();
-  const {
-    notifications: allNotifications,
-    unreadCount,
-    loading,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    refetch,
-  } = useNotifications();
-
-  const [filter, setFilter] = useState('all'); // all, unread, read
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { notifications: allNotifications = [], unreadCount, loading, markAsRead, markAllAsRead, deleteNotification, refetch } = useNotifications();
   const [notifications, setNotifications] = useState([]);
 
   // Filter notifications based on selected filters
   useEffect(() => {
-    let filtered = [...allNotifications];
+    let filtered = [...(allNotifications || [])];
 
     // Filter by read status
     if (filter === 'unread') {
@@ -151,8 +137,20 @@ const NotificationsPage = () => {
       older: []
     };
 
+    if (!Array.isArray(notifs)) return groups;
+
     notifs.forEach(n => {
+      if (!n.createdAt) {
+        groups.older.push(n);
+        return;
+      }
+
       const date = new Date(n.createdAt);
+      if (isNaN(date.getTime())) {
+        groups.older.push(n);
+        return;
+      }
+
       if (isToday(date)) groups.today.push(n);
       else if (isYesterday(date)) groups.yesterday.push(n);
       else if (isThisWeek(date)) groups.thisWeek.push(n);
@@ -400,6 +398,17 @@ const NotificationsPage = () => {
 
 // Sub-component for individual notification item
 const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon, getPriorityColor }) => {
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (e) {
+      return '';
+    }
+  };
+
   return (
     <div
       onClick={() => onClick(notification)}
@@ -427,7 +436,7 @@ const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon
           </h4>
           <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+            {getTimeAgo(notification.createdAt)}
           </span>
         </div>
 

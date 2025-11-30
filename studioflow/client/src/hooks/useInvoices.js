@@ -156,12 +156,22 @@ export const useInvoices = () => {
   /**
    * Download invoice PDF
    */
-  const downloadInvoice = useCallback(async (invoiceId, invoiceNumber) => {
+  const downloadInvoice = useCallback(async (identifier) => {
     try {
       await invoicesApi.setAuthToken(getToken);
       // Use the project invoice download endpoint
       const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
-      window.open(`${apiUrl}/api/invoices/project/${invoiceNumber}/download`, '_blank');
+
+      // If identifier is an object, try to get invoiceNumber or _id
+      const finalId = typeof identifier === 'object'
+        ? (identifier.invoiceNumber || identifier._id)
+        : identifier;
+
+      if (!finalId) {
+        throw new Error('Invalid invoice identifier');
+      }
+
+      window.open(`${apiUrl}/api/invoices/project/${finalId}/download`, '_blank');
 
       toast.success('Download started');
     } catch (err) {
@@ -207,7 +217,18 @@ export const useInvoices = () => {
       await fetchInvoices();
     } catch (err) {
       console.error('Failed to delete invoice:', err);
-      // Let page component handle error toast
+
+      // Check for specific "Cannot delete paid invoice" error
+      // The API returns 400 with { error: 'Cannot delete paid invoice' }
+      if (err.status === 400 || err.message?.toLowerCase().includes('paid')) {
+        toast.error('Cannot delete paid invoice', {
+          description: 'Paid invoices must be kept for financial records. You can cancel it instead if needed.'
+        });
+        // We handled the error UI, but re-throw so the component knows it failed
+        throw err;
+      }
+
+      // Let page component handle other error toasts
       throw err;
     }
   }, [getToken, fetchInvoices]);

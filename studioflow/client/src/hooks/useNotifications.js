@@ -248,13 +248,6 @@ export const useNotifications = () => {
       setNotifications(prev => prev.filter(n => !data.ids.includes(n._id)));
     };
 
-    // Attach listeners
-    console.log('🎧 Attaching socket listeners for user:', user.id);
-    socket.on('notification:new', handleNewNotification);
-    socket.on('notification:updated', handleNotificationRead);
-    socket.on('notification:all-read', handleAllNotificationsRead);
-    socket.on('notification:deleted', handleNotificationDeleted);
-
     // Cleanup listeners on unmount or user change
     return () => {
       console.log('🧹 Cleaning up socket listeners');
@@ -279,6 +272,6 @@ export const useNotifications = () => {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-    refetch: fetchNotifications,
+    refetch: fetchNotifications
   };
 };

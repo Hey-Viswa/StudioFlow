@@ -2,6 +2,10 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import ProcessedWebhook from '../models/ProcessedWebhook.js';
+import PaymentThread from '../models/PaymentThread.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
+import Entitlement from '../models/Entitlement.js';
+import { logAudit } from '../services/auditService.js';
 import { paymentQueue } from '../queues/paymentQueue.js';
 
 // Initialize Razorpay instance only if keys are configured
@@ -138,6 +142,16 @@ export const verifyPayment = async (req, res) => {
         user.subscription.subscriptionStartDate = startDate;
         user.subscription.subscriptionEndDate = endDate;
         await user.save();
+
+        await logAudit({
+            userId,
+            action: 'subscription_payment_verified',
+            resourceType: 'subscription',
+            resourceId: user.subscription.razorpaySubscriptionId || razorpay_payment_id,
+            details: { plan: user.subscription.plan, paymentId: razorpay_payment_id },
+            status: 'success',
+            req
+        });
 
         res.json({
             success: true,
@@ -376,6 +390,12 @@ export const handleRazorpayWebhook = async (req, res) => {
                 case 'payment.failed':
                     await handlePaymentFailed(payload);
                     break;
+                case 'payment.captured':
+                    await handlePaymentCaptured(payload);
+                    break;
+                case 'refund.processed':
+                    await handleRefundProcessed(payload);
+                    break;
                 default:
                     console.log(`Unhandled webhook event: ${event}`);
             }
@@ -502,7 +522,6 @@ const handleSubscriptionResumed = async (payload) => {
     }
 };
 
-// Handle payment failed
 const handlePaymentFailed = async (payload) => {
     try {
         const paymentId = payload.payment.entity.id;
@@ -520,5 +539,161 @@ const handlePaymentFailed = async (payload) => {
         }
     } catch (error) {
         console.error('Error handling payment failed:', error);
+    }
+};
+
+// Handle payment captured (Project Milestones)
+const handlePaymentCaptured = async (payload) => {
+    try {
+        const payment = payload.payment.entity;
+        const orderId = payment.order_id;
+        const paymentId = payment.id;
+
+        console.log(`Processing payment capture for order: ${orderId}`);
+
+        // 1. Try to find PaymentThread (Project Payment)
+        const paymentThread = await PaymentThread.findOne({ razorpayOrderId: orderId });
+
+        if (paymentThread) {
+            console.log(`Found PaymentThread: ${paymentThread._id}`);
+
+            // Update PaymentThread
+            paymentThread.status = 'paid';
+            paymentThread.razorpayPaymentId = paymentId;
+            paymentThread.paidAt = new Date();
+            await paymentThread.save();
+
+            // Update Invoice
+            if (paymentThread.invoiceId) {
+                await ProjectInvoice.findByIdAndUpdate(paymentThread.invoiceId, {
+                    status: 'paid',
+                    paidAt: new Date(),
+                    razorpayPaymentId: paymentId,
+                    accessGranted: true
+                });
+            }
+
+            // Create Entitlement
+            // Check if entitlement already exists to avoid duplicates
+            const existingEntitlement = await Entitlement.findOne({
+                paymentThreadId: paymentThread._id,
+                revokedAt: null
+            });
+
+            if (!existingEntitlement) {
+                // We need userId. PaymentThread doesn't have userId directly, but Project does?
+                // Actually PaymentThread has projectId. ProjectMember has userId.
+                // Or we can get userId from invoice?
+                // ProjectInvoice has userId (creator) and client info.
+                // Let's check ProjectInvoice to find the client.
+
+                const invoice = await ProjectInvoice.findById(paymentThread.invoiceId);
+                let clientId = null;
+
+                if (invoice && invoice.client && invoice.client.userId) {
+                    clientId = invoice.client.userId;
+                } else {
+                    // Fallback: Find client from Project members?
+                    // This is risky if multiple clients.
+                    // But usually invoice is specific to a client.
+                    // If invoice doesn't have client.userId, we might have a problem.
+                    // Let's assume invoice has it as per model.
+                    console.warn(`Could not determine client for entitlement. Invoice: ${paymentThread.invoiceId}`);
+                }
+
+                if (clientId) {
+                    // Check access type
+                    const invoiceAccessType = invoice.accessType || 'all';
+
+                    if (invoiceAccessType === 'all') {
+                        await Entitlement.create({
+                            userId: clientId,
+                            projectId: paymentThread.projectId,
+                            paymentThreadId: paymentThread._id,
+                            scope: 'project_download',
+                            grantedAt: new Date()
+                        });
+
+                        console.log(`Full Entitlement created for user ${clientId} on project ${paymentThread.projectId}`);
+
+                        await logAudit({
+                            userId: clientId,
+                            action: 'payment_success',
+                            resourceType: 'payment',
+                            resourceId: paymentThread._id,
+                            details: { amount: payment.amount, currency: payment.currency, accessType: 'all' },
+                            status: 'success'
+                        });
+                    } else {
+                        console.log(`Partial/Specific access granted for invoice ${invoice._id}. No general entitlement created.`);
+                        // We rely on file-level checks for specific files
+                    }
+                }
+            }
+        } else {
+            // Not a project payment, might be subscription?
+            // Subscription payments usually handled by subscription.charged
+            console.log('Payment captured but no PaymentThread found. Ignoring (likely subscription or other).');
+        }
+
+    } catch (error) {
+        console.error('Error handling payment captured:', error);
+    }
+};
+
+// Handle refund processed
+const handleRefundProcessed = async (payload) => {
+    try {
+        const refund = payload.refund.entity;
+        const paymentId = refund.payment_id;
+
+        console.log(`Processing refund for payment: ${paymentId}`);
+
+        // Find PaymentThread
+        const paymentThread = await PaymentThread.findOne({ razorpayPaymentId: paymentId });
+
+        if (paymentThread) {
+            console.log(`Found PaymentThread for refund: ${paymentThread._id}`);
+
+            // Update PaymentThread
+            paymentThread.status = 'refunded'; // Or partially_refunded based on amount
+            await paymentThread.save();
+
+            // Update Invoice
+            if (paymentThread.invoiceId) {
+                await ProjectInvoice.findByIdAndUpdate(paymentThread.invoiceId, {
+                    status: 'refunded',
+                    accessGranted: false
+                });
+            }
+
+            // Revoke Entitlement
+            const entitlement = await Entitlement.findOne({
+                paymentThreadId: paymentThread._id,
+                revokedAt: null
+            });
+
+            if (entitlement) {
+                entitlement.revokedAt = new Date();
+                entitlement.revocationReason = `Refund: ${refund.id}`;
+                await entitlement.save();
+
+                console.log(`Entitlement revoked for user ${entitlement.userId}`);
+
+                await logAudit({
+                    userId: entitlement.userId,
+                    action: 'refund_processed',
+                    resourceType: 'entitlement',
+                    resourceId: entitlement._id,
+                    details: { refundId: refund.id, amount: refund.amount },
+                    status: 'success'
+                });
+            }
+        } else {
+            console.log('Refund processed but no PaymentThread found.');
+        }
+
+    } catch (error) {
+        console.error('Error handling refund processed:', error);
     }
 };

@@ -381,8 +381,8 @@ export default function ClientDashboard() {
                     onView={(id) => navigate(`/dashboard/projects/${id}`)}
                     onOpenFiles={(id) => navigate(`/dashboard/projects/${id}/files`)}
                     onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
-                    onRequestRevision={handleRequestRevision}
-                    onApproveFinal={handleApproveFinal}
+                    onRequestRevision={project.userRole === 'client' ? handleRequestRevision : undefined}
+                    onApproveFinal={project.userRole === 'client' ? handleApproveFinal : undefined}
                   />
                 ))}
               </div>

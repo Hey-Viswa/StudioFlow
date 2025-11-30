@@ -31,6 +31,30 @@ const projectInvoiceSchema = new mongoose.Schema({
     default: false
   },
 
+  // Access Scope
+  accessType: {
+    type: String,
+    enum: ['all', 'specific_files'],
+    default: 'all'
+  },
+
+  // Linked Files (for specific_files access)
+  linkedFileIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ProjectFile'
+  }],
+
+  // Versioning and Finalization
+  version: {
+    type: Number,
+    default: 1
+  },
+
+  isFinalized: {
+    type: Boolean,
+    default: false
+  },
+
   projectTitle: {
     type: String,
     default: ''
@@ -47,7 +71,14 @@ const projectInvoiceSchema = new mongoose.Schema({
   client: {
     userId: String,
     name: String,
-    email: String
+    email: String,
+    gstin: String // Client's GSTIN
+  },
+
+  // Sender's GSTIN (Optional, for this specific invoice)
+  gstin: {
+    type: String,
+    default: ''
   },
 
   // Invoice items (tasks/services)

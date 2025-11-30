@@ -147,6 +147,45 @@ export const getSharedFile = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Check for Invoice Gating
+    let isLocked = false;
+    let invoiceDetails = null;
+
+    if (shareEntry.invoiceId) {
+      const ProjectInvoice = await import('../models/ProjectInvoice.js').then(m => m.default);
+      const invoice = await ProjectInvoice.findById(shareEntry.invoiceId).select('status total currency invoiceNumber');
+
+      if (invoice && invoice.status !== 'paid') {
+        isLocked = true;
+        invoiceDetails = {
+          id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          amount: invoice.total,
+          currency: invoice.currency,
+          status: invoice.status
+        };
+      }
+    }
+
+    // If locked, return limited info
+    if (isLocked) {
+      return res.status(200).json({
+        file: {
+          fileId: file.fileId,
+          filename: file.filename,
+          originalFilename: file.originalFilename,
+          mimeType: file.mimeType,
+          size: file.size,
+          uploadedAt: file.createdAt,
+          isPreviewable: false, // Force no preview
+        },
+        isLocked: true,
+        invoice: invoiceDetails,
+        allowDownload: false,
+        expiresAt: shareEntry.expiresAt,
+      });
+    }
+
     // Generate preview URL (always preview, never download unless allowed)
     const previewUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
       filename: file.originalFilename,

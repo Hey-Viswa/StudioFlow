@@ -8,11 +8,13 @@ import { Plus, FileText, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProjectInvoices } from '../lib/projectInvoiceApi';
 
-export default function ProjectInvoiceList({ projectId, clients }) {
+export default function ProjectInvoiceList({ projectId, clients, userRole }) {
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const isClient = userRole === 'client';
 
   const fetchInvoices = async () => {
     try {
@@ -48,19 +50,23 @@ export default function ProjectInvoiceList({ projectId, clients }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">Invoices</h3>
-        <Button onClick={() => navigate('/dashboard/invoices/new')} size="sm">
-          <Plus className="w-4 h-4 mr-1" />
-          New Invoice
-        </Button>
+        {!isClient && (
+          <Button onClick={() => navigate('/dashboard/invoices/new')} size="sm">
+            <Plus className="w-4 h-4 mr-1" />
+            New Invoice
+          </Button>
+        )}
       </div>
 
       {invoices.length === 0 ? (
         <Card className="bg-card border-border p-6 text-center">
           <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
           <p className="text-muted-foreground mb-4">No invoices yet</p>
-          <Button onClick={() => navigate('/dashboard/invoices/new')}>
-            Create First Invoice
-          </Button>
+          {!isClient && (
+            <Button onClick={() => navigate('/dashboard/invoices/new')}>
+              Create First Invoice
+            </Button>
+          )}
         </Card>
       ) : (
         <div className="space-y-2">

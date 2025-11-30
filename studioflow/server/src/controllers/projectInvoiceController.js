@@ -149,8 +149,17 @@ export const getAllUserInvoices = async (req, res) => {
         invoice.projectTitle = invoice.projectId.title;
       }
 
-      if (invoice.status === 'pending' && invoice.dueDate && new Date(invoice.dueDate) < now) {
-        invoice.status = 'overdue';
+      // Calculate overdue status but DO NOT override the actual status
+      // This allows 'pending' (Sent) invoices to be shown as Sent even if overdue
+      if (invoice.status === 'pending' && invoice.dueDate) {
+        const dueDate = new Date(invoice.dueDate);
+        const now = new Date();
+        // Check if due date is strictly in the past (yesterday or before)
+        // We can be more lenient and say it's overdue only if the DATE is past, not just time
+        // But for now, let's just flag it
+        if (dueDate < now) {
+          invoice.isOverdue = true;
+        }
       }
 
       return invoice;
@@ -188,7 +197,7 @@ export const generateProjectInvoice = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.userId;
-    const { items, dueDate, notes, tax, discount, clientUserId } = req.body;
+    const { items, dueDate, notes, tax, discount, clientUserId, linkedFileIds, accessType } = req.body;
 
     console.log('=== GENERATE PROJECT INVOICE ===');
     console.log('User:', userId);
@@ -255,7 +264,9 @@ export const generateProjectInvoice = async (req, res) => {
       tax: tax || { percentage: 0, amount: 0 },
       discount: discount || { percentage: 0, amount: 0 },
       status: 'draft',
-      currency: 'INR'
+      currency: 'INR',
+      linkedFileIds: linkedFileIds || [],
+      accessType: accessType || 'all'
     });
 
     console.log('✓ Invoice created:', invoice.invoiceNumber);
@@ -326,11 +337,11 @@ export const getProjectInvoices = async (req, res) => {
 
     // Check ownership
     const isOwner = String(project.ownerId) === String(userId);
-    
+
     // Check membership
-    const membership = await ProjectMember.findOne({ 
-      projectId, 
-      userId, 
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId,
       status: { $ne: 'inactive' }
     });
 
@@ -354,10 +365,23 @@ export const getProjectInvoices = async (req, res) => {
       .sort({ createdAt: -1 })
       .select('-items');
 
+    // Calculate overdue status
+    const invoicesWithStatus = invoices.map(inv => {
+      const invoice = inv.toObject();
+      if (invoice.status === 'pending' && invoice.dueDate) {
+        const dueDate = new Date(invoice.dueDate);
+        const now = new Date();
+        if (dueDate < now) {
+          invoice.isOverdue = true;
+        }
+      }
+      return invoice;
+    });
+
     res.json({
       success: true,
       count: invoices.length,
-      invoices
+      invoices: invoicesWithStatus
     });
 
   } catch (error) {
@@ -386,9 +410,19 @@ export const getProjectInvoiceDetails = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Add isOverdue flag
+    const invoiceObj = invoice.toObject();
+    if (invoiceObj.status === 'pending' && invoiceObj.dueDate) {
+      const dueDate = new Date(invoiceObj.dueDate);
+      const now = new Date();
+      if (dueDate < now) {
+        invoiceObj.isOverdue = true;
+      }
+    }
+
     res.json({
       success: true,
-      invoice
+      invoice: invoiceObj
     });
 
   } catch (error) {
@@ -530,6 +564,14 @@ export const updateProjectInvoice = async (req, res) => {
       if (updates.status !== 'paid') {
         invoice.paidAt = null;
       }
+    }
+
+    if (updates.linkedFileIds) {
+      invoice.linkedFileIds = updates.linkedFileIds;
+    }
+
+    if (updates.accessType) {
+      invoice.accessType = updates.accessType;
     }
 
     await invoice.save();

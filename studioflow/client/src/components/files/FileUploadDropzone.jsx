@@ -12,9 +12,9 @@ import { cn } from '@/lib/utils';
  * FileUploadDropzone Component
  * Handles drag-and-drop file uploads with progress tracking
  */
-export function FileUploadDropzone({ 
-  projectId, 
-  onUploadComplete, 
+export function FileUploadDropzone({
+  projectId,
+  onUploadComplete,
   onUploadError,
   maxSize = 500 * 1024 * 1024, // 500MB default
   accept,
@@ -24,8 +24,19 @@ export function FileUploadDropzone({
   const { getToken } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [uploads, setUploads] = useState([]);
+  const [activeTab, setActiveTab] = useState('all');
   const fileInputRef = useRef(null);
   const abortControllersRef = useRef({});
+
+  const getAcceptString = () => {
+    switch (activeTab) {
+      case 'image': return 'image/*';
+      case 'video': return 'video/*';
+      case 'audio': return 'audio/*';
+      case 'document': return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
+      default: return accept;
+    }
+  };
 
   const handleDragEnter = (e) => {
     e.preventDefault();
@@ -69,7 +80,7 @@ export function FileUploadDropzone({
 
     // Validate files
     const validFiles = files.filter((file) => {
-      const validation = validateFile(file, maxSize);
+      const validation = validateFile(file, maxSize, getAcceptString());
       if (!validation.valid) {
         toast.error(`${file.name}: ${validation.error}`);
         return false;
@@ -179,6 +190,22 @@ export function FileUploadDropzone({
 
   return (
     <div className={cn('space-y-4', className)}>
+      {/* Filter Tabs */}
+      <div className="flex gap-2 pb-2 overflow-x-auto">
+        {['all', 'image', 'video', 'audio', 'document'].map((type) => (
+          <Button
+            key={type}
+            variant={activeTab === type ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab(type)}
+            className="capitalize whitespace-nowrap"
+            type="button"
+          >
+            {type === 'all' ? 'All Files' : type + 's'}
+          </Button>
+        ))}
+      </div>
+
       {/* Drop Zone */}
       <Card
         className={cn(
@@ -207,7 +234,7 @@ export function FileUploadDropzone({
             type="file"
             className="hidden"
             multiple={multiple}
-            accept={accept}
+            accept={getAcceptString()}
             onChange={handleFileInputChange}
           />
 
@@ -217,7 +244,7 @@ export function FileUploadDropzone({
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="w-4 h-4 mr-2" />
-            Select Files
+            Select {activeTab === 'all' ? '' : activeTab} Files
           </Button>
 
           <p className="text-xs text-muted-foreground mt-4">
