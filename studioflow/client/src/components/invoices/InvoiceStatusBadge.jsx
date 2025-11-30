@@ -21,6 +21,11 @@ const STATUS_CONFIG = {
     icon: Clock,
     style: { backgroundColor: 'rgb(251 146 60 / 0.2)', color: 'rgb(249 115 22)', borderColor: 'rgb(251 146 60 / 0.3)' },
   },
+  sent: {
+    label: 'Sent',
+    icon: Clock,
+    style: { backgroundColor: 'rgb(251 146 60 / 0.2)', color: 'rgb(249 115 22)', borderColor: 'rgb(251 146 60 / 0.3)' },
+  },
   paid: {
     label: 'Paid',
     icon: CheckCircle2,
@@ -104,6 +109,28 @@ export default function InvoiceStatusBadge({
     );
   }
 
+  // Determine available next statuses based on current status
+  let allowedTransitions = [];
+  if (status === 'draft') {
+    allowedTransitions = ['pending']; // Can only mark as Sent (pending)
+  } else if (status === 'pending') {
+    allowedTransitions = ['cancelled']; // Can cancel a sent invoice
+  } else if (status === 'overdue') {
+    allowedTransitions = ['cancelled'];
+  }
+  // 'paid' and 'cancelled' are terminal states for manual updates
+
+  // If no allowed transitions, disable editing
+  if (allowedTransitions.length === 0) {
+    return (
+      <Badge variant="outline" className="flex items-center gap-1" style={badgeStyle}>
+        <Icon className="w-3 h-3" />
+        {config.label}
+        {isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
+      </Badge>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -126,22 +153,20 @@ export default function InvoiceStatusBadge({
           <p className="text-xs font-medium text-muted-foreground px-2 py-1">
             Change Status
           </p>
-          {AVAILABLE_STATUSES.map((statusKey) => {
+          {allowedTransitions.map((statusKey) => {
             const statusConfig = STATUS_CONFIG[statusKey];
             const StatusIcon = statusConfig.icon;
-            const isCurrentStatus = statusKey === status;
 
             return (
               <Button
                 key={statusKey}
-                variant={isCurrentStatus ? 'secondary' : 'ghost'}
+                variant={'ghost'}
                 size="sm"
                 className={cn(
-                  'w-full justify-start text-left font-normal',
-                  isCurrentStatus && 'bg-muted'
+                  'w-full justify-start text-left font-normal'
                 )}
                 onClick={() => handleStatusSelect(statusKey)}
-                disabled={isCurrentStatus || updating}
+                disabled={updating}
               >
                 <span
                   className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5 text-xs font-semibold"
@@ -150,9 +175,6 @@ export default function InvoiceStatusBadge({
                   <StatusIcon className="w-3 h-3" />
                   {statusConfig.label}
                 </span>
-                {isCurrentStatus && (
-                  <CheckCircle2 className="w-3 h-3 ml-auto text-muted-foreground" />
-                )}
               </Button>
             );
           })}

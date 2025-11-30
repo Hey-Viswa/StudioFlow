@@ -35,6 +35,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -59,7 +65,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import api from '../../lib/api';
 import { formatINR, calculateInvoiceTotal } from '../../utils/currency';
 import { newInvoiceSchema } from '../../lib/validations/invoice';
@@ -82,12 +88,23 @@ export default function InvoiceDetailModal({
   onSave,
   onDelete,
   onResend,
+  onStatusUpdate,
   onDownload,
 }) {
   const { getToken } = useAuth();
   const [isEditMode, setIsEditMode] = useState(mode === 'edit');
   const [loading, setLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Local status state for immediate UI feedback
+  const [currentStatus, setCurrentStatus] = useState(invoice?.status || 'draft');
+
+  // Update local status when invoice prop changes
+  useEffect(() => {
+    if (invoice?.status) {
+      setCurrentStatus(invoice.status);
+    }
+  }, [invoice?.status]);
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
@@ -102,7 +119,6 @@ export default function InvoiceDetailModal({
       })) || [{ title: '', description: '', quantity: 1, rate: 0 }],
       dueDate: invoice?.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       tax: { percentage: invoice?.tax?.percentage || 0 },
-      discount: { percentage: invoice?.discount?.percentage || 0 },
       discount: { percentage: invoice?.discount?.percentage || 0 },
       notes: invoice?.notes || '',
       gstin: invoice?.gstin || '',
@@ -138,11 +154,11 @@ export default function InvoiceDetailModal({
         dueDate: invoice.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         tax: { percentage: invoice.tax?.percentage || 0 },
         discount: { percentage: invoice.discount?.percentage || 0 },
-        discount: { percentage: invoice.discount?.percentage || 0 },
         notes: invoice.notes || '',
         gstin: invoice.gstin || '',
       });
       setIsEditMode(mode === 'edit');
+      setCurrentStatus(invoice.status || 'draft');
     }
   }, [invoice, isOpen, mode, form]);
 
@@ -154,7 +170,7 @@ export default function InvoiceDetailModal({
       // Note: API expects integer percentages (0-100), not fractions
       const payload = {
         projectId: data.projectId,
-        status: data.status || invoice.status,
+        status: data.status || currentStatus, // Use currentStatus if form status is empty
         dueDate: data.dueDate ? data.dueDate.toISOString() : invoice.dueDate,
         items: data.items.map(item => ({
           ...item,
@@ -163,11 +179,11 @@ export default function InvoiceDetailModal({
         })),
         tax: { percentage: Math.round(parseInt(data.tax.percentage, 10) || 0) },
         discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
-        discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
         notes: data.notes || '',
         gstin: data.gstin || '',
       };
 
+      console.log('🚀 Sending update payload:', payload);
       await onSave(invoice._id, payload);
       setIsEditMode(false);
       // Don't show toast here - parent handles it
@@ -183,18 +199,14 @@ export default function InvoiceDetailModal({
 
   const handleDeleteClick = async () => {
     if (!onDelete || !invoice) return;
-
     setLoading(true);
     try {
       await onDelete(invoice._id);
-      toast.success('Invoice deleted successfully');
       setDeleteDialogOpen(false);
       onClose();
     } catch (error) {
       console.error('Failed to delete invoice:', error);
-      toast.error('Failed to delete invoice', {
-        description: error.message || 'Please try again',
-      });
+      // toast handled by parent
     } finally {
       setLoading(false);
     }
@@ -202,14 +214,12 @@ export default function InvoiceDetailModal({
 
   const handleResendClick = async () => {
     if (!onResend || !invoice) return;
-
     setLoading(true);
     try {
       await onResend(invoice._id);
-      toast.success('Invoice resent successfully');
+      // toast handled by parent
     } catch (error) {
       console.error('Failed to resend invoice:', error);
-      toast.error('Failed to resend invoice');
     } finally {
       setLoading(false);
     }
@@ -217,13 +227,54 @@ export default function InvoiceDetailModal({
 
   const handleDownloadClick = async () => {
     if (!onDownload || !invoice) return;
+    try {
+      await onDownload(invoice);
+    } catch (error) {
+      console.error('Failed to download invoice:', error);
+    }
+  };
+
+  const handleStatusUpdate = async (newStatus) => {
+    // Prefer onStatusUpdate if available (dedicated PATCH endpoint)
+    if (onStatusUpdate) {
+      if (newStatus === currentStatus) return;
+      setLoading(true);
+      try {
+        await onStatusUpdate(invoice._id, newStatus);
+        setCurrentStatus(newStatus); // Update local state immediately
+        // Toast is handled by the parent/hook
+      } catch (error) {
+        // Error toast is handled by the parent/hook
+        console.error('Failed to update status:', error);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Fallback to onSave (PUT endpoint)
+    if (!onSave || !invoice) return;
+    if (newStatus === currentStatus) return;
 
     setLoading(true);
     try {
-      await onDownload(invoice.invoiceNumber);
+      // Exclude status from form values to avoid duplicate key warning
+      const { status: _currentStatus, ...otherValues } = form.getValues();
+
+      const payload = {
+        ...otherValues,
+        status: newStatus,
+      };
+
+      console.log('🚀 Sending direct status update:', payload);
+      await onSave(invoice._id, payload);
+      setCurrentStatus(newStatus); // Update local state immediately
+      toast.success(`Status updated to ${newStatus}`);
     } catch (error) {
-      console.error('Failed to download invoice:', error);
-      toast.error('Failed to download invoice');
+      console.error('Failed to update status:', error);
+      toast.error('Failed to update status', {
+        description: error.message || 'Please try again',
+      });
     } finally {
       setLoading(false);
     }
@@ -231,8 +282,9 @@ export default function InvoiceDetailModal({
 
   if (!invoice) return null;
 
-  const statusConfig = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
+  const statusConfig = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.draft;
   const StatusIcon = statusConfig.icon;
+  const isOverdue = currentStatus === 'overdue';
 
   return (
     <>
@@ -246,15 +298,42 @@ export default function InvoiceDetailModal({
                   {invoice.projectId?.title || invoice.projectTitle || 'Project details unavailable'}
                 </DialogDescription>
               </div>
-              <Badge
-                variant={invoice.isOverdue ? 'destructive' : statusConfig.variant}
-                className="flex items-center gap-1"
-                style={invoice.isOverdue ? { borderColor: 'rgb(239 68 68 / 0.5)', color: 'rgb(239 68 68)', backgroundColor: 'rgb(239 68 68 / 0.1)' } : {}}
-              >
-                <StatusIcon className="w-3 h-3" />
-                {statusConfig.label}
-                {invoice.isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
-              </Badge>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Badge
+                    variant={isOverdue ? 'destructive' : statusConfig.variant}
+                    className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                    style={isOverdue ? { borderColor: 'rgb(239 68 68 / 0.5)', color: 'rgb(239 68 68)', backgroundColor: 'rgb(239 68 68 / 0.1)' } : {}}
+                  >
+                    <StatusIcon className="w-3 h-3" />
+                    {statusConfig.label}
+                    {isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
+                  </Badge>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleStatusUpdate('pending')}>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Mark as Sent
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusUpdate('paid')}>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Mark as Paid
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusUpdate('overdue')}>
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Mark as Overdue
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusUpdate('cancelled')}>
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Mark as Cancelled
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusUpdate('draft')}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Mark as Draft
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </DialogHeader>
 
@@ -276,7 +355,7 @@ export default function InvoiceDetailModal({
                   <p className="text-sm text-muted-foreground mb-1">Due Date</p>
                   <p className="font-semibold text-lg flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5 text-primary" />
-                    {invoice.dueDate ? format(new Date(invoice.dueDate), 'PPP') : 'Not set'}
+                    {invoice.dueDate && isValid(new Date(invoice.dueDate)) ? format(new Date(invoice.dueDate), 'PPP') : 'Not set'}
                   </p>
                 </CardContent>
               </Card>
@@ -387,7 +466,7 @@ export default function InvoiceDetailModal({
                             <Input
                               id="invoice-detail-due-date"
                               type="date"
-                              value={field.value instanceof Date ? format(field.value, 'yyyy-MM-dd') : ''}
+                              value={field.value instanceof Date && isValid(field.value) ? format(field.value, 'yyyy-MM-dd') : ''}
                               onChange={(e) => {
                                 const dateValue = e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined;
                                 field.onChange(dateValue);

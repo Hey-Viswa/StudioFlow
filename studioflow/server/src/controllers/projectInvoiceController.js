@@ -91,7 +91,7 @@ export const getAllUserInvoices = async (req, res) => {
 
     if (status && status !== 'all') {
       if (status === 'sent') {
-        query.status = 'pending';
+        query.status = { $in: ['pending', 'sent'] };
       } else if (status === 'overdue') {
         const now = new Date();
         const overdueClause = {
@@ -129,6 +129,21 @@ export const getAllUserInvoices = async (req, res) => {
         }
       );
     }
+
+    // Auto-update overdue status for visible projects
+    // We can't easily scope this to "all projects user can see" efficiently in one go without a complex query,
+    // but we can update based on the same criteria or just update all relevant ones if we are confident.
+    // For safety, let's just update the ones we are about to fetch or just run a safe update on the specific project IDs.
+    await ProjectInvoice.updateMany(
+      {
+        projectId: { $in: privilegedProjectIds },
+        status: 'pending',
+        dueDate: { $lt: new Date() }
+      },
+      {
+        $set: { status: 'overdue' }
+      }
+    );
 
     // Fetch invoices with pagination
     const skip = (page - 1) * limit;
@@ -360,6 +375,18 @@ export const getProjectInvoices = async (req, res) => {
       query['client.userId'] = userId;
     }
 
+    // Auto-update overdue status
+    await ProjectInvoice.updateMany(
+      {
+        projectId,
+        status: 'pending',
+        dueDate: { $lt: new Date() }
+      },
+      {
+        $set: { status: 'overdue' }
+      }
+    );
+
     // Fetch invoices
     const invoices = await ProjectInvoice.find(query)
       .sort({ createdAt: -1 })
@@ -456,8 +483,10 @@ export const createInvoiceFromBody = async (req, res) => {
 export const updateProjectInvoice = async (req, res) => {
   try {
     const { invoiceId } = req.params;
+    const updates = req.body;
     const userId = req.userId;
-    const updates = req.body || {};
+
+    console.log('📥 Update Invoice Request:', { invoiceId, updates, userId });
 
     const invoice = await ProjectInvoice.findById(invoiceId);
 
@@ -468,6 +497,21 @@ export const updateProjectInvoice = async (req, res) => {
     if (invoice.userId !== userId) {
       return res.status(403).json({ error: 'Only invoice creator can update' });
     }
+
+    // Enforce Immutability: Allow edits for draft, overdue, and cancelled
+    // Sent/Paid invoices should generally remain immutable to preserve history, 
+    // but if the user really needs to edit an overdue one (e.g. to extend date), we allow it.
+    const editableStatuses = ['draft', 'overdue', 'cancelled'];
+
+    if (!editableStatuses.includes(invoice.status)) {
+      return res.status(403).json({
+        error: `Cannot edit ${invoice.status} invoice. Only draft, overdue, or cancelled invoices can be edited.`
+      });
+    }
+
+    // Track changes for revision history
+    const previousVersion = invoice.toObject();
+    let hasChanges = false;
 
     if (updates.projectId && String(updates.projectId) !== String(invoice.projectId)) {
       if (!mongoose.Types.ObjectId.isValid(updates.projectId)) {
@@ -485,6 +529,7 @@ export const updateProjectInvoice = async (req, res) => {
 
       invoice.projectId = updates.projectId;
       invoice.projectTitle = project.title;
+      hasChanges = true;
     }
 
     if (updates.items && (!Array.isArray(updates.items) || updates.items.length === 0)) {
@@ -499,6 +544,7 @@ export const updateProjectInvoice = async (req, res) => {
         rate: Math.max(0, parseFloat(item.rate) || 0),
         amount: Math.max(0, (parseFloat(item.quantity) || 1) * (parseFloat(item.rate) || 0))
       }));
+      hasChanges = true;
     }
 
     if (updates.client) {
@@ -506,10 +552,12 @@ export const updateProjectInvoice = async (req, res) => {
         ...invoice.client,
         ...updates.client
       };
+      hasChanges = true;
     }
 
-    if (updates.notes !== undefined) {
+    if (updates.notes !== undefined && updates.notes !== invoice.notes) {
       invoice.notes = updates.notes;
+      hasChanges = true;
     }
 
     if (updates.issueDate) {
@@ -518,6 +566,7 @@ export const updateProjectInvoice = async (req, res) => {
         return res.status(400).json({ error: 'Invalid issue date' });
       }
       invoice.issueDate = issueDate;
+      hasChanges = true;
     }
 
     if (updates.dueDate) {
@@ -526,6 +575,13 @@ export const updateProjectInvoice = async (req, res) => {
         return res.status(400).json({ error: 'Invalid due date' });
       }
       invoice.dueDate = dueDate;
+
+      // If invoice was overdue and new due date is in the future, reset to pending (sent)
+      if (invoice.status === 'overdue' && dueDate >= new Date()) {
+        invoice.status = 'pending';
+      }
+
+      hasChanges = true;
     }
 
     if (invoice.issueDate && invoice.dueDate && invoice.dueDate < invoice.issueDate) {
@@ -542,6 +598,7 @@ export const updateProjectInvoice = async (req, res) => {
         percentage,
         amount: (subtotal * (percentage || 0)) / 100
       };
+      hasChanges = true;
     }
 
     if (updates.discount) {
@@ -554,24 +611,43 @@ export const updateProjectInvoice = async (req, res) => {
         percentage,
         amount: (subtotal * (percentage || 0)) / 100
       };
+      hasChanges = true;
     }
 
-    if (updates.status) {
+    // Status updates should go through updateProjectInvoiceStatus, but if passed here:
+    if (updates.status && updates.status !== invoice.status) {
+      // Allow manual status corrections to pending, overdue, or cancelled
+      // Block transitions to 'paid' or 'sent' if they require specific side effects (though 'sent' is 'pending' here)
+      // We'll allow 'pending' (Sent), 'overdue', 'cancelled', 'draft'
+      const allowedStatusUpdates = ['draft', 'pending', 'overdue', 'cancelled'];
+
+      if (!allowedStatusUpdates.includes(updates.status)) {
+        return res.status(400).json({ error: 'Invalid status update. Use dedicated endpoints for payments.' });
+      }
+
       invoice.status = updates.status;
-      if (updates.status === 'paid' && !invoice.paidAt) {
-        invoice.paidAt = new Date();
-      }
-      if (updates.status !== 'paid') {
-        invoice.paidAt = null;
-      }
+      hasChanges = true;
     }
 
     if (updates.linkedFileIds) {
       invoice.linkedFileIds = updates.linkedFileIds;
+      hasChanges = true;
     }
 
     if (updates.accessType) {
       invoice.accessType = updates.accessType;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      // Increment version and add to history
+      invoice.version = (invoice.version || 1) + 1;
+      invoice.revisionHistory.push({
+        version: previousVersion.version || 1,
+        changedBy: userId,
+        changedAt: new Date(),
+        changes: updates // Store the raw updates object for simplicity, or diff it
+      });
     }
 
     await invoice.save();
@@ -690,7 +766,7 @@ export const updateProjectInvoiceStatus = async (req, res) => {
     const { status } = req.body;
     const userId = req.userId;
 
-    const allowedStatuses = ['draft', 'pending', 'paid', 'overdue', 'failed', 'cancelled'];
+    const allowedStatuses = ['draft', 'pending', 'sent', 'paid', 'overdue', 'failed', 'cancelled', 'refunded'];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
@@ -706,11 +782,37 @@ export const updateProjectInvoiceStatus = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can update status' });
     }
 
-    invoice.status = status;
+    // Handle transitions
+    if (status === 'sent' || status === 'pending') {
+      // If moving from draft to sent, create snapshot
+      if (invoice.status === 'draft') {
+        invoice.immutableSnapshot = invoice.toObject();
+        invoice.sentAt = new Date();
+        invoice.status = 'sent'; // Normalize to 'sent'
+
+        // TODO: Create Razorpay Order here if desired, or let the client trigger it via createPaymentOrder
+        // For now, we just mark it as sent and immutable.
+
+        console.log(`🔒 Invoice ${invoice.invoiceNumber} finalized and snapshot created.`);
+      } else {
+        // Already sent/paid, just updating status?
+        // If it's already paid, don't allow going back to sent/pending easily without refund logic
+        if (invoice.status === 'paid') {
+          return res.status(400).json({ error: 'Cannot change status of paid invoice directly. Use refund.' });
+        }
+        invoice.status = status;
+      }
+    } else if (status === 'cancelled') {
+      // Allow cancelling sent invoices
+      invoice.status = 'cancelled';
+    } else {
+      invoice.status = status;
+    }
+
     if (status === 'paid' && !invoice.paidAt) {
       invoice.paidAt = new Date();
     }
-    if (status !== 'paid') {
+    if (status !== 'paid' && status !== 'refunded') {
       invoice.paidAt = null;
     }
 
@@ -1212,3 +1314,4 @@ export const downloadProjectInvoicePDF = async (req, res) => {
     res.status(500).json({ error: 'Failed to download PDF' });
   }
 };
+
