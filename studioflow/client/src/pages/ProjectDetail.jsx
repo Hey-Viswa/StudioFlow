@@ -66,6 +66,7 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import OwnershipTransferModal from '../components/OwnershipTransferModal';
+import OwnershipAcceptanceBanner from '../components/OwnershipAcceptanceBanner';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -582,6 +583,12 @@ export default function ProjectDetail() {
             Back to Dashboard
           </Button>
         </div>
+
+        {/* Ownership Acceptance Banner */}
+        <OwnershipAcceptanceBanner
+          projectId={project._id}
+          onAccept={fetchProject}
+        />
 
         {/* Project Info Card */}
         <Card>

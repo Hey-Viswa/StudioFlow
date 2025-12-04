@@ -50,7 +50,7 @@ export default function OwnershipTransferModal({
         setFetchingPending(true);
         try {
             const response = await api.get(`/projects/${project._id}/ownership/pending`, { getToken });
-            setPendingRequest(response.data.request);
+            setPendingRequest(response.request);
         } catch (error) {
             console.error('Failed to fetch pending request:', error);
         } finally {

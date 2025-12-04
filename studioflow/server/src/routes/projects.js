@@ -41,6 +41,7 @@ router.get('/', cacheMiddleware(2 * 60 * 1000), listProjects);  // List all user
 router.get('/usage', getProjectUsage);                     // Get project usage/limits
 router.get('/trash', cacheMiddleware(5 * 60 * 1000), listTrash); // Get trashed projects (5 min cache)
 router.get('/:id/metrics', getProjectMetrics);
+router.get('/:id/ownership/pending', getPendingRequest);
 router.get('/:id', cacheMiddleware(1 * 60 * 1000), getProjectById); // Get single project (1 min cache)
 router.put('/:id', updateProject);                        // Update project (owner only)
 router.patch('/:id', updateProject);                      // Update project (owner only) - supports PATCH too
@@ -51,7 +52,6 @@ router.post('/:id/restore', restoreProject);              // Restore from trash
 router.delete('/:id/permanent', permanentlyDeleteProject); // Permanently delete
 
 // Ownership Transfer
-router.get('/:id/ownership/pending', getPendingRequest);
 router.post('/:id/ownership/request', requestTransfer);
 router.post('/:id/ownership/accept', acceptTransfer);
 router.post('/:id/ownership/cancel', cancelRequest);
