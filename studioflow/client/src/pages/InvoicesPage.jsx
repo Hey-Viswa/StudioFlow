@@ -9,12 +9,15 @@ import NewInvoiceModal from '../components/invoices/NewInvoiceModal';
 import InvoiceDetailModal from '../components/invoices/InvoiceDetailModal';
 import SendInvoiceModal from '../components/invoices/SendInvoiceModal';
 import { useInvoices } from '../hooks/useInvoices';
+import { useRole } from '../hooks/useRole';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpayCheckout';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isClient, loading: roleLoading } = useRole();
+
   // All hooks MUST be called at the top level before any conditional logic or early returns
   // This prevents "Rendered more hooks than during the previous render" error
 
@@ -268,13 +271,15 @@ export default function InvoicesPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button
-              onClick={() => navigate('/dashboard/invoices/new')}
-              className="bg-primary text-primary-foreground"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Invoice
-            </Button>
+            {!isClient && !roleLoading && (
+              <Button
+                onClick={() => navigate('/dashboard/invoices/new')}
+                className="bg-primary text-primary-foreground"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Invoice
+              </Button>
+            )}
           </div>
         </div>
 
@@ -321,6 +326,7 @@ export default function InvoicesPage() {
           onResendInvoice={handleResendInvoice}
           onStatusUpdate={handleStatusUpdate}
           onRefresh={refreshInvoices}
+          isClient={isClient}
         />
 
         {/* Modals */}
@@ -348,6 +354,8 @@ export default function InvoicesPage() {
           onResend={handleResendInvoice}
           onStatusUpdate={handleStatusUpdate}
           onDownload={downloadInvoice}
+          onPay={handlePayInvoice}
+          isClient={isClient}
         />
 
         <SendInvoiceModal

@@ -52,7 +52,6 @@ import {
   Download,
   Send
 } from 'lucide-react';
-import InvoiceRowActions from './InvoiceRowActions';
 import InvoiceStatusBadge from './InvoiceStatusBadge';
 import { formatINR } from '../../utils/currency';
 import { format } from 'date-fns';
@@ -102,7 +101,9 @@ export default function InvoiceTable({
   onDeleteInvoice,
   onResendInvoice,
   onStatusUpdate,
-  onRefresh
+
+  onRefresh,
+  isClient
 }) {
   const { getToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -148,6 +149,7 @@ export default function InvoiceTable({
   };
 
   const startEditing = (invoice, field) => {
+    if (isClient) return;
     if (!['draft', 'overdue', 'cancelled'].includes(invoice.status)) {
       toast.error('Only draft, overdue, or cancelled invoices can be edited');
       return;
@@ -331,7 +333,7 @@ export default function InvoiceTable({
                         invoiceId={invoice._id}
                         onStatusChange={handleStatusChange}
                         loading={statusUpdating === invoice._id}
-                        allowEdit={true}
+                        allowEdit={!isClient}
                       />
                     </TableCell>
                     <TableCell>
@@ -423,7 +425,7 @@ export default function InvoiceTable({
                         >
                           <Download className={cn("w-4 h-4", invoice.status !== 'paid' && "opacity-50")} />
                         </Button>
-                        {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && (
+                        {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -434,7 +436,7 @@ export default function InvoiceTable({
                             <Send className="w-4 h-4" />
                           </Button>
                         )}
-                        {['draft', 'overdue', 'cancelled'].includes(invoice.status) && (
+                        {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -445,14 +447,26 @@ export default function InvoiceTable({
                             Edit
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                          onClick={() => handleDeleteClick(invoice)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {!isClient && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                            onClick={() => handleDeleteClick(invoice)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {isClient && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => onPayInvoice?.(invoice)}
+                          >
+                            Pay
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -502,7 +516,7 @@ export default function InvoiceTable({
                     invoiceId={invoice._id}
                     onStatusChange={handleStatusChange}
                     loading={statusUpdating === invoice._id}
-                    allowEdit={true}
+                    allowEdit={!isClient}
                   />
                 </div>
 
@@ -532,7 +546,7 @@ export default function InvoiceTable({
                     >
                       <Download className={cn("w-4 h-4", invoice.status !== 'paid' && "opacity-50")} />
                     </Button>
-                    {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && (
+                    {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -543,7 +557,7 @@ export default function InvoiceTable({
                         <Send className="w-4 h-4" />
                       </Button>
                     )}
-                    {['draft', 'overdue', 'cancelled'].includes(invoice.status) && (
+                    {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -553,14 +567,26 @@ export default function InvoiceTable({
                         <Edit2 className="w-4 h-4" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteClick(invoice)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {!isClient && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteClick(invoice)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {isClient && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => onPayInvoice?.(invoice)}
+                      >
+                        Pay
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

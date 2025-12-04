@@ -31,10 +31,10 @@ const UserSchema = new mongoose.Schema({
     role: {
         type: String,
         enum: {
-            values: ['editor', 'client', 'admin'],
+            values: ['owner', 'member', 'client', 'admin', 'editor'],
             message: '{VALUE} is not a valid role'
         },
-        default: 'editor'
+        default: 'owner'
     },
     isActive: {
         type: Boolean,
@@ -174,7 +174,41 @@ const UserSchema = new mongoose.Schema({
             type: String,
             default: null
         }
-    }
+    },
+    // Cached stats for performance
+    stats: {
+        totalProjects: {
+            type: Number,
+            default: 0
+        },
+        storageUsed: {
+            type: Number,
+            default: 0
+        }
+    },
+    // Small embedded array for recent activity (max 20 items)
+    recentActivity: [{
+        action: {
+            type: String,
+            required: true
+        },
+        targetId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true
+        },
+        targetType: {
+            type: String,
+            required: true,
+            enum: ['Project', 'File', 'Invoice', 'Comment']
+        },
+        metadata: {
+            type: mongoose.Schema.Types.Mixed
+        },
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 }, {
     timestamps: true,
     toJSON: {

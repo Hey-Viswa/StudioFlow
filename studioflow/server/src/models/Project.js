@@ -17,28 +17,12 @@ const ProjectSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  members: [{
-    userId: {
-      type: String,
-      required: true
-    },
-    email: {
-      type: String,
-      default: ''
-    },
-    name: {
-      type: String,
-      default: ''
-    },
-    role: {
-      type: String,
-      enum: ['owner', 'client'],
-      default: 'client'
-    },
-    joinedAt: {
-      type: Date,
-      default: Date.now
-    }
+  // Preview members (subset for UI display) - Full list in ProjectMember collection
+  previewMembers: [{
+    userId: String,
+    name: String,
+    avatar: String,
+    role: String
   }],
   status: {
     type: String,
@@ -98,6 +82,25 @@ const ProjectSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Cached counters
+  stats: {
+    fileCount: {
+      type: Number,
+      default: 0
+    },
+    commentCount: {
+      type: Number,
+      default: 0
+    },
+    taskCount: {
+      type: Number,
+      default: 0
+    },
+    completedTaskCount: {
+      type: Number,
+      default: 0
+    }
+  },
   tasks: [{
     title: {
       type: String,
@@ -138,74 +141,7 @@ const ProjectSchema = new mongoose.Schema({
       default: null
     }
   }],
-  comments: [{
-    userId: {
-      type: String,
-      required: true
-    },
-    userName: {
-      type: String,
-      default: ''
-    },
-    userEmail: {
-      type: String,
-      default: ''
-    },
-    clientGeneratedId: {
-      type: String,
-      default: null
-    },
-    text: {
-      type: String,
-      required: true
-    },
-    parentId: {
-      type: String,
-      default: null
-    },
-    reactions: {
-      type: Map,
-      of: [String],
-      default: () => new Map()
-    },
-    attachments: [{
-      filename: String,
-      url: String,
-      mimeType: String,
-      size: Number
-    }],
-    mentions: [{
-      userId: String,
-      userName: String
-    }],
-    isResolved: {
-      type: Boolean,
-      default: false
-    },
-    resolvedBy: {
-      type: String,
-      default: null
-    },
-    resolvedAt: {
-      type: Date,
-      default: null
-    },
-    isSystemMessage: {
-      type: Boolean,
-      default: false
-    },
-    edited: {
-      type: Boolean,
-      default: false
-    },
-    editedAt: {
-      type: Date
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
+  // Comments moved to global 'Comment' collection
   deletedAt: {
     type: Date,
     default: null
@@ -219,7 +155,9 @@ const ProjectSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-ProjectSchema.index({ 'members.userId': 1 });
+// Indexes for better query performance
+ProjectSchema.index({ ownerId: 1, updatedAt: -1 }); // Optimized for dashboard
+ProjectSchema.index({ 'previewMembers.userId': 1 });
 ProjectSchema.index({ ownerId: 1, deletedAt: 1 }); // For listing user's projects
 ProjectSchema.index({ deletedBy: 1, deletedAt: 1 }); // For trash queries
 ProjectSchema.index({ createdAt: -1 }); // For sorting by creation date

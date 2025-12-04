@@ -101,7 +101,7 @@ export const requestTransfer = async (req, res) => {
 
         // Send notification to new owner
         await logDebug('Creating notification...');
-        await Notification.create({
+        const notification = await Notification.create({
             recipientId: newOwnerId,
             actorId: currentOwnerId,
             resourceId: projectId,
@@ -116,6 +116,13 @@ export const requestTransfer = async (req, res) => {
             category: 'action'
         });
         await logDebug('Notification created');
+
+        // Emit Socket.IO event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user:${newOwnerId}`).emit('notification', notification);
+            await logDebug('Socket event emitted to new owner');
+        }
 
         res.status(200).json({
             success: true,
@@ -230,7 +237,7 @@ export const acceptTransfer = async (req, res) => {
         });
 
         // Notify old owner
-        await Notification.create({
+        const notification = await Notification.create({
             recipientId: request.currentOwnerId,
             actorId: userId,
             resourceId: projectId,
@@ -243,6 +250,20 @@ export const acceptTransfer = async (req, res) => {
             },
             category: 'info'
         });
+
+        // Emit Socket.IO events
+        const io = req.app.get('io');
+        if (io) {
+            // Notify old owner
+            io.to(`user:${request.currentOwnerId}`).emit('notification', notification);
+
+            // Update project UI for everyone
+            io.emit('project-updated', {
+                projectId,
+                ownerId: userId,
+                updates: { ownerId: userId }
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -384,5 +405,94 @@ export const forceTransfer = async (req, res) => {
         res.status(500).json({ error: 'Failed to force transfer' });
     } finally {
         session.endSession();
+    }
+};
+
+/**
+ * Get pending ownership transfer request
+ * @route GET /api/projects/:id/ownership/pending
+ */
+export const getPendingRequest = async (req, res) => {
+    try {
+        const { id: projectId } = req.params;
+        const userId = req.userId;
+
+        const request = await OwnershipTransferRequest.findOne({
+            projectId,
+            status: 'pending',
+            expiresAt: { $gt: new Date() }
+        });
+
+        if (!request) {
+            return res.status(200).json({ request: null });
+        }
+
+        // Only show to current owner or new owner
+        if (request.currentOwnerId !== userId && request.newOwnerId !== userId) {
+            return res.status(403).json({ error: 'Not authorized to view this request' });
+        }
+
+        // Get new owner details
+        const newOwner = await ProjectMember.findOne({
+            projectId,
+            userId: request.newOwnerId
+        });
+
+        res.status(200).json({
+            request: {
+                ...request.toObject(),
+                newOwnerName: newOwner?.name || newOwner?.email || 'Unknown User'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching pending request:', error);
+        res.status(500).json({ error: 'Failed to fetch pending request' });
+    }
+};
+
+/**
+ * Cancel ownership transfer request
+ * @route POST /api/projects/:id/ownership/cancel
+ */
+export const cancelRequest = async (req, res) => {
+    try {
+        const { id: projectId } = req.params;
+        const userId = req.userId;
+
+        const request = await OwnershipTransferRequest.findOne({
+            projectId,
+            status: 'pending'
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'No pending request found' });
+        }
+
+        // Only current owner can cancel
+        if (request.currentOwnerId !== userId) {
+            return res.status(403).json({ error: 'Only the project owner can cancel the request' });
+        }
+
+        request.status = 'cancelled';
+        await request.save();
+
+        await logAudit({
+            userId,
+            action: 'ownership_transfer_cancelled',
+            resourceType: 'project',
+            resourceId: projectId,
+            details: { requestId: request._id },
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Transfer request cancelled'
+        });
+
+    } catch (error) {
+        console.error('Error cancelling request:', error);
+        res.status(500).json({ error: 'Failed to cancel request' });
     }
 };

@@ -9,6 +9,8 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { createClerkClient } from '@clerk/backend';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+import PaymentThread from '../models/PaymentThread.js';
+import { logAudit } from '../services/auditService.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -920,6 +922,43 @@ export const createPaymentOrder = async (req, res) => {
     });
 
     console.log('✓ Razorpay order created:', order.id);
+
+    // Create or Update PaymentThread
+    // This is CRITICAL for the webhook to know which project/invoice this payment belongs to
+    let paymentThread = await PaymentThread.findOne({ invoiceId: invoice._id });
+
+    if (!paymentThread) {
+      paymentThread = new PaymentThread({
+        projectId: invoice.projectId,
+        title: `Payment for Invoice ${invoice.invoiceNumber}`,
+        amount: invoice.total,
+        currency: invoice.currency,
+        type: 'fixed', // Default to fixed for invoices
+        status: 'pending',
+        invoiceId: invoice._id
+      });
+    }
+
+    paymentThread.razorpayOrderId = order.id;
+    paymentThread.amount = invoice.total; // Ensure amount matches
+    await paymentThread.save();
+
+    console.log('✓ PaymentThread created/updated:', paymentThread._id);
+
+    // Log Audit
+    await logAudit({
+      userId,
+      action: 'payment_initiated',
+      resourceType: 'invoice',
+      resourceId: invoice._id,
+      details: {
+        amount: invoice.total,
+        currency: invoice.currency,
+        razorpayOrderId: order.id,
+        paymentThreadId: paymentThread._id
+      },
+      status: 'success'
+    });
 
     // Update invoice with order ID and status
     invoice.razorpayOrderId = order.id;

@@ -1,12 +1,12 @@
 import Project from '../models/Project.js';
+import Comment from '../models/Comment.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+import ProjectMember from '../models/ProjectMember.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
  */
-
-import ProjectMember from '../models/ProjectMember.js';
-import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 
 /**
  * Helper: Get user's role in the project
@@ -32,8 +32,11 @@ export const getComments = async (req, res) => {
   try {
     const { id: projectId } = req.params;
     const userId = req.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
 
-    const project = await Project.findById(projectId).select('comments ownerId');
+    const project = await Project.findById(projectId).select('ownerId settings');
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
@@ -49,13 +52,20 @@ export const getComments = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to view comments.' });
     }
 
-    // Convert reactions Map to object for JSON serialization
-    const comments = project.comments.map(comment => ({
-      ...comment.toObject(),
-      reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
+    // Fetch comments from global collection
+    const comments = await Comment.find({ projectId })
+      .sort({ createdAt: -1 }) // Newest first
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Convert reactions Map to object
+    const formattedComments = comments.map(comment => ({
+      ...comment,
+      reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
     }));
 
-    res.status(200).json({ comments });
+    res.status(200).json({ comments: formattedComments });
   } catch (error) {
     console.error('❌ Error fetching comments:', error);
     res.status(500).json({ error: 'Failed to fetch comments' });
@@ -74,23 +84,17 @@ export const addComment = async (req, res) => {
       return res.status(400).json({ error: 'Comment text is required' });
     }
 
-    const project = await Project.findById(projectId).select('comments ownerId');
+    const project = await Project.findById(projectId).select('ownerId settings stats');
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Idempotency check
+    // Idempotency check (if clientGeneratedId provided)
     if (clientGeneratedId) {
-      const existingComment = project.comments.find(c => c.clientGeneratedId === clientGeneratedId);
-      if (existingComment) {
-        console.log(`⏭️ Skipping duplicate comment (clientGeneratedId: ${clientGeneratedId})`);
-        const commentObj = {
-          ...existingComment.toObject(),
-          reactions: existingComment.reactions ? Object.fromEntries(existingComment.reactions) : {}
-        };
-        return res.status(200).json({ comment: commentObj });
-      }
+      // Optional: Check if comment with this clientGeneratedId exists for this user/project
+      // const existing = await Comment.findOne({ projectId, userId, clientGeneratedId });
+      // if (existing) return res.status(200).json({ comment: existing });
     }
 
     // RBAC: Check project access and comment permission
@@ -105,13 +109,14 @@ export const addComment = async (req, res) => {
 
     // Validate parent comment if replying
     if (parentId) {
-      const parentExists = project.comments.some(c => c._id.toString() === parentId);
+      const parentExists = await Comment.exists({ _id: parentId, projectId });
       if (!parentExists) {
         return res.status(404).json({ error: 'Parent comment not found' });
       }
     }
 
-    const newComment = {
+    const newComment = await Comment.create({
+      projectId,
       userId,
       userName,
       userEmail,
@@ -122,21 +127,20 @@ export const addComment = async (req, res) => {
       attachments: attachments || [],
       mentions: mentions || [],
       createdAt: new Date()
-    };
+    });
 
-    project.comments.push(newComment);
-    await project.save();
+    // Update project stats
+    await Project.updateOne({ _id: projectId }, { $inc: { 'stats.commentCount': 1 } });
 
-    const addedComment = project.comments[project.comments.length - 1];
     const commentObj = {
-      ...addedComment.toObject(),
+      ...newComment.toObject(),
       reactions: {}
     };
 
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment:added', {
+      io.to(`project:${projectId}`).emit('comment:added', {
         projectId,
         comment: commentObj
       });
@@ -184,23 +188,13 @@ export const updateComment = async (req, res) => {
       return res.status(400).json({ error: 'Comment text is required' });
     }
 
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const comment = project.comments.id(commentId);
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
     // RBAC: Check permission
-    // Only owner or the comment author can edit (usually)
-    // Matrix doesn't explicitly mention "Edit Comment", but implied "Manage Own".
-    // Let's assume only author can edit their own comment.
-
     if (comment.userId !== userId) {
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
@@ -209,7 +203,7 @@ export const updateComment = async (req, res) => {
     comment.edited = true;
     comment.editedAt = new Date();
 
-    await project.save();
+    await comment.save();
 
     const commentObj = {
       ...comment.toObject(),
@@ -219,7 +213,7 @@ export const updateComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment:updated', {
+      io.to(`project:${projectId}`).emit('comment:updated', {
         projectId,
         comment: commentObj
       });
@@ -237,13 +231,7 @@ export const deleteComment = async (req, res) => {
     const { id: projectId, commentId } = req.params;
     const userId = req.userId;
 
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const comment = project.comments.id(commentId);
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
@@ -272,25 +260,21 @@ export const deleteComment = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to delete comments' });
     }
 
-    // Remove comment and all its replies
-    const removeCommentAndReplies = (commentId) => {
-      project.comments = project.comments.filter(c => {
-        if (c._id.toString() === commentId) return false;
-        if (c.parentId === commentId) {
-          removeCommentAndReplies(c._id.toString());
-          return false;
-        }
-        return true;
-      });
-    };
+    // Delete comment and replies
+    await Comment.deleteMany({
+      $or: [
+        { _id: commentId },
+        { parentId: commentId }
+      ]
+    });
 
-    removeCommentAndReplies(commentId);
-    await project.save();
+    // Update project stats
+    await Project.updateOne({ _id: projectId }, { $inc: { 'stats.commentCount': -1 } });
 
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment:deleted', {
+      io.to(`project:${projectId}`).emit('comment:deleted', {
         projectId,
         commentId
       });
@@ -313,13 +297,7 @@ export const reactToComment = async (req, res) => {
       return res.status(400).json({ error: 'Emoji is required' });
     }
 
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const comment = project.comments.id(commentId);
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
@@ -348,7 +326,7 @@ export const reactToComment = async (req, res) => {
       comment.reactions.set(emoji, users);
     }
 
-    await project.save();
+    await comment.save();
 
     const commentObj = {
       ...comment.toObject(),
@@ -358,7 +336,7 @@ export const reactToComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment:updated', {
+      io.to(`project:${projectId}`).emit('comment:updated', {
         projectId,
         comment: commentObj
       });
@@ -376,8 +354,7 @@ export const resolveComment = async (req, res) => {
     const { id: projectId, commentId } = req.params;
     const userId = req.userId;
 
-    const project = await Project.findById(projectId);
-
+    const project = await Project.findById(projectId).select('ownerId');
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -387,7 +364,7 @@ export const resolveComment = async (req, res) => {
       return res.status(403).json({ error: 'Only project owner can resolve comments' });
     }
 
-    const comment = project.comments.id(commentId);
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
@@ -397,7 +374,7 @@ export const resolveComment = async (req, res) => {
     comment.resolvedBy = userId;
     comment.resolvedAt = new Date();
 
-    await project.save();
+    await comment.save();
 
     const commentObj = {
       ...comment.toObject(),
@@ -407,7 +384,7 @@ export const resolveComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment:updated', {
+      io.to(`project:${projectId}`).emit('comment:updated', {
         projectId,
         comment: commentObj
       });

@@ -341,10 +341,11 @@ export const getProjectFiles = async (req, res) => {
 
     const files = await ProjectFile.findOne({ projectId }) ? await ProjectFile.find(query).sort({ createdAt: -1 }).lean() : [];
 
-    // Check entitlement once for the user
+    // Entitlement check is now handled by middleware
     let isEntitled = false;
     if (role === ROLES.CLIENT) {
-      isEntitled = await verifyEntitlement(userId, projectId);
+      // We can assume they are entitled if they passed the middleware
+      isEntitled = true;
     }
 
     // Process files to add permission flags
@@ -410,17 +411,7 @@ export const getFileDetails = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
-    // Entitlement Check for Clients
-    if (role === ROLES.CLIENT) {
-      const isEntitled = await verifyEntitlement(userId, projectId);
-      if (!isEntitled) {
-        return res.status(403).json({
-          error: 'Payment Required',
-          message: 'You must pay the invoice to access these files.',
-          code: 'ENTITLEMENT_REQUIRED'
-        });
-      }
-    }
+    // Entitlement check is now handled by middleware
 
     const file = await ProjectFile.findOne({ fileId, projectId });
     if (!file) {
@@ -632,17 +623,7 @@ export const getFilePreviewUrl = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to view files.' });
     }
 
-    // Entitlement Check for Clients
-    if (role === ROLES.CLIENT) {
-      const isEntitled = await verifyEntitlement(userId, projectId);
-      if (!isEntitled) {
-        return res.status(403).json({
-          error: 'Payment Required',
-          message: 'You must pay the invoice to view this file.',
-          code: 'ENTITLEMENT_REQUIRED'
-        });
-      }
-    }
+    // Entitlement check is now handled by middleware
 
     const file = await ProjectFile.findOne({ fileId, projectId });
     if (!file) {

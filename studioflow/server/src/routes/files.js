@@ -17,6 +17,8 @@ import {
   getSharedFile,
 } from '../controllers/fileSharing.js';
 
+import { checkProjectEntitlement } from '../middlewares/entitlementMiddleware.js';
+
 const router = express.Router({ mergeParams: true }); // mergeParams to access :id from parent
 
 // All routes require authentication
@@ -27,9 +29,10 @@ router.post('/sign', signUpload);           // Generate signed upload URL
 router.post('/confirm', confirmUpload);     // Confirm upload completion
 
 // File management
-router.get('/', getProjectFiles);           // List all project files
-router.get('/:fileId', getFileDetails);     // Get file details + download URL
-router.get('/:fileId/preview', getFilePreviewUrl); // Get preview URL
+// Apply Entitlement Check for viewing/downloading files
+router.get('/', checkProjectEntitlement('project_download'), getProjectFiles);           // List all project files
+router.get('/:fileId', checkProjectEntitlement('project_download'), getFileDetails);     // Get file details + download URL
+router.get('/:fileId/preview', checkProjectEntitlement('project_download'), getFilePreviewUrl); // Get preview URL
 router.post('/:fileId/archive', archiveFile); // Archive file (soft delete)
 router.post('/:fileId/restore', restoreFile); // Restore archived file
 router.delete('/:fileId', deleteFile);      // Permanently delete file (owner only)

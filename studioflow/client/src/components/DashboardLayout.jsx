@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { Button } from './ui/button';
@@ -17,6 +17,8 @@ import {
 import NotificationBell from './NotificationBell';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { ModeToggle } from './ModeToggle';
+import { useSocket } from '../hooks/useSocket';
+import { toast } from 'sonner';
 
 export default function DashboardLayout() {
   // Layout for the dashboard with sidebar and header
@@ -26,6 +28,30 @@ export default function DashboardLayout() {
 
   // Initialize push notifications
   usePushNotifications();
+
+  // Global socket listener for notifications
+  const socket = useSocket();
+
+  useEffect(() => {
+    if (socket) {
+      const handleNotification = (data) => {
+        console.log('🔔 Real-time notification received:', data);
+        toast(data.title || 'New Notification', {
+          description: data.message,
+          action: {
+            label: 'View',
+            onClick: () => window.location.href = data.data?.url || '/dashboard/notifications'
+          }
+        });
+      };
+
+      socket.on('notification', handleNotification);
+
+      return () => {
+        socket.off('notification', handleNotification);
+      };
+    }
+  }, [socket]);
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },

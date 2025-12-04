@@ -114,7 +114,7 @@ export const acceptInvite = async (req, res) => {
 
     // Notify project owner
     try {
-      await createNotificationWithIdempotency({
+      const notification = await createNotificationWithIdempotency({
         projectId: projectId,
         recipients: [project.ownerId],
         type: 'project-invitation',
@@ -130,6 +130,12 @@ export const acceptInvite = async (req, res) => {
           newMemberName: userName
         }
       });
+
+      // Emit Socket.IO event to owner
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user:${project.ownerId}`).emit('notification', notification);
+      }
     } catch (notifError) {
       console.error('Error sending join notification:', notifError);
     }

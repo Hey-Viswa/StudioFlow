@@ -18,7 +18,14 @@ const AuditLogSchema = new mongoose.Schema({
     },
     resourceId: {
         type: String,
-        required: false
+        required: false,
+        index: true
+    },
+    projectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Project',
+        default: null,
+        index: true
     },
     details: {
         type: mongoose.Schema.Types.Mixed,

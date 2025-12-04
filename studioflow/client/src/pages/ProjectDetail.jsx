@@ -130,6 +130,12 @@ export default function ProjectDetail() {
       }
 
       const data = await response.json();
+
+      if (!data.project) {
+        console.error('Invalid project data structure:', data);
+        throw new Error('Project data is missing from response');
+      }
+
       setProject(data.project);
       setProgressValue(data.project.progress || 0);
       setInviteLink(data.inviteLink);

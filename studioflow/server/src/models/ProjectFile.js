@@ -181,6 +181,7 @@ const projectFileSchema = new mongoose.Schema({
 
 // Compound indexes for efficient queries
 projectFileSchema.index({ projectId: 1, status: 1 });
+projectFileSchema.index({ projectId: 1, createdAt: -1 }); // Added for recent files query
 projectFileSchema.index({ projectId: 1, baseFileId: 1, version: -1 });
 projectFileSchema.index({ uploaderId: 1, createdAt: -1 });
 

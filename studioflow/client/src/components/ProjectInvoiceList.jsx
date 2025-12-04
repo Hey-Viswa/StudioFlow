@@ -7,6 +7,8 @@ import { Badge } from './ui/badge';
 import { Plus, FileText, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProjectInvoices, resendInvoice } from '../lib/projectInvoiceApi';
+import InvoiceStatusBadge from './invoices/InvoiceStatusBadge';
+import { formatINR } from '../utils/currency';
 
 export default function ProjectInvoiceList({ projectId, clients, userRole }) {
   const { getToken } = useAuth();
@@ -42,16 +44,6 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
     fetchInvoices();
   }, [projectId]);
 
-  const statusConfig = {
-    draft: { icon: FileText, color: 'bg-muted text-muted-foreground border-border' },
-    pending: { icon: Clock, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-    paid: { icon: CheckCircle2, color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-    failed: { icon: XCircle, color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-    cancelled: { icon: XCircle, color: 'bg-muted text-muted-foreground border-border' }
-  };
-
-  const formatCurrency = (amount) => `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-
   if (loading) {
     return <div className="text-slate-400">Loading invoices...</div>;
   }
@@ -81,8 +73,6 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
       ) : (
         <div className="space-y-2">
           {invoices.map((invoice) => {
-            const StatusIcon = statusConfig[invoice.status]?.icon || FileText;
-
             return (
               <Card key={invoice._id} className="bg-card border-border p-4">
                 <div className="flex items-center justify-between">
@@ -101,13 +91,14 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-lg font-semibold text-white">
-                        {formatCurrency(invoice.total)}
+                        {formatINR(invoice.total)}
                       </p>
                       <div className="flex items-center justify-end gap-2">
-                        <Badge variant="outline" className={statusConfig[invoice.status]?.color}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {invoice.status}
-                        </Badge>
+                        <InvoiceStatusBadge
+                          status={invoice.status}
+                          isOverdue={invoice.isOverdue}
+                          allowEdit={false}
+                        />
                         {!isClient && ['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && (
                           <Button
                             variant="ghost"

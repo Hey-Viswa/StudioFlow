@@ -33,7 +33,11 @@ const getRedisConfig = () => {
                         return true;
                     }
                     return false;
-                }
+                },
+                // Hardening for ECONNRESET
+                keepAlive: 10000, // 10 seconds
+                connectTimeout: 10000,
+                family: 4
             };
         } catch (e) {
             console.warn('⚠️ Invalid REDIS_URL, falling back to individual variables:', e.message);
@@ -59,7 +63,11 @@ const getRedisConfig = () => {
         retryStrategy(times) {
             const delay = Math.min(times * 50, 2000);
             return delay;
-        }
+        },
+        // Hardening for ECONNRESET
+        keepAlive: 10000, // 10 seconds
+        connectTimeout: 10000,
+        family: 4
     };
 };
 

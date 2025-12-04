@@ -252,6 +252,10 @@ const projectInvoiceSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Indexes for performance
+projectInvoiceSchema.index({ 'client.userId': 1, projectId: 1, status: 1 }); // Optimized for client dashboard
+projectInvoiceSchema.index({ userId: 1, status: 1 }); // Optimized for owner dashboard
+
 // Auto-generate invoice number: PINV-{timestamp}-{count}
 projectInvoiceSchema.pre('save', async function (next) {
   if (!this.invoiceNumber) {

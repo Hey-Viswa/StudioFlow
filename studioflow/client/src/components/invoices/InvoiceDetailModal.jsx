@@ -89,7 +89,10 @@ export default function InvoiceDetailModal({
   onDelete,
   onResend,
   onStatusUpdate,
+
   onDownload,
+  onPay,
+  isClient
 }) {
   const { getToken } = useAuth();
   const [isEditMode, setIsEditMode] = useState(mode === 'edit');
@@ -303,7 +306,10 @@ export default function InvoiceDetailModal({
                 <DropdownMenuTrigger asChild>
                   <Badge
                     variant={isOverdue ? 'destructive' : statusConfig.variant}
-                    className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                    className={cn(
+                      "flex items-center gap-1 transition-opacity",
+                      !isClient && "cursor-pointer hover:opacity-80"
+                    )}
                     style={isOverdue ? { borderColor: 'rgb(239 68 68 / 0.5)', color: 'rgb(239 68 68)', backgroundColor: 'rgb(239 68 68 / 0.1)' } : {}}
                   >
                     <StatusIcon className="w-3 h-3" />
@@ -311,28 +317,30 @@ export default function InvoiceDetailModal({
                     {isOverdue && <span className="ml-1 text-[10px] font-bold">!</span>}
                   </Badge>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleStatusUpdate('pending')}>
-                    <Clock className="w-4 h-4 mr-2" />
-                    Mark as Sent
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusUpdate('paid')}>
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Mark as Paid
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusUpdate('overdue')}>
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Mark as Overdue
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusUpdate('cancelled')}>
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Mark as Cancelled
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusUpdate('draft')}>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Mark as Draft
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                {!isClient && (
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleStatusUpdate('pending')}>
+                      <Clock className="w-4 h-4 mr-2" />
+                      Mark as Sent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusUpdate('paid')}>
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Mark as Paid
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusUpdate('overdue')}>
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Mark as Overdue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusUpdate('cancelled')}>
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Mark as Cancelled
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusUpdate('draft')}>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Mark as Draft
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                )}
               </DropdownMenu>
             </div>
           </DialogHeader>
@@ -701,16 +709,18 @@ export default function InvoiceDetailModal({
             <div className="flex gap-2">
               {!isEditMode && (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditMode(true)}
-                    disabled={loading}
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Edit
-                  </Button>
+                  {!isClient && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditMode(true)}
+                      disabled={loading}
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
                   {onDownload && (
                     <Button
                       type="button"
@@ -724,7 +734,7 @@ export default function InvoiceDetailModal({
                       Download
                     </Button>
                   )}
-                  {onResend && invoice.status !== 'draft' && (
+                  {onResend && invoice.status !== 'draft' && !isClient && (
                     <Button
                       type="button"
                       variant="outline"
@@ -736,7 +746,7 @@ export default function InvoiceDetailModal({
                       Resend
                     </Button>
                   )}
-                  {onDelete && (
+                  {onDelete && !isClient && (
                     <Button
                       type="button"
                       variant="outline"
@@ -747,6 +757,18 @@ export default function InvoiceDetailModal({
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
                       Delete
+                    </Button>
+                  )}
+                  {isClient && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={loading}
+                      onClick={() => onPay?.(invoice)}
+                    >
+                      Pay Now
                     </Button>
                   )}
                 </>

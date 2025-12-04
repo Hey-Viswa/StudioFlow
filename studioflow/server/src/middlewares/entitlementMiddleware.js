@@ -103,6 +103,10 @@ export const checkResourceLimit = (resourceType) => {
  * Middleware to check if user has a specific entitlement for a project
  * @param {string} scope - Entitlement scope (e.g., 'project_download')
  */
+/**
+ * Middleware to check if user has a specific entitlement for a project
+ * @param {string} scope - Entitlement scope (e.g., 'project_download')
+ */
 export const checkProjectEntitlement = (scope) => {
     return async (req, res, next) => {
         try {
@@ -113,29 +117,59 @@ export const checkProjectEntitlement = (scope) => {
                 return res.status(400).json({ error: 'Project ID required' });
             }
 
-            // 1. Check if user is owner (owners have all entitlements)
+            // 1. Get Project and User Role
             const project = await Project.findById(projectId).select('ownerId');
-            if (project && String(project.ownerId) === String(userId)) {
+            if (!project) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+
+            // Owner always has access
+            if (String(project.ownerId) === String(userId)) {
                 return next();
             }
 
-            // 2. Check explicit entitlement
-            const entitlement = await Entitlement.findOne({
-                userId,
+            // Check Project Membership
+            const membership = await ProjectMember.findOne({
                 projectId,
-                scope,
-                revokedAt: null
+                userId,
+                status: 'active'
             });
 
-            if (entitlement) {
-                return next();
+            if (!membership) {
+                return res.status(403).json({ error: 'Access denied. You are not a member of this project.' });
             }
 
-            return res.status(403).json({
-                error: 'You do not have permission to perform this action',
-                code: 'ENTITLEMENT_REQUIRED',
-                scope
-            });
+            // 2. Role-based Entitlement Check
+            // Team Members (COLLABORATOR) generally have access to files
+            // Clients (CLIENT) require explicit Entitlement (payment)
+            if (membership.role === 'client') {
+                const entitlement = await Entitlement.findOne({
+                    userId,
+                    projectId,
+                    scope,
+                    revokedAt: null
+                });
+
+                if (entitlement) {
+                    // Check expiry if applicable
+                    if (entitlement.expiresAt && new Date() > new Date(entitlement.expiresAt)) {
+                        return res.status(403).json({
+                            error: 'Access expired. Please renew your access.',
+                            code: 'ENTITLEMENT_EXPIRED'
+                        });
+                    }
+                    return next();
+                }
+
+                return res.status(403).json({
+                    error: 'Payment Required. You must pay the invoice to access these files.',
+                    code: 'ENTITLEMENT_REQUIRED',
+                    scope
+                });
+            }
+
+            // Collaborators/Admins (Non-Clients) are allowed
+            return next();
 
         } catch (error) {
             console.error('Project entitlement check error:', error);

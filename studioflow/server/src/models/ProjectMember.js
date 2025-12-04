@@ -43,5 +43,6 @@ const ProjectMemberSchema = new mongoose.Schema({
 
 // Compound index to ensure a user is only added once per project
 ProjectMemberSchema.index({ projectId: 1, userId: 1 }, { unique: true });
+ProjectMemberSchema.index({ userId: 1, role: 1 }); // Added for querying user's projects by role
 
 export default mongoose.model('ProjectMember', ProjectMemberSchema);

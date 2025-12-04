@@ -235,3 +235,36 @@ export async function login(req, res) {
         });
     }
 }
+// Get current user profile
+export async function getUserProfile(req, res) {
+    try {
+        // req.user is populated by verifyClerk middleware
+        if (!req.user) {
+            // If authenticated via Clerk but not in DB, return basic info with guest role
+            // or 404 if we enforce DB presence
+            return res.json({
+                user: {
+                    clerkId: req.userId,
+                    email: req.userEmail,
+                    name: req.userName,
+                    role: 'guest', // Default role if not in DB
+                    isGuest: true
+                }
+            });
+        }
+
+        return res.json({
+            user: {
+                id: req.user._id,
+                clerkId: req.user.clerkUserId,
+                email: req.user.email,
+                name: req.user.name,
+                role: req.user.role,
+                subscription: req.user.subscription
+            }
+        });
+    } catch (error) {
+        console.error('Get profile error:', error);
+        return res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+}

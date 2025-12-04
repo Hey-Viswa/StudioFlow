@@ -42,13 +42,13 @@ export default async function verifyClerk(req, res, next) {
     try {
         // Get the session token from Authorization header or cookies
         let sessionToken = null;
-        
+
         // Check Authorization header first (Bearer token)
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
             sessionToken = authHeader.substring(7);
         }
-        
+
         // If no Bearer token, check cookies for __session
         if (!sessionToken) {
             const cookieHeader = req.headers.cookie;
@@ -84,7 +84,7 @@ export default async function verifyClerk(req, res, next) {
             // Optional: Add audience if configured in Clerk
             // audience: process.env.CLERK_JWT_AUDIENCE
         });
-        
+
         if (!payload || !payload.sub) {
             console.log('Token verification failed: no valid payload or subject (userId)');
             return res.status(401).json({ error: 'Invalid token' });
@@ -97,7 +97,7 @@ export default async function verifyClerk(req, res, next) {
         // - iat: issued at time
         req.clerkPayload = payload;
         req.userId = payload.sub; // Clerk uses 'sub' claim for userId
-        
+
         // Check cache first before making API call to Clerk
         const cachedUserData = getCachedUser(payload.sub);
         if (cachedUserData) {
@@ -112,13 +112,13 @@ export default async function verifyClerk(req, res, next) {
                 const user = await clerkClient.users.getUser(payload.sub);
                 const userEmail = user.emailAddresses?.[0]?.emailAddress || '';
                 const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || '';
-                
+
                 // Cache the user data
                 setCachedUser(payload.sub, { email: userEmail, name: userName });
-                
+
                 req.userEmail = userEmail;
                 req.userName = userName;
-                
+
                 if (process.env.NODE_ENV !== 'production') {
                     console.log('✅ User data fetched from Clerk API and cached:', req.userId);
                 }
@@ -128,6 +128,28 @@ export default async function verifyClerk(req, res, next) {
                 req.userEmail = '';
                 req.userName = '';
             }
+        }
+
+        // Fetch User from MongoDB to get Role
+        try {
+            // Dynamic import to avoid circular dependencies if any
+            const { default: User } = await import('../models/User.js');
+            const dbUser = await User.findOne({ clerkUserId: payload.sub });
+
+            if (dbUser) {
+                req.user = dbUser;
+                req.userRole = dbUser.role;
+            } else {
+                // Optional: Create user if not exists (JIT Provisioning)
+                // For now, we'll just log it.
+                console.log('User not found in MongoDB:', payload.sub);
+                req.user = null;
+                req.userRole = 'guest';
+            }
+        } catch (dbError) {
+            console.error('Error fetching user from DB:', dbError);
+            req.user = null;
+            req.userRole = 'guest';
         }
 
         return next();

@@ -1,6 +1,5 @@
-import Project from '../models/Project.js';
-import ProjectInvoice from '../models/ProjectInvoice.js';
-import ProjectFile from '../models/ProjectFile.js';
+import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 
 /**
  * Get dashboard metrics
@@ -9,23 +8,38 @@ export const getDashboardMetrics = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Get all active (non-deleted) projects user has access to
+    // Parallelize all independent queries
+    const [
+      user,
+      memberships,
+      unreadNotificationsCount
+    ] = await Promise.all([
+      User.findOne({ clerkUserId: userId }).select('stats recentActivity'),
+      ProjectMember.find({ userId, status: { $ne: 'inactive' } }).select('projectId'),
+      Notification.countDocuments({ recipientId: userId, isRead: false })
+    ]);
+
+    const memberProjectIds = memberships.map(m => m.projectId);
+
+    // Find active projects
     const projects = await Project.find({
       $and: [
-        { deletedAt: null }, // Only active projects
+        { deletedAt: null },
         {
           $or: [
             { ownerId: userId },
-            { 'members.userId': userId }
+            { _id: { $in: memberProjectIds } }
           ]
         }
       ]
-    });
+    }).select('_id status ownerId createdAt');
 
     const projectIds = projects.map(p => p._id);
 
-    // Get invoice stats for active projects only
+    // Get invoice stats
     const invoices = await ProjectInvoice.find({ projectId: { $in: projectIds } });
+
+    // ... (Keep existing calculation logic)
 
     // Helper to calculate percentage change
     const calculateChange = (current, previous) => {
@@ -98,7 +112,10 @@ export const getDashboardMetrics = async (req, res) => {
         totalPaidChange,
         outstanding,
         overdue,
-        overdueChange
+        overdueChange,
+        unreadNotifications: unreadNotificationsCount,
+        storageUsed: user?.stats?.storageUsed || 0,
+        recentActivity: user?.recentActivity || []
       }
     });
   } catch (error) {
@@ -115,14 +132,22 @@ export const getRecentFiles = async (req, res) => {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 10;
 
-    // Get active projects user has access to
+    // 1. Find all project memberships for this user
+    const memberships = await ProjectMember.find({
+      userId,
+      status: { $ne: 'inactive' }
+    }).select('projectId');
+
+    const memberProjectIds = memberships.map(m => m.projectId);
+
+    // 2. Get active projects user has access to
     const projects = await Project.find({
       $and: [
         { deletedAt: null }, // Only active projects
         {
           $or: [
             { ownerId: userId },
-            { 'members.userId': userId }
+            { _id: { $in: memberProjectIds } }
           ]
         }
       ]
@@ -151,14 +176,22 @@ export const getRecentInvoices = async (req, res) => {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 10;
 
-    // Get active projects user has access to
+    // 1. Find all project memberships for this user
+    const memberships = await ProjectMember.find({
+      userId,
+      status: { $ne: 'inactive' }
+    }).select('projectId');
+
+    const memberProjectIds = memberships.map(m => m.projectId);
+
+    // 2. Get active projects user has access to
     const projects = await Project.find({
       $and: [
         { deletedAt: null }, // Only active projects
         {
           $or: [
             { ownerId: userId },
-            { 'members.userId': userId }
+            { _id: { $in: memberProjectIds } }
           ]
         }
       ]
@@ -194,14 +227,22 @@ export const getChartData = async (req, res) => {
     const userId = req.userId;
     const { granularity = 'monthly' } = req.query;
 
-    // Get active projects user has access to
+    // 1. Find all project memberships for this user
+    const memberships = await ProjectMember.find({
+      userId,
+      status: { $ne: 'inactive' }
+    }).select('projectId');
+
+    const memberProjectIds = memberships.map(m => m.projectId);
+
+    // 2. Get active projects user has access to
     const projects = await Project.find({
       $and: [
         { deletedAt: null }, // Only active projects
         {
           $or: [
             { ownerId: userId },
-            { 'members.userId': userId }
+            { _id: { $in: memberProjectIds } }
           ]
         }
       ]

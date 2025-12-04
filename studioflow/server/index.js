@@ -278,6 +278,10 @@ const startServer = async () => {
     }
 }
 
-startServer();
+// Only start server if run directly
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    startServer();
+}
 
-// Force restart for debugging ownership transfer
+export { app, httpServer };
+export default app;

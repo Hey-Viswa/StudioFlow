@@ -7,6 +7,7 @@ import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
 import ProjectMember from '../models/ProjectMember.js';
+import Comment from '../models/Comment.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { logAudit } from '../services/auditService.js';
@@ -84,11 +85,11 @@ export const createProject = async (req, res) => {
     }
 
     // Create project (members array is now empty/deprecated)
+    // Create project
     const project = await Project.create({
       title,
       brief: brief || '',
       ownerId,
-      members: [], // Deprecated: using ProjectMember collection
       dueDate: dueDate ? new Date(dueDate) : undefined
     });
 
@@ -240,7 +241,7 @@ export const listProjects = async (req, res) => {
     // Find projects
     // Use lean() for better performance and select only necessary fields
     const projects = await Project.find(query)
-      .select('title brief status progress ownerId createdAt updatedAt dueDate comments members') // Only needed fields
+      .select('title brief status progress ownerId createdAt updatedAt dueDate stats') // Added stats, removed members/comments
       .lean() // Return plain objects for better performance
       .sort({ createdAt: -1 }); // Most recent first
 
@@ -378,7 +379,7 @@ export const listProjects = async (req, res) => {
       const projectIdStr = project._id.toString();
       const invoiceStats = invoiceMap.get(projectIdStr) || { paid: 0, total: 0 };
       const filesCount = fileMap.get(projectIdStr) || 0;
-      const commentsCount = project.comments?.length || 0;
+      const commentsCount = project.stats?.commentCount || 0;
 
       return {
         ...project,
@@ -494,7 +495,32 @@ export const getProjectById = async (req, res) => {
     projectResponse.userRole = userRole;
     projectResponse.isShared = !isOwner;
 
-    res.json({ project: projectResponse, inviteLink });
+    // Fetch comments (paginated)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const comments = await Comment.find({ projectId: id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalComments = await Comment.countDocuments({ projectId: id });
+
+    res.json({
+      project: projectResponse,
+      inviteLink,
+      comments: {
+        data: comments,
+        pagination: {
+          page,
+          limit,
+          total: totalComments,
+          pages: Math.ceil(totalComments / limit)
+        }
+      }
+    });
   } catch (error) {
     console.error('Get project error:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -763,21 +789,23 @@ export const updateProject = async (req, res) => {
 
       // Add system comment for status changes
       if (status === 'needs-revision' && revisionNotes) {
-        project.comments.push({
+        await Comment.create({
+          projectId: id,
           userId,
           userName,
-          text: `Revision requested: ${revisionNotes}`,
-          isSystemMessage: true,
-          createdAt: new Date()
+          content: `Revision requested: ${revisionNotes}`,
+          isSystemMessage: true
         });
       } else if (status === 'finalized') {
-        project.comments.push({
+        // Create system comment
+        await Comment.create({
+          projectId: id,
           userId,
           userName,
-          text: `✅ Project approved and finalized by ${userName || 'client'}`,
-          isSystemMessage: true,
-          createdAt: new Date()
+          content: `✅ Project approved and finalized by ${userName || 'client'}`,
+          isSystemMessage: true
         });
+
         if (finalizedAt) {
           project.finalizedAt = new Date(finalizedAt);
         }

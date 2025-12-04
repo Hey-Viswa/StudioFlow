@@ -25,7 +25,9 @@ import {
 } from '../controllers/commentController.js';
 import {
   requestTransfer,
-  acceptTransfer
+  acceptTransfer,
+  getPendingRequest,
+  cancelRequest
 } from '../controllers/ownershipController.js';
 
 const router = express.Router();
@@ -49,8 +51,10 @@ router.post('/:id/restore', restoreProject);              // Restore from trash
 router.delete('/:id/permanent', permanentlyDeleteProject); // Permanently delete
 
 // Ownership Transfer
+router.get('/:id/ownership/pending', getPendingRequest);
 router.post('/:id/ownership/request', requestTransfer);
 router.post('/:id/ownership/accept', acceptTransfer);
+router.post('/:id/ownership/cancel', cancelRequest);
 
 // Invite generation
 router.post('/:id/invite', checkResourceLimit('member'), generateInvite);               // Generate invite link (owner only)
