@@ -62,7 +62,8 @@ export const signUpload = async (req, res) => {
     const { role, project } = await getProjectRole(projectId, userId);
 
     if (!role) {
-      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+      console.warn(`Access denied for upload: User ${userId} is not owner/member of Project ${projectId}`);
+      return res.status(403).json({ error: 'You are not the owner or team member, so you can\'t upload here.' });
     }
 
     const context = { allowClientUploads: project.settings?.allowClientUploads };
@@ -184,6 +185,7 @@ export const signUpload = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error signing upload:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({ error: 'Failed to generate signed upload URL', details: error.message });
   }
 };
@@ -207,7 +209,7 @@ export const confirmUpload = async (req, res) => {
     // RBAC: Check project access
     const { role } = await getProjectRole(projectId, userId);
     if (!role) {
-      return res.status(403).json({ error: 'Access denied. You are not a collaborator on this project.' });
+      return res.status(403).json({ error: 'You are not the owner or team member, so you can\'t upload here.' });
     }
 
     // Find file record
@@ -264,6 +266,21 @@ export const confirmUpload = async (req, res) => {
 
       // Populate uploader info for response
       const populatedFile = await ProjectFile.findById(fileRecord._id).lean();
+
+      // Generate preview URL if applicable
+      if (populatedFile.storageKey && populatedFile.mimeType && (populatedFile.mimeType.startsWith('image/') || populatedFile.mimeType.startsWith('video/'))) {
+        try {
+          populatedFile.previewUrl = await storageAdapter.getSignedDownloadUrl(
+            populatedFile.storageKey,
+            populatedFile.filename,
+            false,
+            populatedFile.mimeType,
+            3600
+          );
+        } catch (err) {
+          console.warn(`Failed to generate preview URL for new file ${populatedFile._id}:`, err.message);
+        }
+      }
 
       // Emit Socket.IO event for real-time updates
       const io = req.app?.get('io');
@@ -348,21 +365,35 @@ export const getProjectFiles = async (req, res) => {
       isEntitled = true;
     }
 
-    // Process files to add permission flags
-    const processedFiles = files.map(file => {
+    // Process files to add permission flags and signed URLs for previews
+    const processedFiles = await Promise.all(files.map(async (file) => {
       const canDownload = role === ROLES.OWNER || isEntitled;
-      const canView = role === ROLES.OWNER || isEntitled; // Or if shared explicitly?
+      const canView = role === ROLES.OWNER || isEntitled;
 
-      // If we want to support legacy sharedWith array as fallback:
-      // const legacyShared = file.sharedWith?.some(s => s.userId === userId);
-      // return { ...file, canDownload: canDownload || legacyShared, canView: canView || legacyShared };
+      let previewUrl = null;
+      // Generate preview URL for images and videos
+      if (file.storageKey && file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
+        try {
+          // Generate a signed URL valid for 1 hour
+          previewUrl = await storageAdapter.getSignedDownloadUrl(
+            file.storageKey, 
+            file.filename, 
+            false, // forceDownload
+            file.mimeType, 
+            3600 // ttl
+          );
+        } catch (err) {
+          console.warn(`Failed to generate preview URL for file ${file._id}:`, err.message);
+        }
+      }
 
       return {
         ...file,
         canDownload,
-        canView
+        canView,
+        previewUrl
       };
-    });
+    }));
 
     // Group by baseFileId to show version history
     const fileGroups = {};

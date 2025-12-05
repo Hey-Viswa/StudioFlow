@@ -12,7 +12,8 @@ import {
   verifySubscriptionStatus,
   changePlan,
   verifyUpgradePayment,
-  toggleAutoRenew
+  toggleAutoRenew,
+  getInvoicePdf
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import User from '../models/User.js';
@@ -72,6 +73,7 @@ router.post('/fix/:userId', async (req, res) => {
 // Protected routes
 router.get('/current', verifyClerk, getCurrentSubscription);
 router.get('/invoices', verifyClerk, getInvoices);
+router.get('/invoices/:invoiceId/download', verifyClerk, getInvoicePdf);
 router.get('/billing-history', verifyClerk, getBillingHistory);
 router.post('/create', verifyClerk, createSubscription);
 router.post('/verify', verifyClerk, verifyPayment);

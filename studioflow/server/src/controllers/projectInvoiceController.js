@@ -501,16 +501,18 @@ export const updateProjectInvoice = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can update' });
     }
 
-    // Enforce Immutability: Allow edits for draft, overdue, and cancelled
-    // Sent/Paid invoices should generally remain immutable to preserve history, 
-    // but if the user really needs to edit an overdue one (e.g. to extend date), we allow it.
-    const editableStatuses = ['draft', 'overdue', 'cancelled'];
+    // Allow editing for most statuses EXCEPT paid/refunded
+    // Sent/pending invoices CAN be edited (fix amount, dates, client info)
+    // This is necessary for real-world scenarios where corrections are needed
+    const nonEditableStatuses = ['paid', 'refunded'];
 
-    if (!editableStatuses.includes(invoice.status)) {
+    if (nonEditableStatuses.includes(invoice.status)) {
       return res.status(403).json({
-        error: `Cannot edit ${invoice.status} invoice. Only draft, overdue, or cancelled invoices can be edited.`
+        error: `Cannot edit ${invoice.status} invoice. Paid/refunded invoices are immutable.`
       });
     }
+
+    console.log(`✓ Invoice ${invoice.invoiceNumber} is ${invoice.status} - edits allowed`);
 
     // Track changes for revision history
     const previousVersion = invoice.toObject();
@@ -769,7 +771,7 @@ export const updateProjectInvoiceStatus = async (req, res) => {
     const { status } = req.body;
     const userId = req.userId;
 
-    const allowedStatuses = ['draft', 'pending', 'sent', 'paid', 'overdue', 'failed', 'cancelled', 'refunded'];
+    const allowedStatuses = ['draft', 'pending', 'sent', 'overdue', 'failed', 'cancelled', 'refunded'];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
@@ -785,38 +787,45 @@ export const updateProjectInvoiceStatus = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can update status' });
     }
 
+    // Validate status transition logic
+    console.log(`📊 Status change: ${invoice.status} → ${status}`);
+
+    // Do not allow manual updates to paid
+    if (status === 'paid') {
+      return res.status(403).json({
+        error: 'Payments are applied automatically after successful Razorpay confirmation.'
+      });
+    }
+
+    // Block invalid transitions
+    if (invoice.status === 'paid' && !['refunded', 'cancelled'].includes(status)) {
+      return res.status(400).json({ 
+        error: 'Cannot change paid invoice status. Use refund if needed.' 
+      });
+    }
+
     // Handle transitions
     if (status === 'sent' || status === 'pending') {
+      // ✅ FIX: Validate client exists before marking as sent
+      if (!invoice.client || !invoice.client.userId) {
+        return res.status(400).json({ 
+          error: 'Cannot mark invoice as sent without assigning a client first.' 
+        });
+      }
+
       // If moving from draft to sent, create snapshot
       if (invoice.status === 'draft') {
         invoice.immutableSnapshot = invoice.toObject();
         invoice.sentAt = new Date();
         invoice.status = 'sent'; // Normalize to 'sent'
-
-        // TODO: Create Razorpay Order here if desired, or let the client trigger it via createPaymentOrder
-        // For now, we just mark it as sent and immutable.
-
         console.log(`🔒 Invoice ${invoice.invoiceNumber} finalized and snapshot created.`);
       } else {
-        // Already sent/paid, just updating status?
-        // If it's already paid, don't allow going back to sent/pending easily without refund logic
-        if (invoice.status === 'paid') {
-          return res.status(400).json({ error: 'Cannot change status of paid invoice directly. Use refund.' });
-        }
         invoice.status = status;
       }
     } else if (status === 'cancelled') {
-      // Allow cancelling sent invoices
       invoice.status = 'cancelled';
     } else {
       invoice.status = status;
-    }
-
-    if (status === 'paid' && !invoice.paidAt) {
-      invoice.paidAt = new Date();
-    }
-    if (status !== 'paid' && status !== 'refunded') {
-      invoice.paidAt = null;
     }
 
     await invoice.save();
@@ -825,6 +834,64 @@ export const updateProjectInvoiceStatus = async (req, res) => {
   } catch (error) {
     console.error('❌ Status update error:', error);
     res.status(500).json({ error: 'Failed to update invoice status' });
+  }
+};
+
+// @desc    Send invoice via email (First time)
+// @route   POST /api/invoices/:invoiceId/send
+// @access  Protected (Owner only)
+export const sendProjectInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    const userId = req.userId;
+    const { email, subject, message } = req.body;
+
+    const invoice = await ProjectInvoice.findById(invoiceId).populate('projectId', 'title');
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    await ensureInvoiceProject(invoice);
+
+    if (invoice.userId !== userId) {
+      return res.status(403).json({ error: 'Only invoice creator can send' });
+    }
+
+    // Update status to sent if draft
+    if (invoice.status === 'draft') {
+      invoice.status = 'pending'; // pending payment = sent
+      invoice.sentAt = new Date();
+      invoice.immutableSnapshot = invoice.toObject();
+    }
+
+    // Use provided email or fallback to client email
+    const recipientEmail = email || invoice.client?.email;
+
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'Client email not available' });
+    }
+
+    // Send email
+    const { sendInvoiceEmail } = await import('../utils/emailService.js');
+    await sendInvoiceEmail({
+      to: recipientEmail,
+      userName: invoice.client.name || 'Client',
+      invoice,
+      pdfPath: null, // No PDF for unpaid
+      subject,
+      message
+    });
+
+    invoice.emailSent = true;
+    invoice.emailSentAt = new Date();
+    invoice.lastSentAt = new Date();
+    await invoice.save();
+
+    res.json({ success: true, message: 'Invoice sent successfully', invoice });
+  } catch (error) {
+    console.error('❌ Send invoice error:', error);
+    res.status(500).json({ error: 'Failed to send invoice' });
   }
 };
 
@@ -1379,3 +1446,34 @@ export const downloadProjectInvoicePDF = async (req, res) => {
   }
 };
 
+// @desc    Check and update overdue invoices
+// @route   POST /api/invoices/check-overdue
+// @access  Protected (Admin/System)
+export const checkOverdueInvoices = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find all pending invoices with past due date
+    const result = await ProjectInvoice.updateMany(
+      {
+        status: 'pending',
+        dueDate: { $lt: today }
+      },
+      {
+        $set: { status: 'overdue' }
+      }
+    );
+
+    console.log(`🔄 Updated ${result.modifiedCount} invoices to overdue status`);
+
+    res.json({
+      success: true,
+      updatedCount: result.modifiedCount,
+      message: `Updated ${result.modifiedCount} invoices to overdue status`
+    });
+  } catch (error) {
+    console.error('❌ Check overdue error:', error);
+    res.status(500).json({ error: 'Failed to check overdue invoices' });
+  }
+};

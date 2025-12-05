@@ -139,6 +139,7 @@ const projectFileSchema = new mongoose.Schema({
       type: String,
       required: true,
       unique: true,
+      sparse: true,
     },
     allowDownload: {
       type: Boolean,

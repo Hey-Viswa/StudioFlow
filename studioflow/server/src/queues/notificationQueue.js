@@ -1,4 +1,5 @@
 import Queue from 'bull';
+import Redis from 'ioredis';
 import redisConfig from '../config/redis.js';
 
 // Check if Redis queue is enabled
@@ -8,9 +9,30 @@ let notificationQueue;
 
 if (isQueueEnabled) {
     console.log('🔌 Initializing Redis Notification Queue...');
-    // Create the notification queue
+
+    // Custom createClient function to handle Redis connections robustly
+    const createClient = (type) => {
+        const client = new Redis(redisConfig);
+
+        client.on('error', (err) => {
+            // Suppress ECONNRESET logs to avoid spamming, as ioredis handles reconnection
+            if (err.code === 'ECONNRESET') {
+                // console.warn(`⚠️ Redis ${type} connection reset. Reconnecting...`);
+            } else {
+                console.error(`❌ Redis ${type} error:`, err);
+            }
+        });
+
+        client.on('connect', () => {
+            // console.log(`✅ Redis ${type} connected`);
+        });
+
+        return client;
+    };
+
+    // Create the notification queue with custom client creator
     notificationQueue = new Queue('notification-queue', {
-        redis: redisConfig,
+        createClient,
         defaultJobOptions: {
             attempts: 3,
             backoff: {
@@ -36,7 +58,12 @@ if (isQueueEnabled) {
     });
 
     notificationQueue.on('error', (error) => {
-        console.error('❌ Notification Queue Error:', error);
+        // Handle queue-level errors
+        if (error.code === 'ECONNRESET') {
+            // console.warn('⚠️ Notification Queue connection reset');
+        } else {
+            console.error('❌ Notification Queue Error:', error);
+        }
     });
 
     notificationQueue.on('waiting', (jobId) => {

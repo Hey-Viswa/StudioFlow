@@ -563,14 +563,43 @@ const handlePaymentCaptured = async (payload) => {
             paymentThread.paidAt = new Date();
             await paymentThread.save();
 
-            // Update Invoice
+            // Update Invoice - Auto-update status to 'paid'
             if (paymentThread.invoiceId) {
-                await ProjectInvoice.findByIdAndUpdate(paymentThread.invoiceId, {
-                    status: 'paid',
-                    paidAt: new Date(),
-                    razorpayPaymentId: paymentId,
-                    accessGranted: true
-                });
+                console.log(`💰 Auto-updating invoice ${paymentThread.invoiceId} to PAID status`);
+                const updatedInvoice = await ProjectInvoice.findByIdAndUpdate(
+                    paymentThread.invoiceId, 
+                    {
+                        status: 'paid',
+                        paidAt: new Date(),
+                        razorpayPaymentId: paymentId,
+                        accessGranted: true
+                    },
+                    { new: true }
+                );
+                
+                if (updatedInvoice) {
+                    console.log(`✅ Invoice ${updatedInvoice.invoiceNumber} successfully marked as PAID`);
+                    console.log(`   Amount: ${updatedInvoice.amount} ${updatedInvoice.currency}`);
+                    console.log(`   Client: ${updatedInvoice.client?.name || 'N/A'}`);
+
+                    // Log audit for revenue dashboards
+                    await logAudit({
+                        userId: updatedInvoice.userId,
+                        action: 'invoice_paid',
+                        resourceType: 'invoice',
+                        resourceId: updatedInvoice._id,
+                        details: {
+                            invoiceNumber: updatedInvoice.invoiceNumber,
+                            amount: updatedInvoice.total ?? updatedInvoice.amount,
+                            currency: updatedInvoice.currency,
+                            razorpayPaymentId: paymentId,
+                            projectId: updatedInvoice.projectId
+                        },
+                        status: 'success'
+                    });
+                } else {
+                    console.error(`❌ Failed to update invoice ${paymentThread.invoiceId}`);
+                }
             }
 
             // Create Entitlement

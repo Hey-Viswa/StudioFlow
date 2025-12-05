@@ -34,7 +34,7 @@ const invoiceSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['payment', 'refund', 'upgrade', 'downgrade'],
+    enum: ['payment', 'renewal', 'upgrade', 'downgrade', 'downgrade_scheduled', 'refund'],
     required: true
   },
   status: {

@@ -1,5 +1,10 @@
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import Project from '../models/Project.js';
+import ProjectMember from '../models/ProjectMember.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
+import ProjectFile from '../models/ProjectFile.js';
+import storageAdapter from '../utils/storageAdapter.js';
 
 /**
  * Get dashboard metrics
@@ -161,7 +166,34 @@ export const getRecentFiles = async (req, res) => {
       .limit(limit)
       .lean();
 
-    res.status(200).json({ files });
+    // Generate preview URLs
+    const processedFiles = await Promise.all(files.map(async (file) => {
+      let url = null;
+      let previewUrl = null;
+
+      if (file.storageKey) {
+        try {
+          // Generate signed URL for access (valid for 1 hour)
+          url = await storageAdapter.getSignedDownloadUrl(
+            file.storageKey,
+            file.filename,
+            false, // forceDownload=false for inline viewing
+            file.mimeType,
+            3600
+          );
+
+          // Use the same URL for preview if it's an image or video
+          if (file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
+            previewUrl = url;
+          }
+        } catch (err) {
+          console.warn(`Failed to generate signed URL for file ${file._id}:`, err.message);
+        }
+      }
+      return { ...file, url, previewUrl };
+    }));
+
+    res.status(200).json({ files: processedFiles });
   } catch (error) {
     console.error('❌ Error fetching recent files:', error);
     res.status(500).json({ error: 'Failed to fetch files' });

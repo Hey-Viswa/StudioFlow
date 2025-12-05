@@ -3,6 +3,7 @@ import Comment from '../models/Comment.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+import { logAudit } from '../services/auditService.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
@@ -65,6 +66,19 @@ export const getComments = async (req, res) => {
       reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
     }));
 
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.view',
+      resourceType: 'project',
+      resourceId: projectId,
+      details: {
+        page,
+        limit
+      },
+      req
+    });
+
     res.status(200).json({ comments: formattedComments });
   } catch (error) {
     console.error('❌ Error fetching comments:', error);
@@ -120,13 +134,27 @@ export const addComment = async (req, res) => {
       userId,
       userName,
       userEmail,
-      text: text.trim(),
+      content: text.trim(),
       parentId: parentId || null,
       clientGeneratedId: clientGeneratedId || null,
       reactions: new Map(),
       attachments: attachments || [],
       mentions: mentions || [],
       createdAt: new Date()
+    });
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.create',
+      resourceType: 'comment',
+      resourceId: newComment._id,
+      details: {
+        projectId,
+        parentId: parentId || null,
+        hasAttachments: (attachments && attachments.length > 0)
+      },
+      req
     });
 
     // Update project stats
@@ -199,11 +227,23 @@ export const updateComment = async (req, res) => {
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
 
-    comment.text = text.trim();
+    comment.content = text.trim();
     comment.edited = true;
     comment.editedAt = new Date();
 
     await comment.save();
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.update',
+      resourceType: 'comment',
+      resourceId: comment._id,
+      details: {
+        projectId
+      },
+      req
+    });
 
     const commentObj = {
       ...comment.toObject(),
@@ -266,6 +306,18 @@ export const deleteComment = async (req, res) => {
         { _id: commentId },
         { parentId: commentId }
       ]
+    });
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.delete',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId
+      },
+      req
     });
 
     // Update project stats
@@ -342,6 +394,20 @@ export const reactToComment = async (req, res) => {
       });
     }
 
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.react',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId,
+        emoji,
+        action: userIndex > -1 ? 'removed' : 'added'
+      },
+      req
+    });
+
     res.status(200).json({ reactions: commentObj.reactions });
   } catch (error) {
     console.error('❌ Error reacting to comment:', error);
@@ -375,6 +441,18 @@ export const resolveComment = async (req, res) => {
     comment.resolvedAt = new Date();
 
     await comment.save();
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.resolve',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId
+      },
+      req
+    });
 
     const commentObj = {
       ...comment.toObject(),

@@ -227,6 +227,8 @@ export const acceptTransfer = async (req, res) => {
 
         await session.commitTransaction();
 
+        console.log(`✅ Ownership transferred: ${request.currentOwnerId} -> ${userId} for project ${projectId}`);
+
         await logAudit({
             userId: userId,
             action: 'ownership_transfer_accepted',
@@ -257,8 +259,9 @@ export const acceptTransfer = async (req, res) => {
             // Notify old owner
             io.to(`user:${request.currentOwnerId}`).emit('notification', notification);
 
-            // Update project UI for everyone
-            io.emit('project-updated', {
+            // Update project UI for everyone in the project
+            console.log(`📡 Emitting project-updated to project-${projectId}`);
+            io.to(`project-${projectId}`).emit('project-updated', {
                 projectId,
                 ownerId: userId,
                 updates: { ownerId: userId }

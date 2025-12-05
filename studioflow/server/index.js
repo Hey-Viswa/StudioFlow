@@ -23,6 +23,7 @@ import fileRoutes from './src/routes/files.js';
 import dashboardRoutes from './src/routes/dashboard.js';
 import messageRoutes from './src/routes/messages.js';
 import uploadRoutes from './src/routes/upload.js';
+import auditRoutes from './src/routes/audit.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -34,6 +35,8 @@ import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
 import { startNotificationWorker } from './src/workers/notificationWorker.js';
 import { startPaymentWorker } from './src/workers/paymentWorker.js';
+import cron from 'node-cron';
+import { runInvoiceStatusJobs } from './src/jobs/invoiceStatusUpdater.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -195,6 +198,7 @@ app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
 app.use('/api/projects', messageRoutes); // Message/chat routes
 app.use('/api/upload', uploadRoutes); // Simple file upload
+app.use('/api/audit', auditRoutes); // Audit/Activity logs
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -268,6 +272,17 @@ const startServer = async () => {
 
         // Start payment worker
         startPaymentWorker();
+
+        // Schedule invoice status automation (daily at 02:00 server time)
+        cron.schedule('0 2 * * *', async () => {
+            console.log('\n⏰ Cron: Running invoice status jobs (02:00 daily)');
+            await runInvoiceStatusJobs();
+        });
+
+        // Optional: run once on boot to catch up
+        runInvoiceStatusJobs().catch((err) => {
+            console.error('Invoice status job on startup failed:', err.message);
+        });
 
         httpServer.listen(PORT, () => {
             console.log(`🚀 Server is running on port ${PORT}`);

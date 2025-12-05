@@ -41,11 +41,15 @@ export const logAudit = async ({
             });
         }
 
+        // Extract projectId from details if available
+        const projectId = details.projectId || null;
+
         await AuditLog.create({
             userId,
             action,
             resourceType,
             resourceId,
+            projectId,
             details,
             status,
             ipAddress,

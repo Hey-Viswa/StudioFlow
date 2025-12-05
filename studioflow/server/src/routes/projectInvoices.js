@@ -13,7 +13,9 @@ import {
   updateProjectInvoice,
   deleteProjectInvoice,
   updateProjectInvoiceStatus,
-  resendProjectInvoice
+  resendProjectInvoice,
+  sendProjectInvoice,
+  checkOverdueInvoices
 } from '../controllers/projectInvoiceController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 
@@ -30,6 +32,8 @@ router.put('/invoices/:invoiceId', verifyClerk, requireAdmin, updateProjectInvoi
 router.patch('/invoices/:invoiceId/status', verifyClerk, requireAdmin, updateProjectInvoiceStatus);
 router.delete('/invoices/:invoiceId', verifyClerk, requireOwner, deleteProjectInvoice);
 router.post('/invoices/:invoiceId/resend', verifyClerk, requireAdmin, resendProjectInvoice);
+router.post('/invoices/:invoiceId/send', verifyClerk, requireAdmin, sendProjectInvoice);
+router.post('/invoices/check-overdue', verifyClerk, checkOverdueInvoices);
 
 // Project-specific invoice routes (protected)
 router.post('/projects/:projectId/invoices/generate', verifyClerk, requireAdmin, generateProjectInvoice);
