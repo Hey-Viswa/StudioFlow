@@ -206,10 +206,16 @@ export default function DashboardLayout() {
           </div>
         </nav>
 
-        {/* User Section */}
-        <div className="p-4 border-t border-sidebar-border">
-          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'
-            } px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer group`}>
+        {/* Footer Section */}
+        <div className="p-4 border-t border-sidebar-border flex flex-col gap-4">
+          {/* Tools */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-4' : 'justify-between px-2'}`}>
+            <ModeToggle />
+            <NotificationBell />
+          </div>
+
+          {/* User Profile */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3 px-2'} py-2 rounded-lg hover:bg-sidebar-accent transition-colors`}>
             <UserButton
               appearance={{
                 elements: {
@@ -218,14 +224,10 @@ export default function DashboardLayout() {
               }}
             />
             {!sidebarCollapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">Account</p>
-                  <p className="text-xs text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors">Manage profile</p>
-                </div>
-                <ModeToggle />
-                <NotificationBell />
-              </>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">Account</p>
+                <p className="text-xs text-sidebar-foreground/60">Manage profile</p>
+              </div>
             )}
           </div>
         </div>

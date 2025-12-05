@@ -9,9 +9,11 @@ import { Separator } from '../components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Switch } from '../components/ui/switch';
 import { toast } from 'sonner';
+import { useThemeColor } from '../components/ThemeColorProvider';
 import BillingDetails from '../components/BillingDetails';
 import BillingHistory from '../components/BillingHistory';
 import SubscriptionAlert from '../components/SubscriptionAlert';
+import { useTheme } from 'next-themes';
 import {
   Settings as SettingsIcon,
   User,
@@ -26,7 +28,10 @@ import {
   ChevronRight,
   LogOut,
   Smartphone,
-  Globe
+  Globe,
+  Moon,
+  Sun,
+  Laptop
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -43,6 +48,8 @@ import { DashboardSkeleton } from '../components/DashboardSkeleton';
 export default function Settings() {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const { themeColor, setThemeColor } = useThemeColor();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -102,7 +109,7 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
-        const refundInfo = data.refund;
+        const refundInfo = data.refundInfo || data.refund || {};
 
         toast.success('Subscription cancelled successfully', {
           description: refundInfo.amount > 0
@@ -271,6 +278,7 @@ export default function Settings() {
 
   const navItems = [
     { id: 'account', label: 'Account', icon: User, description: 'Profile & personal details' },
+    { id: 'appearance', label: 'Appearance', icon: Globe, description: 'Theme & display settings' },
     { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email & push alerts' },
     { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Plan & payment history' },
     { id: 'security', label: 'Security', icon: Shield, description: 'Password & 2FA' },
@@ -380,6 +388,89 @@ export default function Settings() {
                               </div>
                             )}
                           </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Appearance Section */}
+              {activeSection === 'appearance' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Card className="border-border/50 shadow-sm">
+                    <CardHeader>
+                      <CardTitle>Appearance</CardTitle>
+                      <CardDescription>Customize the look and feel of StudioFlow</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-4">
+                        <Label>Theme Mode</Label>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div
+                            className={`
+                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
+                              ${theme === 'light' ? 'border-primary bg-accent' : 'border-transparent'}
+                            `}
+                            onClick={() => setTheme('light')}
+                          >
+                            <Sun className="w-6 h-6" />
+                            <span className="text-sm font-medium">Light</span>
+                          </div>
+                          <div
+                            className={`
+                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
+                              ${theme === 'dark' ? 'border-primary bg-accent' : 'border-transparent'}
+                            `}
+                            onClick={() => setTheme('dark')}
+                          >
+                            <Moon className="w-6 h-6" />
+                            <span className="text-sm font-medium">Dark</span>
+                          </div>
+                          <div
+                            className={`
+                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
+                              ${theme === 'system' ? 'border-primary bg-accent' : 'border-transparent'}
+                            `}
+                            onClick={() => setTheme('system')}
+                          >
+                            <Laptop className="w-6 h-6" />
+                            <span className="text-sm font-medium">System</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <Label>Theme Color</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {[
+                            { name: 'green', label: 'Emerald', color: 'bg-emerald-500' },
+                            { name: 'blue', label: 'Blue', color: 'bg-blue-500' },
+                            { name: 'violet', label: 'Violet', color: 'bg-violet-500' },
+                            { name: 'orange', label: 'Orange', color: 'bg-orange-500' },
+                          ].map((theme) => (
+                            <div
+                              key={theme.name}
+                              className={`
+                                cursor-pointer rounded-lg border-2 p-1 hover:bg-accent
+                                ${themeColor === theme.name ? 'border-primary' : 'border-transparent'}
+                              `}
+                              onClick={() => setThemeColor(theme.name)}
+                            >
+                              <div className="space-y-2 rounded-md bg-popover p-2">
+                                <div className={`h-2 w-full rounded-lg ${theme.color}`} />
+                                <div className="space-y-1">
+                                  <div className={`h-2 w-[80%] rounded-lg ${theme.color}/50`} />
+                                  <div className={`h-2 w-[60%] rounded-lg ${theme.color}/20`} />
+                                </div>
+                              </div>
+                              <div className="mt-2 text-center text-sm font-medium">
+                                {theme.label}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </CardContent>

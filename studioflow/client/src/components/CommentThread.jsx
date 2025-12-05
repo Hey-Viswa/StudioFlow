@@ -269,18 +269,43 @@ const CommentComposer = React.forwardRef(({
 
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {attachedFiles.map((file, idx) => (
-                <Badge key={idx} variant="outline" className="gap-1 rounded-full border-dashed border-border/60 bg-background/50 px-3 py-1 text-xs">
-                  {file.name}
-                  <button
-                    onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
-                    className="ml-1 text-muted-foreground hover:text-destructive"
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </Badge>
-              ))}
+              {attachedFiles.map((file, idx) => {
+                const isImage = file.type?.startsWith('image/');
+                const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+                return (
+                  <div key={idx} className="relative group">
+                    {isImage ? (
+                      <div className="relative">
+                        <img
+                          src={previewUrl}
+                          alt={file.name}
+                          className="h-16 w-16 object-cover rounded-md border border-border/50"
+                          onLoad={() => URL.revokeObjectURL(previewUrl)}
+                        />
+                        <button
+                          onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm hover:bg-destructive/90 transition-colors"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 rounded-full border-dashed border-border/60 bg-background/50 px-3 py-1 text-xs">
+                        {file.name}
+                        <button
+                          onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="ml-1 text-muted-foreground hover:text-destructive"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -477,7 +502,7 @@ const CommentItem = ({
           {isEditing ? (
             <CommentComposer
               projectMembers={projectMembers}
-              initialValue={comment.text}
+              initialValue={comment.content || comment.text}
               onSubmit={handleEditSubmit}
               onCancel={() => setIsEditing(false)}
               showCancel
@@ -487,20 +512,22 @@ const CommentItem = ({
           ) : (
             <>
               <div className="text-sm whitespace-pre-wrap break-words">
-                {comment.text}
+                {comment.content || comment.text}
               </div>
 
               {comment.attachments?.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {comment.attachments.map((file, idx) => {
-                    const isImage = file.type?.startsWith('image/');
+                    const fileType = file.mimeType || file.type;
+                    const fileName = file.filename || file.name;
+                    const isImage = fileType?.startsWith('image/');
                     return (
                       <div key={idx} className="group relative">
                         {isImage ? (
                           <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
                             <img
                               src={file.url}
-                              alt={file.name}
+                              alt={fileName}
                               className="max-h-48 rounded-md border border-border/50 object-cover hover:opacity-95 transition-opacity"
                             />
                           </a>
@@ -512,7 +539,7 @@ const CommentItem = ({
                             className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
                           >
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-foreground/90">{file.name}</span>
+                            <span className="text-foreground/90">{fileName}</span>
                           </a>
                         )}
                       </div>

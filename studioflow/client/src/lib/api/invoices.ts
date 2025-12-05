@@ -62,7 +62,7 @@ export interface Invoice {
 }
 
 export interface InvoiceFilters {
-  status?: InvoiceStatus | 'all';
+  status?: InvoiceStatus | 'all' | 'sent';
   search?: string;
   projectId?: string;
   page?: number;
@@ -134,7 +134,7 @@ const isInvoiceOverdue = (invoice: Invoice) => {
   return false;
 };
 
-const coerceStatusParam = (status?: InvoiceStatus | 'all') => {
+const coerceStatusParam = (status?: InvoiceStatus | 'all' | 'sent') => {
   if (!status || status === 'all') return undefined;
   if (status === 'sent') return 'pending';
   return status;
@@ -304,5 +304,15 @@ export const verifyInvoicePayment = async (invoiceId: string, payload: Record<st
         throw normalizeError(err, 'Failed to verify payment');
       });
     return legacy.data;
+  }
+};
+export const checkOverdueInvoices = async () => {
+  try {
+    const { data } = await client.post('/invoices/check-overdue');
+    return data;
+  } catch (error) {
+    // Don't throw, just log, as this is a background maintenance task
+    console.error('Failed to check overdue invoices:', error);
+    return null;
   }
 };

@@ -26,7 +26,8 @@ import {
   AlertCircle,
   Sparkles,
   Shield,
-  Rocket
+  Rocket,
+  Download
 } from 'lucide-react';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
@@ -90,6 +91,8 @@ const TONE_CLASSES = {
   slate: 'bg-slate-700/40 text-slate-200 border border-slate-600/50'
 };
 
+import BillingHistory from '../components/BillingHistory';
+
 export default function Subscription() {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -98,6 +101,19 @@ export default function Subscription() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+
+  const getButtonStyles = (planId) => {
+    switch (planId) {
+      case 'pro':
+        return 'bg-gradient-to-r from-emerald-400 to-lime-400 text-slate-900 shadow-lg shadow-emerald-500/25 hover:brightness-95';
+      case 'studio':
+        return 'bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white shadow-lg shadow-fuchsia-500/30 hover:brightness-110';
+      case 'free':
+        return 'bg-slate-800 text-white border border-slate-700 hover:border-white/60 hover:bg-slate-700';
+      default:
+        return 'bg-secondary hover:bg-secondary/80';
+    }
+  };
 
   const plans = [
     {
@@ -204,6 +220,7 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+      console.log(`🔄 Creating ${planId} subscription...`);
       const response = await fetch(`${apiUrl}/subscriptions/create`, {
         method: 'POST',
         headers: {
@@ -214,8 +231,10 @@ export default function Subscription() {
       });
 
       const data = await response.json();
+      console.log('📥 Create subscription response:', data);
 
       if (!response.ok) {
+        console.error('❌ Subscription creation failed:', data);
         throw new Error(data.error || 'Failed to create subscription');
       }
 
@@ -310,6 +329,7 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+      console.log(`🔄 Changing plan from ${currentPlan} to ${planId}...`);
       const response = await fetch(`${apiUrl}/subscriptions/change-plan`, {
         method: 'POST',
         headers: {
@@ -320,8 +340,10 @@ export default function Subscription() {
       });
 
       const data = await response.json();
+      console.log('📥 Change plan response:', data);
 
       if (!response.ok) {
+        console.error('❌ Plan change failed:', data);
         throw new Error(data.error || 'Failed to change plan');
       }
 
@@ -401,6 +423,7 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+      console.log('🔄 Cancelling subscription...');
       const response = await fetch(`${apiUrl}/subscriptions/cancel`, {
         method: 'POST',
         headers: {
@@ -410,14 +433,19 @@ export default function Subscription() {
         body: JSON.stringify({ reason: 'User requested cancellation' })
       });
 
+      const data = await response.json();
+      console.log('📥 Cancel response:', data);
+
       if (response.ok) {
-        toast.success('Subscription cancelled successfully');
+        toast.success(data.message || 'Subscription cancelled successfully');
         fetchCurrentSubscription();
       } else {
-        throw new Error('Failed to cancel subscription');
+        console.error('❌ Cancel failed:', data);
+        throw new Error(data.error || 'Failed to cancel subscription');
       }
     } catch (error) {
-      toast.error(error.message);
+      console.error('❌ Cancel error:', error);
+      toast.error(error.message || 'Failed to cancel subscription');
     }
   };
 
@@ -426,6 +454,34 @@ export default function Subscription() {
     const date = new Date(value);
     if (Number.isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const handleDownloadInvoice = async (invoiceId) => {
+    try {
+      toast.info('Fetching invoice...');
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/subscriptions/invoices/${invoiceId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.url) {
+            window.open(data.url, '_blank');
+        } else {
+            toast.error('Invoice URL not found');
+        }
+      } else {
+        const err = await response.json();
+        toast.error(err.error || 'Failed to fetch invoice');
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast.error('Failed to download invoice');
+    }
   };
 
   if (loading) {
@@ -549,10 +605,9 @@ export default function Subscription() {
                 </div>
 
                 <Button
-                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${plan.popular
-                    ? 'bg-primary hover:bg-primary/90 shadow-primary/25'
-                    : 'bg-secondary hover:bg-secondary/80'
-                    }`}
+                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${getButtonStyles(plan.id)} ${
+                    isButtonDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                   disabled={isButtonDisabled || (isReactivation && new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date())}
                   onClick={() => {
                     if (currentPlan === 'free' || isReactivation) {
@@ -584,6 +639,12 @@ export default function Subscription() {
               </Card>
             );
           })}
+        </div>
+
+        {/* Billing History */}
+        <div className="mt-12">
+          <h3 className="text-lg font-semibold mb-4">Billing History</h3>
+          <BillingHistory />
         </div>
 
         {/* FAQ or Trust Section could go here */}

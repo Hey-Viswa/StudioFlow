@@ -481,7 +481,13 @@ export default function ClientDashboard() {
           title="Recent Files"
           maxVisible={6}
           onFileClick={(file) => {
-            toast.info(`Opening ${file.filename}...`)
+            if (file.url) {
+              window.open(file.url, '_blank');
+            } else {
+              toast.info(`Opening ${file.filename}...`);
+              // Fallback if no URL (shouldn't happen with new backend logic)
+              navigate(`/dashboard/projects/${file.projectId}?tab=files`);
+            }
           }}
           onViewAll={() => navigate('/files')}
         />

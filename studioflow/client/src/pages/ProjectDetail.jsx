@@ -24,6 +24,7 @@ import {
 import TasksTab from '../components/TasksTab';
 import CommentsTab from '../components/CommentsTab';
 import CommentThread from '../components/CommentThread';
+import ActivityTab from '../components/ActivityTab';
 import { useComments } from '../hooks/useComments';
 import ProjectInvoiceList from '../components/ProjectInvoiceList';
 import { ProjectFilesPanel } from '../components/files/ProjectFilesPanel';
@@ -48,6 +49,7 @@ import {
   Share2,
   CheckCircle2,
   Copy,
+  Activity,
   Calendar as CalendarIcon,
   Users,
   FileText,
@@ -157,7 +159,8 @@ export default function ProjectDetail() {
     onProjectUpdated: (data) => {
       console.log('📡 Project updated via socket:', data);
       toast.info('Project updated by another user');
-      fetchProject();
+      // Small delay to ensure DB propagation
+      setTimeout(() => fetchProject(), 500);
     },
     onMemberJoined: (data) => {
       console.log('📡 New member joined:', data);
@@ -978,7 +981,7 @@ export default function ProjectDetail() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="tasks" className="flex items-center gap-2">
                   <ListTodo className="w-4 h-4" />
                   Tasks
@@ -994,6 +997,10 @@ export default function ProjectDetail() {
                 <TabsTrigger value="comments" className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   Comments
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="flex items-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  Activity
                 </TabsTrigger>
               </TabsList>
 
@@ -1029,6 +1036,10 @@ export default function ProjectDetail() {
                   loading={commentsLoading}
                   maxNestingLevel={3}
                 />
+              </TabsContent>
+
+              <TabsContent value="activity" className="mt-6">
+                <ActivityTab projectId={projectId} />
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -43,7 +43,7 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
   const fetchInvoices = async () => {
     try {
       setLoadingInvoices(true);
-      const response = await api.get('/subscription-invoices', { getToken });
+      const response = await api.get('/subscriptions/invoices', { getToken });
       setInvoices(Array.isArray(response) ? response : response.invoices || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
@@ -58,11 +58,60 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
     setShowPlanChangeDialog(true);
   };
 
+  const loadScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const executePlanChange = async () => {
     setShowPlanChangeDialog(false);
     setChangingPlan(true);
     try {
       const response = await api.post('/subscriptions/change-plan', { newPlan: selectedPlanId }, { getToken });
+
+      if (response.requiresPayment && response.orderId) {
+        const scriptLoaded = await loadScript();
+        if (!scriptLoaded) {
+          throw new Error('Failed to load payment gateway');
+        }
+
+        const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+        if (!razorpayKey) throw new Error('Payment gateway not configured');
+
+        const options = {
+          key: razorpayKey,
+          amount: response.amount * 100, // Ensure amount is in paise if needed, but order_id usually handles it
+          currency: response.currency,
+          name: 'StudioFlow',
+          description: response.description,
+          order_id: response.orderId,
+          handler: async function (paymentResponse) {
+            try {
+              await api.post('/subscriptions/verify-upgrade', {
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_signature: paymentResponse.razorpay_signature
+              }, { getToken });
+
+              toast.success('Plan upgraded successfully!');
+              window.location.reload();
+            } catch (verifyError) {
+              console.error('Verification error:', verifyError);
+              toast.error('Payment verification failed');
+            }
+          },
+          theme: { color: '#6366f1' }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+        return;
+      }
 
       if (response.redirectUrl) {
         // Redirect to Razorpay payment page for new subscription

@@ -76,6 +76,7 @@ export function useComments(projectId) {
       const optimisticComment = {
         _id: `temp-${Date.now()}`,
         text: data.text,
+        content: data.text, // Ensure content is also set for consistency
         userId: user?.id,
         userName: user?.fullName || user?.firstName || 'You',
         userEmail: user?.primaryEmailAddress?.emailAddress,

@@ -6,6 +6,7 @@ import './index.css';
 // Production deployment v3
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { ThemeProvider } from './components/theme-provider';
 
 // Initialize Sentry FIRST (before React renders)
 initSentry();
@@ -71,7 +72,9 @@ root.render(
           },
         }}
       >
-        <App />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <App />
+        </ThemeProvider>
       </ClerkProvider>
     ) : (
       <MissingKey />

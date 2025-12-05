@@ -7,10 +7,13 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  TrendingUp
+  TrendingUp,
+  Download
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { Button } from './ui/button';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export default function BillingHistory() {
@@ -25,12 +28,44 @@ export default function BillingHistory() {
   const fetchBillingHistory = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Fetching billing history...');
       const response = await api.get('/subscriptions/billing-history', { getToken });
+      console.log('📥 Billing history response:', response);
+      
+      // Show warning if payment gateway is not configured
+      if (response.warnings && response.warnings.length > 0) {
+        console.warn('⚠️ Billing history warnings:', response.warnings);
+        response.warnings.forEach(warning => toast.warning(warning, { duration: 5000 }));
+      }
+      
       setBillingData(response);
     } catch (error) {
-      console.error('Failed to fetch billing history:', error);
+      console.error('❌ Failed to fetch billing history:', error);
+      toast.error('Failed to load billing history');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadInvoice = async (invoiceId) => {
+    try {
+      toast.loading('Generating invoice...');
+      const token = await getToken();
+      // Use direct fetch since we need to handle the blob/redirect manually or just get the URL
+      // The controller returns { url: string }
+      const response = await api.get(`/subscriptions/invoices/${invoiceId}/download`, { getToken });
+      
+      if (response.url) {
+        window.open(response.url, '_blank');
+        toast.dismiss();
+        toast.success('Invoice opened in new tab');
+      } else {
+        throw new Error('No download URL returned');
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast.dismiss();
+      toast.error('Failed to download invoice');
     }
   };
 
@@ -56,7 +91,30 @@ export default function BillingHistory() {
     );
   }
 
-  const { currentSubscription, nextPayment, paymentHistory, subscriptionCount, totalSpent, successfulPayments } = billingData;
+  const { currentSubscription, nextPayment, paymentHistory, subscriptionCount, totalSpent, successfulPayments, localInvoices } = billingData;
+
+  // Show local invoices even when payment history is empty
+  const hasAnyData = currentSubscription || 
+                     (localInvoices && localInvoices.length > 0) || 
+                     (paymentHistory && paymentHistory.length > 0);
+
+  if (!hasAnyData) {
+    return (
+      <Card className="p-6">
+        <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+          <div className="p-4 bg-muted rounded-full">
+            <FileText className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div>
+            <h3 className="font-semibold mb-1">No Billing History Yet</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Your payment and invoice history will appear here once you subscribe to a paid plan.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -193,11 +251,16 @@ export default function BillingHistory() {
           Payment History
         </h3>
 
-        {paymentHistory.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No payment history available yet.
-          </p>
-        ) : (
+        {paymentHistory.length === 0 && (!localInvoices || localInvoices.length === 0) ? (
+          <div className="text-center py-8">
+            <div className="p-4 bg-muted rounded-full w-fit mx-auto mb-3">
+              <CreditCard className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              No payment transactions yet. Your payment history will appear here.
+            </p>
+          </div>
+        ) : paymentHistory.length > 0 ? (
           <div className="space-y-3">
             {paymentHistory.map((payment) => (
               <div 
@@ -225,8 +288,52 @@ export default function BillingHistory() {
                   <p className={`text-lg font-semibold ${payment.refunded ? 'text-red-600' : ''}`}>
                     {payment.refunded ? '-' : ''}₹{payment.amount ? payment.amount.toFixed(2) : '0.00'}</p>
                   {payment.invoiceId && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Invoice: {payment.invoiceId.substring(0, 15)}...
+                    <div className="flex items-center justify-end gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        Invoice: {payment.invoiceId.substring(0, 15)}...
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleDownloadInvoice(payment.invoiceId)}
+                        title="Download Invoice"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Show Local Invoices when payment history is empty */}
+        {paymentHistory.length === 0 && localInvoices && localInvoices.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium mb-3 text-muted-foreground">Invoice Records</h4>
+            {localInvoices.map((invoice) => (
+              <div 
+                key={invoice.invoiceNumber}
+                className="flex items-center justify-between p-4 border rounded-lg bg-muted/30"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <p className="font-medium text-sm">{invoice.description || invoice.type}</p>
+                    {getStatusBadge(invoice.status)}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatDate(invoice.createdAt)}</span>
+                    <span className="font-mono">#{invoice.invoiceNumber}</span>
+                  </div>
+                </div>
+                <div className="text-right ml-4">
+                  <p className="text-base font-semibold">₹{invoice.amount ? invoice.amount.toFixed(2) : '0.00'}</p>
+                  {invoice.razorpayPaymentId && (
+                    <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+                      {invoice.razorpayPaymentId}
                     </p>
                   )}
                 </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@clerk/clerk-react';
@@ -46,6 +46,8 @@ import { useInvoices } from '../hooks/useInvoices';
 
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const projectIdParam = searchParams.get('projectId');
   const { getToken } = useAuth();
   const { createInvoice } = useInvoices();
   const [loading, setLoading] = useState(false);
@@ -80,6 +82,17 @@ export default function CreateInvoicePage() {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  useEffect(() => {
+    if (projectIdParam && projects.length > 0) {
+      const project = projects.find(p => p._id === projectIdParam);
+      if (project) {
+        setSelectedProject(project);
+        form.setValue('projectId', project._id);
+        fetchProjectFiles(project._id);
+      }
+    }
+  }, [projectIdParam, projects, form]);
 
   const fetchProjects = async () => {
     try {

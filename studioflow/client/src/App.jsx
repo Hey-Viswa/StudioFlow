@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NetworkError from './pages/NetworkError';
 import Landing from './pages/Landing';
 import DashboardLayout from './components/DashboardLayout';
-import { ThemeProvider } from './components/ThemeProvider';
+import { ThemeColorProvider } from './components/ThemeColorProvider';
 import NetworkStatusListener from './components/NetworkStatusListener';
 import DashboardHome from './pages/DashboardHome';
 import ProjectDetail from './pages/ProjectDetail';
@@ -51,7 +51,7 @@ function App() {
   console.log('App mounting...');
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <ThemeColorProvider defaultThemeColor="green" storageKey="vite-ui-theme-color">
         <Router>
           <NetworkStatusListener />
           <Toaster position="top-right" richColors closeButton />
@@ -111,7 +111,7 @@ function App() {
           <Analytics />
           <SpeedInsights />
         </Router>
-      </ThemeProvider>
+      </ThemeColorProvider>
     </ErrorBoundary>
   );
 }

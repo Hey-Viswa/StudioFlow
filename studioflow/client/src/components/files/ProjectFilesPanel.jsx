@@ -337,8 +337,18 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
       <div className="flex items-center gap-4">
-        {/* Icon */}
-        <div className="flex-shrink-0 text-3xl">{getFileIcon(file.mimeType)}</div>
+        {/* Icon or Thumbnail */}
+        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-muted rounded overflow-hidden">
+          {file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
+             file.mimeType.startsWith('video/') ? (
+                <video src={file.previewUrl} className="w-full h-full object-cover" />
+             ) : (
+                <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
+             )
+          ) : (
+             <div className="text-2xl">{getFileIcon(file.mimeType)}</div>
+          )}
+        </div>
 
         {/* File Info */}
         <div className="flex-1 min-w-0">

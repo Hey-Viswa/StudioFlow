@@ -53,7 +53,7 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">Invoices</h3>
         {!isClient && (
-          <Button onClick={() => navigate('/dashboard/invoices/new')} size="sm">
+          <Button onClick={() => navigate(`/dashboard/invoices/new?projectId=${projectId}`)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
             New Invoice
           </Button>
@@ -65,7 +65,7 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
           <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
           <p className="text-muted-foreground mb-4">No invoices yet</p>
           {!isClient && (
-            <Button onClick={() => navigate('/dashboard/invoices/new')}>
+            <Button onClick={() => navigate(`/dashboard/invoices/new?projectId=${projectId}`)}>
               Create First Invoice
             </Button>
           )}

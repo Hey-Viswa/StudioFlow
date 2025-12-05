@@ -25,7 +25,8 @@ const handleFetch = async (url, options) => {
 
     if (!response.ok) {
       if (response.status >= 500) {
-        window.location.href = '/network-error';
+        // Dispatch event instead of hard navigation to preserve state
+        window.dispatchEvent(new Event('api-network-error'));
         throw new Error(`Server Error: ${response.statusText}`);
       }
       throw new Error(`API Error: ${response.statusText}`);
@@ -35,7 +36,7 @@ const handleFetch = async (url, options) => {
   } catch (error) {
     // Check if it's a network error (TypeError is often thrown for network issues)
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      window.location.href = '/network-error';
+      window.dispatchEvent(new Event('api-network-error'));
     }
     throw error;
   }

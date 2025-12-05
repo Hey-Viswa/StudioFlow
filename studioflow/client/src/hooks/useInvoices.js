@@ -378,7 +378,11 @@ export const useInvoices = () => {
 
   // Debounce filter changes to avoid rapid API calls (200ms)
   useEffect(() => {
-    const handle = setTimeout(() => {
+    const handle = setTimeout(async () => {
+      // Check for overdue invoices once when fetching all invoices
+      if (filters.status === 'all' && filters.search === '') {
+        await invoicesApi.checkOverdueInvoices().catch(err => console.error(err));
+      }
       fetchInvoices();
     }, 200);
 
