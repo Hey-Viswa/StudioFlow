@@ -12,6 +12,19 @@ const mockLogAudit = jest.fn();
 const mockProcessedWebhookFindOne = jest.fn();
 const mockProcessedWebhookCreate = jest.fn();
 
+// Mock Clerk backend to avoid crypto/webcrypto issues
+jest.unstable_mockModule('@clerk/backend', () => ({
+    createClerkClient: () => ({
+        users: {
+            getUser: jest.fn().mockResolvedValue({
+                firstName: 'Test',
+                lastName: 'User',
+                emailAddresses: [{ emailAddress: 'test@example.com' }]
+            })
+        }
+    })
+}));
+
 // 2. Register Mocks
 jest.unstable_mockModule('crypto', () => ({
     default: {

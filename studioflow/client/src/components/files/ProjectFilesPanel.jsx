@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { FileUploadDropzone } from './FileUploadDropzone';
 import { ShareFileDialog } from './ShareFileDialog';
 import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
@@ -42,9 +43,10 @@ export function ProjectFilesPanel({ projectId, project }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [deleteDialog, setDeleteDialog] = useState({ open: false, fileId: null, filename: '', type: 'archive' });
-  const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, filename: '' });
+  const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, fileIds: [], filename: '' });
   const [manageDialog, setManageDialog] = useState({ open: false, file: null });
-  
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
+
   // Get user's role in the project
   const userRole = project?.userRole || ROLES.CLIENT;
   const isOwner = userRole === ROLES.OWNER;
@@ -66,6 +68,11 @@ export function ProjectFilesPanel({ projectId, project }) {
   useEffect(() => {
     fetchFiles();
   }, [projectId]);
+
+  // Reset selection on tab change
+  useEffect(() => {
+    setSelectedFiles(new Set());
+  }, [activeTab]);
 
   const fetchFiles = async () => {
     try {
@@ -98,7 +105,7 @@ export function ProjectFilesPanel({ projectId, project }) {
 
   const confirmDelete = async () => {
     const { fileId, filename } = deleteDialog;
-    
+
     try {
       const token = await getToken();
       await archiveFile(projectId, fileId, token);
@@ -118,7 +125,7 @@ export function ProjectFilesPanel({ projectId, project }) {
       toast.error(getPermissionErrorMessage(PERMISSIONS.FILE_DELETE));
       return;
     }
-    
+
     try {
       const token = await getToken();
       await restoreFile(projectId, fileId, token);
@@ -141,7 +148,7 @@ export function ProjectFilesPanel({ projectId, project }) {
       }
       return;
     }
-    
+
     try {
       const token = await getToken();
       const response = await getFileDetails(projectId, fileId, token);
@@ -187,8 +194,37 @@ export function ProjectFilesPanel({ projectId, project }) {
     setManageDialog({ open: true, file });
   };
 
+  const toggleSelection = (fileId) => {
+    const newSelection = new Set(selectedFiles);
+    if (newSelection.has(fileId)) {
+      newSelection.delete(fileId);
+    } else {
+      newSelection.add(fileId);
+    }
+    setSelectedFiles(newSelection);
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      const allIds = filteredFiles.map(f => f.fileId);
+      setSelectedFiles(new Set(allIds));
+    } else {
+      setSelectedFiles(new Set());
+    }
+  };
+
+  const handleBulkShare = () => {
+    if (selectedFiles.size === 0) return;
+    setShareDialog({
+      open: true,
+      fileIds: Array.from(selectedFiles),
+      filename: `${selectedFiles.size} files`
+    });
+  };
+
   const handleShareComplete = () => {
-    fetchFiles(); // Refresh to get updated share info
+    fetchFiles();
+    setSelectedFiles(new Set());
   };
 
   const filteredFiles = files.filter((file) => {
@@ -196,7 +232,7 @@ export function ProjectFilesPanel({ projectId, project }) {
     if (userRole === ROLES.CLIENT && !canViewFile(file, user?.id, userRole)) {
       return false;
     }
-    
+
     // Filter out archived files unless specifically viewing archived tab
     if (activeTab !== 'archived' && file.status === 'archived') return false;
     if (activeTab === 'archived') return file.status === 'archived';
@@ -206,6 +242,8 @@ export function ProjectFilesPanel({ projectId, project }) {
     if (activeTab === 'documents') return file.status === 'active' && (file.mimeType.includes('pdf') || file.mimeType.includes('document'));
     return true;
   });
+
+  const allSelected = filteredFiles.length > 0 && Array.from(selectedFiles).length >= filteredFiles.length;
 
   return (
     <div className="space-y-6">
@@ -222,11 +260,19 @@ export function ProjectFilesPanel({ projectId, project }) {
       {/* Files List */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Project Files</CardTitle>
-            <CardDescription>
-              {files.length} {files.length === 1 ? 'file' : 'files'} uploaded
-            </CardDescription>
+          <div className="flex items-center gap-4">
+            <div>
+              <CardTitle>Project Files</CardTitle>
+              <CardDescription>
+                {files.length} {files.length === 1 ? 'file' : 'files'} uploaded
+              </CardDescription>
+            </div>
+            {isOwner && selectedFiles.size > 0 && (
+              <Button onClick={handleBulkShare} size="sm" variant="secondary">
+                <Share2 className="w-4 h-4 mr-2" />
+                Share {selectedFiles.size} selected
+              </Button>
+            )}
           </div>
           <Button variant="outline" size="sm" onClick={fetchFiles}>
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -235,13 +281,23 @@ export function ProjectFilesPanel({ projectId, project }) {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4">
+            <TabsList className="mb-4 w-full justify-start overflow-x-auto">
               <TabsTrigger value="all">All Files</TabsTrigger>
               <TabsTrigger value="images">Images</TabsTrigger>
               <TabsTrigger value="videos">Videos</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
               <TabsTrigger value="archived">Trash</TabsTrigger>
             </TabsList>
+
+            {isOwner && filteredFiles.length > 0 && activeTab !== 'archived' && (
+              <div className="flex items-center gap-2 mb-4 px-4">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="text-sm text-muted-foreground">Select All</span>
+              </div>
+            )}
 
             <TabsContent value={activeTab}>
               {loading ? (
@@ -266,6 +322,9 @@ export function ProjectFilesPanel({ projectId, project }) {
                       onPreview={handlePreview}
                       onShare={handleShare}
                       onManageSharing={handleManageSharing}
+                      isOwner={isOwner}
+                      isSelected={selectedFiles.has(file.fileId)}
+                      onSelect={() => toggleSelection(file.fileId)}
                     />
                   ))}
                 </div>
@@ -306,6 +365,7 @@ export function ProjectFilesPanel({ projectId, project }) {
         onOpenChange={(open) => setShareDialog({ ...shareDialog, open })}
         projectId={projectId}
         fileId={shareDialog.fileId}
+        fileIds={shareDialog.fileIds}
         filename={shareDialog.filename}
         onShareComplete={handleShareComplete}
       />
@@ -324,29 +384,33 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing }) {
-  const isPreviewable = file.mimeType.startsWith('image/') || 
-                        file.mimeType.startsWith('video/') || 
-                        file.mimeType === 'application/pdf';
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, isOwner, isSelected, onSelect }) {
+  const isPreviewable = file.mimeType.startsWith('image/') ||
+    file.mimeType.startsWith('video/') ||
+    file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
   const isShared = file.sharedWith && file.sharedWith.length > 0;
-  const isOwner = userRole === ROLES.OWNER;
   const canDownload = canDownloadFile(file, userId, userRole);
   const canView = canViewFile(file, userId, userRole);
 
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
       <div className="flex items-center gap-4">
+        {/* Checkbox for owner */}
+        {isOwner && !isArchived && (
+          <Checkbox checked={isSelected} onCheckedChange={onSelect} onClick={(e) => e.stopPropagation()} />
+        )}
+
         {/* Icon or Thumbnail */}
         <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-muted rounded overflow-hidden">
           {file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
-             file.mimeType.startsWith('video/') ? (
-                <video src={file.previewUrl} className="w-full h-full object-cover" />
-             ) : (
-                <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
-             )
+            file.mimeType.startsWith('video/') ? (
+              <video src={file.previewUrl} className="w-full h-full object-cover" />
+            ) : (
+              <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
+            )
           ) : (
-             <div className="text-2xl">{getFileIcon(file.mimeType)}</div>
+            <div className="text-2xl">{getFileIcon(file.mimeType)}</div>
           )}
         </div>
 
@@ -395,7 +459,7 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
                     Preview
                   </DropdownMenuItem>
                 )}
-                
+
                 {/* Download - Only if explicitly allowed */}
                 {canDownload && (
                   <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
@@ -403,7 +467,7 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
                     Download
                   </DropdownMenuItem>
                 )}
-                
+
                 {/* Owner-only actions */}
                 {isOwner && (
                   <>

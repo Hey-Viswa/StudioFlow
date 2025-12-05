@@ -516,35 +516,60 @@ const CommentItem = ({
               </div>
 
               {comment.attachments?.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {comment.attachments.map((file, idx) => {
-                    const fileType = file.mimeType || file.type;
-                    const fileName = file.filename || file.name;
-                    const isImage = fileType?.startsWith('image/');
-                    return (
-                      <div key={idx} className="group relative">
-                        {isImage ? (
-                          <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
-                            <img
-                              src={file.url}
-                              alt={fileName}
-                              className="max-h-48 rounded-md border border-border/50 object-cover hover:opacity-95 transition-opacity"
-                            />
-                          </a>
-                        ) : (
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
-                          >
-                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-foreground/90">{fileName}</span>
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="mt-2 space-y-2">
+                  {/* Image Grid */}
+                  {comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length > 0 && (
+                    <div className={cn(
+                      "grid gap-2",
+                      comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length === 1 ? "grid-cols-1 max-w-sm" :
+                        comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length === 2 ? "grid-cols-2" :
+                          "grid-cols-2 sm:grid-cols-3"
+                    )}>
+                      {comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
+                        <a
+                          key={`img-${idx}`}
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="relative aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted/20 group/image"
+                        >
+                          <img
+                            src={file.url}
+                            alt={file.filename || file.name}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Other Files */}
+                  {comment.attachments.filter(f => !(f.mimeType || f.type)?.startsWith('image/')).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {comment.attachments.filter(f => !(f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
+                        <a
+                          key={`file-${idx}`}
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-sm shadow-sm hover:border-primary/50 hover:shadow-md transition-all group/file max-w-xs"
+                        >
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Paperclip className="h-5 w-5" />
+                          </div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="truncate font-medium text-foreground/90 group-hover/file:text-primary transition-colors">
+                              {file.filename || file.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {file.size ? (file.size / 1024 < 1024 ? `${Math.round(file.size / 1024)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`) : 'Attachment'}
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

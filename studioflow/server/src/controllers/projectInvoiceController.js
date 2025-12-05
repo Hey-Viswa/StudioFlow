@@ -237,7 +237,7 @@ export const getAllUserInvoices = async (req, res) => {
     await ProjectInvoice.updateMany(
       {
         projectId: { $in: privilegedProjectIds },
-        status: 'pending',
+        status: { $in: ['pending', 'sent'] },
         dueDate: { $lt: new Date() }
       },
       {
@@ -479,7 +479,7 @@ export const getProjectInvoices = async (req, res) => {
     await ProjectInvoice.updateMany(
       {
         projectId,
-        status: 'pending',
+        status: { $in: ['pending', 'sent'] },
         dueDate: { $lt: new Date() }
       },
       {
@@ -1023,8 +1023,23 @@ export const resendProjectInvoice = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can resend' });
     }
 
+    // Auto-repair missing email
+    if (!invoice.client?.email && invoice.client?.userId) {
+      try {
+        const clientUser = await clerkClient.users.getUser(invoice.client.userId);
+        const email = clientUser.emailAddresses?.[0]?.emailAddress;
+        if (email) {
+          invoice.client.email = email;
+          // Don't save yet, will save at end
+          console.log(`✓ Auto-repaired missing email for client ${invoice.client.userId}`);
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to fetch client email for repair:', err.message);
+      }
+    }
+
     if (!invoice.client?.email) {
-      return res.status(400).json({ error: 'Client email not available' });
+      return res.status(400).json({ error: 'Client email not available. Please ensure the client has a valid email address.' });
     }
 
     // STRICT ACCESS: Do NOT attach PDF for unpaid invoices

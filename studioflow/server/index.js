@@ -35,31 +35,36 @@ import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
 import { startNotificationWorker } from './src/workers/notificationWorker.js';
 import { startPaymentWorker } from './src/workers/paymentWorker.js';
+import { startPreviewWorker } from './src/workers/PreviewWorker.js';
 import cron from 'node-cron';
 import { runInvoiceStatusJobs } from './src/jobs/invoiceStatusUpdater.js';
+import { startVersionCleanupJob } from './src/jobs/VersionCleanupJob.js';
+import { initSentry } from './src/config/sentry.js';
+import * as Sentry from '@sentry/node';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// Global Error Handlers
+// Global Error Handlers - Prevent crash on Redis connection errors
 process.on('uncaughtException', (err) => {
-    console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
-    console.error(err.name, err.message);
-    console.error(err.stack);
-    process.exit(1);
+    console.error('UNCAUGHT EXCEPTION! 💥', err.message);
+    // process.exit(1); 
 });
 
 process.on('unhandledRejection', (err) => {
-    console.error('UNHANDLED REJECTION! 💥 Shutting down...');
-    console.error(err.name, err.message);
-    console.error(err.stack);
-    process.exit(1);
+    console.error('UNHANDLED REJECTION! 💥', err.message);
+    // process.exit(1);
 });
 
 const app = express();
 const httpServer = createServer(app);
+
+// Initialize Sentry
+initSentry(app);
+
+// Sentry v8+ handles request isolation via expressIntegration; manual handlers removed.
 
 // CRITICAL: Health check MUST be first - before any middleware
 // Railway needs instant response for healthchecks
@@ -68,7 +73,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // Setup Socket.IO with CORS (using our centralized config)
-const io = initializeSocket(httpServer);
+// Await initialization to check Redis status
+const io = await initializeSocket(httpServer);
 
 // Make io accessible to routes
 app.set('io', io);
@@ -200,6 +206,9 @@ app.use('/api/projects', messageRoutes); // Message/chat routes
 app.use('/api/upload', uploadRoutes); // Simple file upload
 app.use('/api/audit', auditRoutes); // Audit/Activity logs
 
+// Sentry Error Handler moved to setupExpressErrorHandler if needed, but integration handles it.
+// app.use(Sentry.Handlers.errorHandler()); 
+
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
@@ -272,6 +281,12 @@ const startServer = async () => {
 
         // Start payment worker
         startPaymentWorker();
+
+        // Start preview worker
+        startPreviewWorker();
+
+        // Start version cleanup job
+        startVersionCleanupJob();
 
         // Schedule invoice status automation (daily at 02:00 server time)
         cron.schedule('0 2 * * *', async () => {

@@ -174,6 +174,51 @@ class StorageAdapter {
   }
 
   /**
+   * Get file stream/buffer from storage (for processing)
+   * @param {string} key 
+   * @returns {Promise<Buffer>}
+   */
+  async getFileBuffer(key) {
+    if (!this.client) throw new Error('Storage client not initialized');
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key
+    });
+
+    const response = await this.client.send(command);
+    // Helper to convert stream to buffer
+    const streamToBuffer = (stream) =>
+      new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on("data", (chunk) => chunks.push(chunk));
+        stream.on("error", reject);
+        stream.on("end", () => resolve(Buffer.concat(chunks)));
+      });
+
+    return streamToBuffer(response.Body);
+  }
+
+  /**
+   * Upload a buffer (e.g. generated preview)
+   * @param {string} key 
+   * @param {Buffer} buffer 
+   * @param {string} contentType 
+   */
+  async uploadBuffer(key, buffer, contentType) {
+    if (!this.client) throw new Error('Storage client not initialized');
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType
+    });
+
+    await this.client.send(command);
+  }
+
+  /**
    * Generate a storage key for a project file
    * @param {string} projectId - Project ID
    * @param {string} filename - Original filename

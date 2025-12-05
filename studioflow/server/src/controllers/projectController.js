@@ -614,6 +614,95 @@ export const generateInvite = async (req, res) => {
   }
 };
 
+// @desc    Remove a member from the project
+// @route   DELETE /api/projects/:id/members/:userId
+// @access  Protected (Owner only)
+export const removeMember = async (req, res) => {
+  try {
+    const { id: projectId, userId: targetUserId } = req.params;
+    const currentUserId = req.userId;
+
+    // Validate IDs
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // RBAC: Only owner can remove members
+    if (String(project.ownerId) !== String(currentUserId)) {
+      return res.status(403).json({ error: 'Access denied. Only project owner can remove members.' });
+    }
+
+    // Prevent removing self
+    if (String(targetUserId) === String(currentUserId)) {
+      return res.status(400).json({ error: 'Cannot remove yourself from the project.' });
+    }
+
+    // Find membership
+    const membership = await ProjectMember.findOne({
+      projectId,
+      userId: targetUserId
+    });
+
+    if (!membership) {
+      return res.status(404).json({ error: 'User is not a member of this project.' });
+    }
+
+    // Remove membership
+    await ProjectMember.findOneAndDelete({ _id: membership._id });
+
+    // Revoke any active entitlements for this project
+    await import('../models/Entitlement.js').then(async ({ default: Entitlement }) => {
+      await Entitlement.updateMany(
+        { projectId, userId: targetUserId, revokedAt: null },
+        {
+          revokedAt: new Date(),
+          revocationReason: 'Removed from project by owner'
+        }
+      );
+    });
+
+    // Log Audit
+    await logAudit({
+      userId: currentUserId,
+      action: 'project_member_removed',
+      resourceType: 'project',
+      resourceId: projectId,
+      details: {
+        removedUserId: targetUserId,
+        removedMemberName: membership.name
+      },
+      req
+    });
+
+    // Emit socket event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('member-removed', {
+        projectId,
+        userId: targetUserId
+      });
+
+      // Notify the specific user
+      io.to(`user:${targetUserId}`).emit('notification', {
+        title: 'Project Access Revoked',
+        message: `You have been removed from project "${project.title}"`,
+        type: 'warning'
+      });
+    }
+
+    res.json({ success: true, message: 'Member removed successfully' });
+
+  } catch (error) {
+    console.error('Remove member error:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+};
+
 
 
 // @desc    Get project metrics for invoice autofill
@@ -1189,5 +1278,291 @@ export const permanentlyDeleteProject = async (req, res) => {
   } catch (error) {
     console.error('Permanent delete error:', error);
     res.status(500).json({ error: 'Failed to permanently delete project' });
+  }
+};
+
+// ==========================================
+// TASK MANAGEMENT CONTROLLERS
+// ==========================================
+
+// @desc    Get all tasks for a project
+// @route   GET /api/projects/:id/tasks
+// @access  Protected (Members)
+export const getProjectTasks = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(id).select('tasks status progress members ownerId');
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Check membership
+    const isMember = await ProjectMember.exists({ projectId: id, userId, status: 'active' });
+    const isOwner = String(project.ownerId) === String(userId);
+
+    if (!isMember && !isOwner) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Calculate stats
+    const tasks = project.tasks || [];
+    const stats = {
+      total: tasks.length,
+      completed: tasks.filter(t => t.status === 'completed').length,
+      inProgress: tasks.filter(t => t.status === 'in-progress').length,
+      pending: tasks.filter(t => t.status === 'pending').length,
+      progress: project.progress || 0
+    };
+
+    res.json({ success: true, tasks, stats });
+  } catch (error) {
+    console.error('Get tasks error:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+};
+
+// @desc    Create a new task
+// @route   POST /api/projects/:id/tasks
+// @access  Protected (Members with permission)
+export const createTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+    const { title, description, assignedTo, dueDate, status } = req.body;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Permission Check
+    const isOwner = String(project.ownerId) === String(userId);
+    // Find role
+    const member = await ProjectMember.findOne({ projectId: id, userId });
+    const userRole = isOwner ? 'owner' : (member?.role || 'client');
+
+    if (!checkPermission(userRole, PERMISSIONS.TASK_CREATE)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const newTask = {
+      title,
+      description,
+      assignedTo: assignedTo || null,
+      dueDate,
+      status: status || 'pending',
+      createdBy: userId,
+      createdAt: new Date()
+    };
+
+    project.tasks.push(newTask);
+
+    await project.save();
+
+    // Get the created task (last one)
+    const createdTask = project.tasks[project.tasks.length - 1];
+
+    // Notification
+    if (assignedTo?.userId && assignedTo.userId !== userId) {
+      const { triggerNotification } = await import('../services/notificationService.js');
+      await triggerNotification('task.assigned', {
+        projectId: id,
+        taskId: createdTask._id,
+        taskTitle: title,
+        projectTitle: project.title,
+        assignedTo,
+        link: `/dashboard/projects/${id}?tab=tasks`
+      }, userId);
+    }
+
+    // Emit Socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${id}`).emit('task-added', {
+        projectId: id,
+        task: createdTask
+      });
+    }
+
+    // Audit Log
+    await logAudit({
+      userId,
+      action: 'create_task',
+      resourceType: 'project',
+      resourceId: id,
+      details: { taskId: createdTask._id, title: createdTask.title },
+      req
+    });
+
+    res.status(201).json({
+      success: true,
+      task: createdTask,
+      progress: project.progress
+    });
+
+  } catch (error) {
+    console.error('Create task error:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+};
+
+// @desc    Update a task
+// @route   PUT /api/projects/:id/tasks/:taskId
+// @access  Protected (Members with permission)
+export const updateTask = async (req, res) => {
+  try {
+    const { id, taskId } = req.params;
+    const userId = req.userId;
+    const updates = req.body;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const task = project.tasks.id(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Permission Check
+    const isOwner = String(project.ownerId) === String(userId);
+    const member = await ProjectMember.findOne({ projectId: id, userId });
+    const userRole = isOwner ? 'owner' : (member?.role || 'client');
+
+    if (!checkPermission(userRole, PERMISSIONS.TASK_UPDATE)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Capture old state for audit
+    const oldStatus = task.status;
+
+    // Update fields
+    if (updates.title) task.title = updates.title;
+    if (updates.description !== undefined) task.description = updates.description;
+    if (updates.status) task.status = updates.status;
+    if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
+
+    // Handle assignment change
+    if (updates.assignedTo !== undefined) {
+      const oldAssignee = task.assignedTo?.userId;
+      task.assignedTo = updates.assignedTo;
+
+      if (updates.assignedTo?.userId && updates.assignedTo.userId !== oldAssignee && updates.assignedTo.userId !== userId) {
+        const { triggerNotification } = await import('../services/notificationService.js');
+        await triggerNotification('task.assigned', {
+          projectId: id,
+          taskId: taskId,
+          taskTitle: task.title,
+          projectTitle: project.title,
+          assignedTo: updates.assignedTo,
+          link: `/dashboard/projects/${id}?tab=tasks`
+        }, userId);
+      }
+    }
+
+    task.updatedAt = new Date();
+    await project.save();
+
+    // Emit Socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${id}`).emit('task-updated', {
+        projectId: id,
+        task
+      });
+    }
+
+    // Audit Log (if meaningful change)
+    if (oldStatus !== task.status || updates.assignedTo) {
+      await logAudit({
+        userId,
+        action: 'update_task',
+        resourceType: 'project',
+        resourceId: id,
+        details: { taskId, title: task.title, statusChange: oldStatus !== task.status ? { from: oldStatus, to: task.status } : null },
+        req
+      });
+    }
+
+    res.json({
+      success: true,
+      task,
+      progress: project.progress
+    });
+
+  } catch (error) {
+    console.error('Update task error:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+};
+
+// @desc    Delete a task
+// @route   DELETE /api/projects/:id/tasks/:taskId
+// @access  Protected (Members with permission)
+export const deleteTask = async (req, res) => {
+  try {
+    const { id, taskId } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Permission Check
+    const isOwner = String(project.ownerId) === String(userId);
+    const member = await ProjectMember.findOne({ projectId: id, userId });
+    const userRole = isOwner ? 'owner' : (member?.role || 'client');
+
+    if (!checkPermission(userRole, PERMISSIONS.TASK_DELETE)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Find task title before deletion for audit log
+    const task = project.tasks.id(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const taskTitle = task.title;
+
+    // Remove task using pull method
+    project.tasks.pull({ _id: taskId });
+    await project.save();
+
+    // Emit Socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${id}`).emit('task-deleted', {
+        projectId: id,
+        taskId
+      });
+    }
+
+    // Audit Log
+    await logAudit({
+      userId,
+      action: 'delete_task',
+      resourceType: 'project',
+      resourceId: id,
+      details: { taskId, title: taskTitle },
+      req
+    });
+
+    res.json({
+      success: true,
+      progress: project.progress,
+      message: 'Task deleted'
+    });
+
+  } catch (error) {
+    console.error('Delete task error:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
   }
 };

@@ -1,9 +1,13 @@
 import Queue from 'bull';
 import Redis from 'ioredis';
-import redisConfig from '../config/redis.js';
+import { redisConfig, isRedisAvailable } from '../config/redis.js';
 
-// Check if Redis queue is enabled
-const isQueueEnabled = process.env.ENABLE_REDIS_QUEUE === 'true';
+// Check if Redis queue is enabled and available
+const isRedisConfigured = process.env.ENABLE_REDIS_QUEUE === 'true';
+// Use top-level await to prevent connection attempts if Redis is down
+const isRedisUp = isRedisConfigured ? await isRedisAvailable() : false;
+
+const isQueueEnabled = isRedisUp;
 
 let notificationQueue;
 
@@ -12,7 +16,13 @@ if (isQueueEnabled) {
 
     // Custom createClient function to handle Redis connections robustly
     const createClient = (type) => {
-        const client = new Redis(redisConfig);
+        // Bull requires maxRetriesPerRequest to be null
+        // enableReadyCheck: false is also recommended/required for bclient/subscriber
+        const client = new Redis({
+            ...redisConfig,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false
+        });
 
         client.on('error', (err) => {
             // Suppress ECONNRESET logs to avoid spamming, as ioredis handles reconnection
@@ -74,7 +84,11 @@ if (isQueueEnabled) {
         console.log('✅ Notification Queue connected to Redis');
     });
 } else {
-    console.log('⚠️ Redis Queue DISABLED. Using Direct Notification Mode.');
+    if (isRedisConfigured) {
+        console.warn('⚠️ Redis configured but unreachable. Notification Queue disabled.');
+    } else {
+        console.log('⚠️ Redis Queue DISABLED. Using Direct Notification Mode.');
+    }
     // Mock queue interface
     notificationQueue = {
         add: async () => {

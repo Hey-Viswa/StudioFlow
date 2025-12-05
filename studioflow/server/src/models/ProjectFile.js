@@ -108,6 +108,23 @@ const projectFileSchema = new mongoose.Schema({
     default: 'uploading',
   },
 
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
+
+  // Preview generation
+  previewStorageKey: {
+    type: String,
+    default: null
+  },
+
+  previewState: {
+    type: String,
+    enum: ['pending', 'processing', 'completed', 'failed', 'not_applicable'],
+    default: 'not_applicable'
+  },
+
   // Upload tracking
   uploadStartedAt: {
     type: Date,

@@ -1,76 +1,80 @@
-import dotenv from 'dotenv';
-import { URL } from 'url';
+import Redis from 'ioredis';
 
-dotenv.config();
-
-const getRedisConfig = () => {
-    // Case 1: REDIS_URL (Common in Railway/Heroku)
-    if (process.env.REDIS_URL) {
-        try {
-            const redisUrl = new URL(process.env.REDIS_URL);
-            const isTls = redisUrl.protocol === 'rediss:';
-
-            console.log(`🔌 Redis Config: Using REDIS_URL (${isTls ? 'TLS' : 'Non-TLS'})`);
-
-            return {
-                port: Number(redisUrl.port),
-                host: redisUrl.hostname,
-                password: redisUrl.password,
-                // Bull/ioredis specific TLS handling
-                tls: isTls ? { rejectUnauthorized: false } : undefined,
-                // Ensure we don't pass null/undefined for db if not present
-                db: redisUrl.pathname ? Number(redisUrl.pathname.substring(1)) : 0,
-                // Robust connection options
-                maxRetriesPerRequest: null,
-                enableReadyCheck: false,
-                retryStrategy(times) {
-                    const delay = Math.min(times * 50, 2000);
-                    return delay;
-                },
-                reconnectOnError(err) {
-                    const targetError = 'READONLY';
-                    if (err.message.slice(0, targetError.length) === targetError) {
-                        return true;
-                    }
-                    return false;
-                },
-                // Hardening for ECONNRESET
-                keepAlive: 10000, // 10 seconds
-                connectTimeout: 10000,
-                family: 4
-            };
-        } catch (e) {
-            console.warn('⚠️ Invalid REDIS_URL, falling back to individual variables:', e.message);
-        }
-    }
-
-    // Case 2: Individual Variables (Standard or Railway specific)
-    const host = process.env.REDIS_HOST || process.env.REDISHOST || '127.0.0.1';
-    const port = Number(process.env.REDIS_PORT || process.env.REDISPORT || 6379);
-    const password = process.env.REDIS_PASSWORD || process.env.REDISPASSWORD || undefined;
-    const useTls = process.env.REDIS_TLS === 'true' || process.env.REDIS_SSL === 'true';
-
-    console.log(`🔌 Redis Config: Using variables (Host: ${host}, Port: ${port}, TLS: ${useTls})`);
-
-    return {
-        port,
-        host,
-        password,
-        tls: useTls ? { rejectUnauthorized: false } : undefined,
-        // Robust connection options
-        maxRetriesPerRequest: null,
-        enableReadyCheck: false,
-        retryStrategy(times) {
-            const delay = Math.min(times * 50, 2000);
-            return delay;
-        },
-        // Hardening for ECONNRESET
-        keepAlive: 10000, // 10 seconds
-        connectTimeout: 10000,
-        family: 4
+// Basic configuration from environment variables
+export const redisConfig = process.env.REDIS_URL
+    ? process.env.REDIS_URL
+    : {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        retryStrategy: (times) => Math.min(times * 50, 2000),
     };
+
+// Singleton instance for general purpose (caching, presence, throttling)
+let redisClient = null;
+
+export const getRedisClient = () => {
+    if (!redisClient) {
+        console.log('🔌 Initializing Redis Client...');
+        redisClient = new Redis(redisConfig);
+
+        redisClient.on('connect', () => {
+            console.log('✅ Redis Connected');
+        });
+
+        redisClient.on('error', (err) => {
+            console.error('❌ Redis Error:', err);
+        });
+    }
+    return redisClient;
 };
 
-const redisConfig = getRedisConfig();
+// Factory for creating new instances
+export const createRedisClient = () => {
+    const client = new Redis({
+        ...redisConfig,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        retryStrategy: (times) => {
+            if (times > 3) {
+                console.warn('⚠️ Redis connection failed multiple times. Dependencies may not work.');
+                return null; // Stop retrying after 3 attempts to prevent log spam/crashing loops if desired, but ioredis default is better.
+                // Actually, let's keep retrying but slow down.
+                return Math.min(times * 1000, 5000);
+            }
+            return 1000;
+        }
+    });
 
-export default redisConfig;
+    client.on('error', (err) => {
+        // Suppress initial connection errors to allow server to start
+        // console.warn('Redis Client Error:', err.message);
+    });
+
+    return client;
+};
+
+export const isRedisAvailable = async () => {
+    // Create a temporary client with no retries to fail fast
+    const tempClient = new Redis({
+        ...redisConfig,
+        maxRetriesPerRequest: 0,
+        retryStrategy: null,
+        connectTimeout: 2000,
+        lazyConnect: true
+    });
+
+    // Suppress error events (like ECONNREFUSED) to prevent runtime noise
+    tempClient.on('error', () => { });
+
+    try {
+        await tempClient.connect();
+        await tempClient.ping();
+        await tempClient.quit();
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+export default getRedisClient;

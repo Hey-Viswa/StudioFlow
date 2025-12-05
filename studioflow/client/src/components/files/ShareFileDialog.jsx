@@ -28,16 +28,19 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
  * ShareFileDialog Component
  * Dialog for sharing files with project clients
  */
-export function ShareFileDialog({ open, onOpenChange, projectId, fileId, filename, onShareComplete }) {
+export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds, filename, onShareComplete }) {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [allowDownload, setAllowDownload] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState(7);
-  const [shareUrl, setShareUrl] = useState('');
+  const [shareUrl, setShareUrl] = useState(''); // Only used for single file
   const [copied, setCopied] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
+
+  const isBulk = !!(fileIds && fileIds.length > 0);
+  const targetFileIds = isBulk ? fileIds : (fileId ? [fileId] : []);
 
   useEffect(() => {
     if (open && projectId) {
@@ -78,31 +81,44 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, filenam
     try {
       setLoading(true);
       const token = await getToken();
-      const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/share`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clientId: selectedClient,
-          allowDownload,
-          expiresInDays,
-        }),
-      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to share file');
+      const sharePromises = targetFileIds.map(id =>
+        fetch(`${API_BASE}/projects/${projectId}/files/${id}/share`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clientId: selectedClient,
+            allowDownload,
+            expiresInDays,
+          }),
+        }).then(async res => {
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed');
+          }
+          return res.json();
+        })
+      );
+
+      const results = await Promise.all(sharePromises);
+
+      if (isBulk) {
+        toast.success(`Successfully shared ${results.length} files`);
+        onShareComplete?.();
+        handleClose(); // Close immediately for bulk
+      } else {
+        // Single file flow - show link
+        setShareUrl(results[0].shareUrl);
+        toast.success('File shared successfully');
+        onShareComplete?.();
       }
 
-      const data = await response.json();
-      setShareUrl(data.shareUrl);
-      toast.success('File shared successfully');
-      onShareComplete?.();
     } catch (error) {
-      console.error('Failed to share file:', error);
-      toast.error(error.message || 'Failed to share file');
+      console.error('Failed to share file(s):', error);
+      toast.error(error.message || 'Failed to share files');
     } finally {
       setLoading(false);
     }

@@ -44,6 +44,7 @@ router.get('/invoices/project/:invoiceId', verifyClerk, getProjectInvoiceDetails
 router.post('/invoices/project/:invoiceId/pay', verifyClerk, createPaymentOrder);
 router.post('/invoices/project/:invoiceId/verify', verifyClerk, verifyProjectInvoicePayment);
 router.post('/invoices/project/:invoiceId/cancel', verifyClerk, cancelProjectInvoice);
+router.post('/invoices/project/:invoiceId/resend', verifyClerk, requireAdmin, resendProjectInvoice);
 
 // PDF download route (protected)
 router.get('/invoices/project/:invoiceIdentifier/download', verifyClerk, downloadProjectInvoicePDF);

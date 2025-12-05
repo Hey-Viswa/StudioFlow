@@ -15,7 +15,7 @@ const EntitlementSchema = new mongoose.Schema({
     paymentThreadId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PaymentThread',
-        required: true
+        required: false
     },
     invoiceId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -33,7 +33,7 @@ const EntitlementSchema = new mongoose.Schema({
     },
     expiresAt: {
         type: Date,
-        required: true
+        required: false
     },
     revokedAt: {
         type: Date,

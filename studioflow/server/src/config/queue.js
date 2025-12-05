@@ -1,20 +1,18 @@
 import Bull from 'bull';
 import nodemailer from 'nodemailer';
 import Notification from '../models/Notification.js';
+import { redisConfig, isRedisAvailable } from './redis.js';
 
-// Redis configuration - supports both REDIS_URL and individual config
-const redisConfig = process.env.REDIS_URL
-  ? process.env.REDIS_URL  // Railway/Cloud Redis URL (e.g., redis://default:pass@host:6379)
-  : {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-    retryStrategy: (times) => Math.min(times * 50, 2000)
-  };
-
-// Create email queue
+// Create queues
 let emailQueue;
-const isQueueEnabled = process.env.ENABLE_REDIS_QUEUE === 'true';
+let previewQueue;
+
+// Check if Redis is enabled AND available
+const isRedisConfigured = process.env.ENABLE_REDIS_QUEUE === 'true';
+// Use top-level await to check connectivity
+const isRedisUp = isRedisConfigured ? await isRedisAvailable() : false;
+
+const isQueueEnabled = isRedisUp;
 
 if (isQueueEnabled) {
   emailQueue = new Bull('email', {
@@ -29,14 +27,29 @@ if (isQueueEnabled) {
       removeOnFail: false
     }
   });
+  previewQueue = new Bull('preview', {
+    redis: redisConfig,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: true,
+    }
+  });
 } else {
-  console.log('⚠️ Redis Queue DISABLED. Using Mock Email Queue.');
-  emailQueue = {
+  if (isRedisConfigured) {
+    console.warn('⚠️ Redis configured but unreachable. Falling back to Mock Queues.');
+  } else {
+    console.log('⚠️ Redis Queue DISABLED. Using Mock Queues.');
+  }
+
+  const mockQueue = {
     process: () => { },
-    add: async () => { console.log('ℹ️ Mock Email Queue: Job added (skipped)'); },
+    add: async () => { console.log('ℹ️ Mock Queue: Job added (skipped)'); },
     on: () => { },
     isReady: () => false
   };
+  emailQueue = mockQueue;
+  previewQueue = mockQueue;
 }
 
 // Email transporter configuration
@@ -194,5 +207,5 @@ emailQueue.on('failed', (job, err) => {
 
 console.log('📧 Email queue initialized');
 
-export { emailQueue };
-export default emailQueue;
+export { emailQueue, previewQueue };
+export default { emailQueue, previewQueue };

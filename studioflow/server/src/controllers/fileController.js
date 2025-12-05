@@ -10,6 +10,7 @@ import {
   isFileTypeAllowed,
   formatBytes
 } from '../config/fileLimits.js';
+import { previewQueue } from '../config/queue.js';
 
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
@@ -264,6 +265,18 @@ export const confirmUpload = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
+      // Trigger Preview Generation for Images
+      if (fileRecord.mimeType.startsWith('image/')) {
+        previewQueue.add({
+          fileId: fileRecord.fileId,
+          projectId: fileRecord.projectId,
+          storageKey: fileRecord.storageKey,
+          mimeType: fileRecord.mimeType
+        });
+        // Update status to pending immediately to satisfy UI
+        await ProjectFile.updateOne({ _id: fileRecord._id }, { previewState: 'pending' });
+      }
+
       // Populate uploader info for response
       const populatedFile = await ProjectFile.findById(fileRecord._id).lean();
 
@@ -376,10 +389,10 @@ export const getProjectFiles = async (req, res) => {
         try {
           // Generate a signed URL valid for 1 hour
           previewUrl = await storageAdapter.getSignedDownloadUrl(
-            file.storageKey, 
-            file.filename, 
+            file.storageKey,
+            file.filename,
             false, // forceDownload
-            file.mimeType, 
+            file.mimeType,
             3600 // ttl
           );
         } catch (err) {

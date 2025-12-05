@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { uploadFile, validateFile, formatFileSize } from '@/lib/api/files';
+import { validateFile, formatFileSize } from '@/lib/api/files';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Upload, X, CheckCircle2, AlertCircle, Loader2, File } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUploads } from '@/context/UploadContext';
 
 /**
  * FileUploadDropzone Component
@@ -21,12 +22,13 @@ export function FileUploadDropzone({
   multiple = true,
   className,
 }) {
-  const { getToken } = useAuth();
+  const { uploads: allUploads, startUpload, cancelUpload, retryUpload, removeUpload } = useUploads();
   const [isDragging, setIsDragging] = useState(false);
-  const [uploads, setUploads] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const fileInputRef = useRef(null);
-  const abortControllersRef = useRef({});
+
+  // Filter uploads for this project
+  const uploads = allUploads.filter(u => u.projectId === projectId);
 
   const getAcceptString = () => {
     switch (activeTab) {
@@ -90,103 +92,16 @@ export function FileUploadDropzone({
 
     if (validFiles.length === 0) return;
 
-    // Create upload entries
-    const newUploads = validFiles.map((file) => ({
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      file,
-      progress: 0,
-      state: 'pending',
-      error: null,
-    }));
-
-    setUploads((prev) => [...prev, ...newUploads]);
-
-    // Start uploads
-    for (const upload of newUploads) {
-      processUpload(upload);
-    }
-  };
-
-  const processUpload = async (upload) => {
-    try {
-      const token = await getToken();
-      const controller = new AbortController();
-      abortControllersRef.current[upload.id] = controller;
-
-      await uploadFile(projectId, upload.file, token, {
-        signal: controller.signal,
-        onProgress: (percent) => {
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === upload.id ? { ...u, progress: Math.round(percent) } : u
-            )
-          );
-        },
-        onStateChange: (state, error) => {
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === upload.id ? { ...u, state, error: error || null } : u
-            )
-          );
-        },
+    // Start uploads via context
+    for (const file of validFiles) {
+      startUpload(file, projectId, {
+        onComplete: onUploadComplete,
+        onError: onUploadError
       });
-
-      toast.success(`${upload.file.name} uploaded successfully`);
-      onUploadComplete?.({ file: upload.file, uploadId: upload.id });
-
-      // Remove from list after delay
-      setTimeout(() => {
-        setUploads((prev) => prev.filter((u) => u.id !== upload.id));
-        delete abortControllersRef.current[upload.id];
-      }, 3000);
-    } catch (error) {
-      console.error('Upload error:', error);
-      if (error.message !== 'Upload cancelled') {
-        toast.error(`Failed to upload ${upload.file.name}: ${error.message}`);
-        onUploadError?.({ file: upload.file, error, uploadId: upload.id });
-      }
-
-      setUploads((prev) =>
-        prev.map((u) =>
-          u.id === upload.id ? { ...u, state: 'error', error: error.message } : u
-        )
-      );
     }
   };
 
-  const cancelUpload = (uploadId) => {
-    const controller = abortControllersRef.current[uploadId];
-    if (controller) {
-      controller.abort();
-      delete abortControllersRef.current[uploadId];
-    }
 
-    setUploads((prev) =>
-      prev.map((u) =>
-        u.id === uploadId ? { ...u, state: 'cancelled', error: 'Cancelled by user' } : u
-      )
-    );
-
-    setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-    }, 2000);
-  };
-
-  const retryUpload = (upload) => {
-    setUploads((prev) =>
-      prev.map((u) =>
-        u.id === upload.id
-          ? { ...u, state: 'pending', error: null, progress: 0 }
-          : u
-      )
-    );
-    processUpload(upload);
-  };
-
-  const removeUpload = (uploadId) => {
-    setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-    delete abortControllersRef.current[uploadId];
-  };
 
   return (
     <div className={cn('space-y-4', className)}>

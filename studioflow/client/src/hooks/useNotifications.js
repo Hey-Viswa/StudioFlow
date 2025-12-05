@@ -243,18 +243,26 @@ export const useNotifications = () => {
       setUnreadCount(0);
     };
 
-    const handleNotificationDeleted = (data) => {
-      console.log('🗑️ Notification deleted:', data);
-      setNotifications(prev => prev.filter(n => !data.ids.includes(n._id)));
+    const handleNotificationDeleted = ({ notificationId }) => {
+      console.log('🗑️ Notification deleted:', notificationId);
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
     };
+
+    // Subscribe to events
+    socket.on('notification:new', handleNewNotification);
+    socket.on('notification:read', handleNotificationRead);
+    socket.on('notifications:all-read', handleAllNotificationsRead);
+    socket.on('notification:deleted', handleNotificationDeleted);
 
     // Cleanup listeners on unmount or user change
     return () => {
       console.log('🧹 Cleaning up socket listeners');
-      socket.off('notification:new', handleNewNotification);
-      socket.off('notification:updated', handleNotificationRead);
-      socket.off('notification:all-read', handleAllNotificationsRead);
-      socket.off('notification:deleted', handleNotificationDeleted);
+      if (socket) {
+        socket.off('notification:new', handleNewNotification);
+        socket.off('notification:read', handleNotificationRead);
+        socket.off('notifications:all-read', handleAllNotificationsRead);
+        socket.off('notification:deleted', handleNotificationDeleted);
+      }
     };
   }, [user?.id]);
 

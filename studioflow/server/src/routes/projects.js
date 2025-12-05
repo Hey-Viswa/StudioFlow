@@ -13,7 +13,12 @@ import {
   restoreProject,
   permanentlyDeleteProject,
   getProjectMetrics,
-  getProjectUsage
+  getProjectUsage,
+  removeMember,
+  getProjectTasks,
+  createTask,
+  updateTask,
+  deleteTask
 } from '../controllers/projectController.js';
 import {
   getComments,
@@ -56,8 +61,15 @@ router.post('/:id/ownership/request', requestTransfer);
 router.post('/:id/ownership/accept', acceptTransfer);
 router.post('/:id/ownership/cancel', cancelRequest);
 
-// Invite generation
+// Invite generation and Member Management
 router.post('/:id/invite', checkResourceLimit('member'), generateInvite);               // Generate invite link (owner only)
+router.delete('/:id/members/:userId', removeMember);                                    // Remove member (owner only)
+
+// Task Management Routes
+router.get('/:id/tasks', getProjectTasks);
+router.post('/:id/tasks', createTask);
+router.put('/:id/tasks/:taskId', updateTask);
+router.delete('/:id/tasks/:taskId', deleteTask);
 
 // Comment endpoints (enhanced with threading, reactions, mentions)
 router.get('/:id/comments', getComments);                 // Get all comments for project
