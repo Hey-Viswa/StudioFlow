@@ -56,6 +56,103 @@ async function ensureInvoiceProject(invoice) {
   return invoice;
 }
 
+const TERMINAL_STATUSES = new Set(['paid', 'cancelled']);
+const TRANSITION_RULES = {
+  draft: ['sent', 'pending', 'cancelled'],
+  sent: ['pending', 'overdue', 'paid', 'partially_paid', 'cancelled'],
+  pending: ['sent', 'overdue', 'paid', 'partially_paid', 'cancelled'],
+  overdue: ['paid', 'partially_paid'],
+  partially_paid: ['paid'],
+  failed: ['pending'],
+  cancelled: [],
+  paid: ['refunded'],
+  refunded: []
+};
+
+function isImmutableInvoice(invoice) {
+  return invoice.isImmutable || TERMINAL_STATUSES.has(invoice.status);
+}
+
+function canTransition(from, to, invoice) {
+  const allowed = TRANSITION_RULES[from] || [];
+  if (!allowed.includes(to)) {
+    return false;
+  }
+
+  // Disallow cancelling once any payment is applied
+  if (to === 'cancelled' && (invoice.amountPaid || 0) > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function appendAudit(invoice, { eventType, fromStatus, toStatus, actorId, source = 'api', reason = '', payload = {}, idempotencyKey = null }) {
+  invoice.statusHistory = invoice.statusHistory || [];
+  invoice.auditLog = invoice.auditLog || [];
+
+  invoice.statusHistory.push({
+    from: fromStatus,
+    to: toStatus,
+    reason,
+    actorId,
+    source,
+    idempotencyKey,
+    at: new Date()
+  });
+
+  invoice.auditLog.push({
+    eventType,
+    actorId,
+    fromStatus,
+    toStatus,
+    payload,
+    source,
+    reason,
+    idempotencyKey,
+    at: new Date()
+  });
+}
+
+function applyStatusTransition(invoice, targetStatus, { actorId = null, source = 'api', reason = '', idempotencyKey = null, payload = {} } = {}) {
+  if (!targetStatus || targetStatus === invoice.status) {
+    return { ok: true, skipped: targetStatus === invoice.status };
+  }
+
+  if (idempotencyKey && invoice.lastTransitionId && invoice.lastTransitionId === idempotencyKey) {
+    return { ok: true, skipped: true, reason: 'Idempotent transition already applied' };
+  }
+
+  if (isImmutableInvoice(invoice)) {
+    return { ok: false, error: 'Invoice is immutable and cannot change status.' };
+  }
+
+  if (!canTransition(invoice.status, targetStatus, invoice)) {
+    return { ok: false, error: `Invalid status transition: ${invoice.status} -> ${targetStatus}` };
+  }
+
+  const previousStatus = invoice.status;
+  invoice.status = targetStatus;
+  invoice.lastTransitionId = idempotencyKey || invoice.lastTransitionId;
+
+  if (TERMINAL_STATUSES.has(targetStatus)) {
+    invoice.isImmutable = true;
+  }
+
+  appendAudit(invoice, {
+    eventType: 'status_changed',
+    fromStatus: previousStatus,
+    toStatus: targetStatus,
+    actorId,
+    source,
+    reason,
+    payload,
+    idempotencyKey
+  });
+
+  return { ok: true };
+}
+
 // @desc    Get all invoices for current user
 // @route   GET /api/invoices
 // @access  Protected
@@ -501,10 +598,14 @@ export const updateProjectInvoice = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can update' });
     }
 
+    if (isImmutableInvoice(invoice)) {
+      return res.status(403).json({ error: 'Invoice is immutable and cannot be edited' });
+    }
+
     // Allow editing for most statuses EXCEPT paid/refunded
     // Sent/pending invoices CAN be edited (fix amount, dates, client info)
     // This is necessary for real-world scenarios where corrections are needed
-    const nonEditableStatuses = ['paid', 'refunded'];
+    const nonEditableStatuses = ['paid', 'refunded', 'cancelled'];
 
     if (nonEditableStatuses.includes(invoice.status)) {
       return res.status(403).json({
@@ -621,17 +722,31 @@ export const updateProjectInvoice = async (req, res) => {
 
     // Status updates should go through updateProjectInvoiceStatus, but if passed here:
     if (updates.status && updates.status !== invoice.status) {
-      // Allow manual status corrections to pending, overdue, or cancelled
-      // Block transitions to 'paid' or 'sent' if they require specific side effects (though 'sent' is 'pending' here)
-      // We'll allow 'pending' (Sent), 'overdue', 'cancelled', 'draft'
-      const allowedStatusUpdates = ['draft', 'pending', 'overdue', 'cancelled'];
+      // Allow controlled manual corrections via state machine (no direct paid/refunded changes)
+      const allowedStatusUpdates = ['draft', 'pending', 'sent', 'overdue', 'cancelled'];
 
       if (!allowedStatusUpdates.includes(updates.status)) {
         return res.status(400).json({ error: 'Invalid status update. Use dedicated endpoints for payments.' });
       }
 
-      invoice.status = updates.status;
-      hasChanges = true;
+      const transition = applyStatusTransition(invoice, updates.status, {
+        actorId: userId,
+        source: 'api:update-invoice'
+      });
+
+      if (!transition.ok) {
+        return res.status(400).json({ error: transition.error || 'Invalid status transition' });
+      }
+
+      // If moved to sent from draft, persist snapshot and timestamps
+      if (invoice.status === 'sent' && !invoice.immutableSnapshot) {
+        invoice.immutableSnapshot = invoice.toObject();
+        invoice.sentAt = invoice.sentAt || new Date();
+      }
+
+      if (!transition.skipped) {
+        hasChanges = true;
+      }
     }
 
     if (updates.linkedFileIds) {
@@ -692,9 +807,9 @@ export const deleteProjectInvoice = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can delete' });
     }
 
-    if (invoice.status === 'paid') {
-      console.log('❌ Cannot delete paid invoice');
-      return res.status(400).json({ error: 'Cannot delete paid invoice' });
+    if (isImmutableInvoice(invoice)) {
+      console.log('❌ Cannot delete immutable invoice');
+      return res.status(400).json({ error: 'Cannot delete paid or cancelled invoice' });
     }
 
     // Get user details for deletion record
@@ -789,43 +904,28 @@ export const updateProjectInvoiceStatus = async (req, res) => {
 
     // Validate status transition logic
     console.log(`📊 Status change: ${invoice.status} → ${status}`);
-
-    // Do not allow manual updates to paid
-    if (status === 'paid') {
-      return res.status(403).json({
-        error: 'Payments are applied automatically after successful Razorpay confirmation.'
-      });
+    if (isImmutableInvoice(invoice)) {
+      return res.status(403).json({ error: 'Invoice is immutable and cannot change status' });
     }
 
-    // Block invalid transitions
-    if (invoice.status === 'paid' && !['refunded', 'cancelled'].includes(status)) {
-      return res.status(400).json({ 
-        error: 'Cannot change paid invoice status. Use refund if needed.' 
-      });
+    if (status === 'paid' || status === 'partially_paid') {
+      return res.status(403).json({ error: 'Payments are applied automatically after gateway confirmation.' });
     }
 
-    // Handle transitions
-    if (status === 'sent' || status === 'pending') {
-      // ✅ FIX: Validate client exists before marking as sent
-      if (!invoice.client || !invoice.client.userId) {
-        return res.status(400).json({ 
-          error: 'Cannot mark invoice as sent without assigning a client first.' 
-        });
-      }
+    if ((status === 'sent' || status === 'pending') && (!invoice.client || !invoice.client.userId)) {
+      return res.status(400).json({ error: 'Cannot mark invoice as sent without assigning a client first.' });
+    }
 
-      // If moving from draft to sent, create snapshot
-      if (invoice.status === 'draft') {
-        invoice.immutableSnapshot = invoice.toObject();
-        invoice.sentAt = new Date();
-        invoice.status = 'sent'; // Normalize to 'sent'
-        console.log(`🔒 Invoice ${invoice.invoiceNumber} finalized and snapshot created.`);
-      } else {
-        invoice.status = status;
-      }
-    } else if (status === 'cancelled') {
-      invoice.status = 'cancelled';
-    } else {
-      invoice.status = status;
+    const transition = applyStatusTransition(invoice, status, { actorId: userId, source: 'api:manual-status' });
+
+    if (!transition.ok) {
+      return res.status(400).json({ error: transition.error || 'Invalid status transition' });
+    }
+
+    // If moved to sent from draft, snapshot
+    if (invoice.status === 'sent' && !invoice.immutableSnapshot) {
+      invoice.immutableSnapshot = invoice.toObject();
+      invoice.sentAt = invoice.sentAt || new Date();
     }
 
     await invoice.save();
@@ -860,9 +960,17 @@ export const sendProjectInvoice = async (req, res) => {
 
     // Update status to sent if draft
     if (invoice.status === 'draft') {
-      invoice.status = 'pending'; // pending payment = sent
-      invoice.sentAt = new Date();
-      invoice.immutableSnapshot = invoice.toObject();
+      if (!invoice.client || !invoice.client.userId) {
+        return res.status(400).json({ error: 'Cannot send invoice without a linked client' });
+      }
+
+      const transition = applyStatusTransition(invoice, 'sent', { actorId: userId, source: 'api:send' });
+      if (!transition.ok) {
+        return res.status(400).json({ error: transition.error || 'Failed to send invoice' });
+      }
+
+      invoice.sentAt = invoice.sentAt || new Date();
+      invoice.immutableSnapshot = invoice.immutableSnapshot || invoice.toObject();
     }
 
     // Use provided email or fallback to client email
@@ -973,6 +1081,10 @@ export const createPaymentOrder = async (req, res) => {
       return res.status(400).json({ error: 'Invoice cancelled' });
     }
 
+    if (isImmutableInvoice(invoice)) {
+      return res.status(400).json({ error: 'Invoice is immutable and cannot be paid' });
+    }
+
     // Create Razorpay order
     const amountInPaise = Math.round(invoice.total * 100);
 
@@ -1027,9 +1139,13 @@ export const createPaymentOrder = async (req, res) => {
       status: 'success'
     });
 
-    // Update invoice with order ID and status
+    // Update invoice with order ID and status (respect transitions)
+    const transition = applyStatusTransition(invoice, 'pending', { actorId: userId, source: 'api:create-payment-order' });
+    if (!transition.ok) {
+      return res.status(400).json({ error: transition.error || 'Unable to start payment for invoice' });
+    }
+
     invoice.razorpayOrderId = order.id;
-    invoice.status = 'pending';
     await invoice.save();
 
     res.json({
@@ -1085,7 +1201,30 @@ export const verifyProjectInvoicePayment = async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    invoice.status = 'paid';
+    // Idempotency: if already paid, return success
+    if (invoice.status === 'paid') {
+      return res.json({
+        success: true,
+        message: 'Payment already applied',
+        invoice: {
+          id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          status: invoice.status,
+          paidAt: invoice.paidAt
+        }
+      });
+    }
+
+    const transition = applyStatusTransition(invoice, 'paid', {
+      actorId: req.userId,
+      source: 'api:verify-payment'
+    });
+
+    if (!transition.ok) {
+      return res.status(400).json({ error: transition.error || 'Failed to apply payment' });
+    }
+
+    invoice.amountPaid = invoice.total;
     invoice.razorpayPaymentId = razorpay_payment_id;
     invoice.razorpaySignature = razorpay_signature;
     invoice.paidAt = new Date();
@@ -1167,11 +1306,15 @@ export const cancelProjectInvoice = async (req, res) => {
       return res.status(403).json({ error: 'Only invoice creator can cancel' });
     }
 
-    if (invoice.status === 'paid') {
-      return res.status(400).json({ error: 'Cannot cancel paid invoice' });
+    if (isImmutableInvoice(invoice) || invoice.amountPaid > 0) {
+      return res.status(400).json({ error: 'Cannot cancel an invoice with payments or immutable status' });
     }
 
-    invoice.status = 'cancelled';
+    const transition = applyStatusTransition(invoice, 'cancelled', { actorId: userId, source: 'api:cancel' });
+    if (!transition.ok) {
+      return res.status(400).json({ error: transition.error || 'Failed to cancel invoice' });
+    }
+
     await invoice.save();
 
     res.json({
@@ -1256,27 +1399,54 @@ async function handlePaymentCaptured(payment, timestamp) {
 
     await ensureInvoiceProject(invoice);
 
-    if (invoice.status !== 'paid') {
-      invoice.status = 'paid';
-      invoice.razorpayPaymentId = payment.id;
+    // Idempotency on webhook
+    const idempotencyKey = payment.id;
+    if (invoice.lastTransitionId && invoice.lastTransitionId === idempotencyKey) {
+      console.log(`[${timestamp}] ℹ️  Duplicate webhook event ignored for ${invoice.invoiceNumber}`);
+      return;
+    }
+
+    const targetStatus = payment.amount === payment.amount_due ? 'paid' : 'partially_paid';
+    const transition = applyStatusTransition(invoice, targetStatus, {
+      actorId: null,
+      source: 'webhook',
+      idempotencyKey,
+      payload: { paymentId: payment.id, orderId: payment.order_id }
+    });
+
+    if (!transition.ok) {
+      console.warn(`[${timestamp}] ⚠️ Transition rejected for ${invoice.invoiceNumber}: ${transition.error}`);
+      return;
+    }
+
+    // Track payments
+    const paidAmount = (payment.amount / 100) || 0;
+    const currentPaid = invoice.amountPaid || 0;
+    invoice.amountPaid = Math.min(invoice.total, currentPaid + paidAmount);
+    if (targetStatus === 'paid') {
       invoice.paidAt = new Date(payment.created_at * 1000);
-      await invoice.save();
+      invoice.isImmutable = true;
+    }
 
-      // Create Entitlement for Client
-      if (invoice.client.userId) {
-        await Entitlement.create({
-          userId: invoice.client.userId,
-          projectId: invoice.projectId,
-          scope: 'project_download',
-          grantedAt: new Date(),
-          expiresAt: null // Permanent access
-        });
-        console.log(`[${timestamp}] ✓ Entitlement granted to client`);
-      }
+    invoice.razorpayPaymentId = payment.id;
+    await invoice.save();
 
-      console.log(`[${timestamp}] ✓ Invoice ${invoice.invoiceNumber} marked as paid`);
+    // Create Entitlement for Client
+    if (invoice.client.userId && targetStatus === 'paid') {
+      await Entitlement.create({
+        userId: invoice.client.userId,
+        projectId: invoice.projectId,
+        scope: 'project_download',
+        grantedAt: new Date(),
+        expiresAt: null // Permanent access
+      });
+      console.log(`[${timestamp}] ✓ Entitlement granted to client`);
+    }
 
-      // Generate PDF automatically after payment success
+    console.log(`[${timestamp}] ✓ Invoice ${invoice.invoiceNumber} marked as ${targetStatus}`);
+
+    // Generate PDF + email only when fully paid
+    if (targetStatus === 'paid') {
       try {
         console.log(`[${timestamp}] 📄 Generating PDF for invoice ${invoice.invoiceNumber}...`);
 
@@ -1343,7 +1513,18 @@ async function handlePaymentFailed(payment, timestamp) {
       return;
     }
 
-    invoice.status = 'failed';
+    const transition = applyStatusTransition(invoice, 'failed', {
+      actorId: null,
+      source: 'webhook',
+      idempotencyKey: payment.id,
+      payload: { paymentId: payment.id, orderId: payment.order_id }
+    });
+
+    if (!transition.ok) {
+      console.warn(`[${timestamp}] ⚠️ Failed-state transition rejected for ${invoice.invoiceNumber}: ${transition.error}`);
+      return;
+    }
+
     await invoice.save();
 
     console.log(`[${timestamp}] ❌ Payment failed for invoice ${invoice.invoiceNumber}`);
@@ -1453,24 +1634,30 @@ export const checkOverdueInvoices = async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const targets = await ProjectInvoice.find({
+      status: { $in: ['pending', 'sent'] },
+      dueDate: { $lt: today }
+    });
 
-    // Find all pending invoices with past due date
-    const result = await ProjectInvoice.updateMany(
-      {
-        status: 'pending',
-        dueDate: { $lt: today }
-      },
-      {
-        $set: { status: 'overdue' }
+    let updated = 0;
+    for (const invoice of targets) {
+      const transition = applyStatusTransition(invoice, 'overdue', {
+        actorId: null,
+        source: 'cron:overdue'
+      });
+
+      if (transition.ok && !transition.skipped) {
+        await invoice.save();
+        updated += 1;
       }
-    );
+    }
 
-    console.log(`🔄 Updated ${result.modifiedCount} invoices to overdue status`);
+    console.log(`🔄 Updated ${updated} invoices to overdue status`);
 
     res.json({
       success: true,
-      updatedCount: result.modifiedCount,
-      message: `Updated ${result.modifiedCount} invoices to overdue status`
+      updatedCount: updated,
+      message: `Updated ${updated} invoices to overdue status`
     });
   } catch (error) {
     console.error('❌ Check overdue error:', error);

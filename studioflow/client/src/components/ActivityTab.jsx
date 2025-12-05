@@ -27,7 +27,7 @@ const ACTION_COLORS = {
   'invoice.paid': 'text-green-500 bg-green-500/10',
   'invoice.sent': 'text-orange-500 bg-orange-500/10',
   'member.add': 'text-purple-500 bg-purple-500/10',
-  'default': 'text-slate-500 bg-slate-500/10'
+  'default': 'text-muted-foreground bg-muted'
 };
 
 const formatActionText = (action, details) => {

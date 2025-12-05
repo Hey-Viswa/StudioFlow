@@ -8,7 +8,7 @@ const client = axios.create({
   timeout: 15000,
 });
 
-export type InvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'cancelled' | 'overdue';
+export type InvoiceStatus = 'draft' | 'pending' | 'sent' | 'paid' | 'partially_paid' | 'failed' | 'cancelled' | 'overdue';
 
 export interface InvoiceItem {
   _id?: string;
@@ -62,7 +62,7 @@ export interface Invoice {
 }
 
 export interface InvoiceFilters {
-  status?: InvoiceStatus | 'all' | 'sent';
+  status?: InvoiceStatus | 'all';
   search?: string;
   projectId?: string;
   page?: number;
@@ -134,9 +134,10 @@ const isInvoiceOverdue = (invoice: Invoice) => {
   return false;
 };
 
-const coerceStatusParam = (status?: InvoiceStatus | 'all' | 'sent') => {
+const coerceStatusParam = (status?: InvoiceStatus | 'all') => {
   if (!status || status === 'all') return undefined;
-  if (status === 'sent') return 'pending';
+  // Backend accepts both 'pending' and 'sent'; keep payload consistent
+  if (status === 'sent') return 'sent';
   return status;
 };
 

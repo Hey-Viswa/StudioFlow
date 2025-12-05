@@ -3,7 +3,7 @@
  * Centralized type exports for invoice-related functionality
  */
 
-export type InvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'cancelled' | 'overdue';
+export type InvoiceStatus = 'draft' | 'pending' | 'sent' | 'paid' | 'partially_paid' | 'failed' | 'cancelled' | 'overdue';
 
 export interface InvoiceItem {
   _id?: string;

@@ -240,7 +240,7 @@ export default function TasksTab({ projectId, project }) {
       case 'in-progress':
         return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30';
       default:
-        return 'bg-gray-500/10 text-gray-500 border-gray-500/30';
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
 
@@ -270,7 +270,7 @@ export default function TasksTab({ projectId, project }) {
             <div className="text-xs text-muted-foreground">In Progress</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-500">{taskStats.pending}</div>
+            <div className="text-2xl font-bold text-muted-foreground">{taskStats.pending}</div>
             <div className="text-xs text-muted-foreground">Pending</div>
           </div>
         </div>

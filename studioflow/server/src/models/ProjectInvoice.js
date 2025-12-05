@@ -124,6 +124,13 @@ const projectInvoiceSchema = new mongoose.Schema({
     default: 0
   },
 
+  // Amount tracking
+  amountPaid: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
   tax: {
     percentage: {
       type: Number,
@@ -165,8 +172,19 @@ const projectInvoiceSchema = new mongoose.Schema({
   // Payment status
   status: {
     type: String,
-    enum: ['draft', 'pending', 'sent', 'paid', 'overdue', 'failed', 'cancelled', 'refunded'],
+    enum: ['draft', 'pending', 'sent', 'partially_paid', 'paid', 'overdue', 'failed', 'cancelled', 'refunded'],
     default: 'draft'
+  },
+
+  // Immutability + idempotency
+  isImmutable: {
+    type: Boolean,
+    default: false
+  },
+
+  lastTransitionId: {
+    type: String,
+    default: null
   },
 
   sentAt: {
@@ -246,7 +264,34 @@ const projectInvoiceSchema = new mongoose.Schema({
   lastResentAt: {
     type: Date,
     default: null
-  }
+  },
+
+  autoSentAt: {
+    type: Date,
+    default: null
+  },
+
+  statusHistory: [{
+    from: String,
+    to: String,
+    at: { type: Date, default: Date.now },
+    reason: String,
+    actorId: String,
+    source: String,
+    idempotencyKey: String
+  }],
+
+  auditLog: [{
+    eventType: String,
+    actorId: String,
+    fromStatus: String,
+    toStatus: String,
+    payload: mongoose.Schema.Types.Mixed,
+    source: String,
+    reason: String,
+    at: { type: Date, default: Date.now },
+    idempotencyKey: String
+  }]
 
 }, {
   timestamps: true

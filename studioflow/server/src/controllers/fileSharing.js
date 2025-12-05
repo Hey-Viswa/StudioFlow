@@ -2,6 +2,78 @@ import crypto from 'crypto';
 import ProjectFile from '../models/ProjectFile.js';
 import Project from '../models/Project.js';
 import storageAdapter from '../utils/storageAdapter.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
+import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+
+async function autoSendInvoiceForShare({ projectId, clientId, fileId, sharedBy }) {
+  try {
+    const invoice = await ProjectInvoice.findOne({
+      projectId,
+      'client.userId': clientId,
+      status: 'draft'
+    }).sort({ createdAt: -1 });
+
+    if (!invoice) return;
+    if (invoice.isImmutable) return;
+
+    const idempotencyKey = `share:${fileId}:${clientId}`;
+    if (invoice.lastTransitionId && invoice.lastTransitionId === idempotencyKey) return;
+
+    const previousStatus = invoice.status;
+    invoice.status = 'sent';
+    invoice.lastTransitionId = idempotencyKey;
+    invoice.sentAt = invoice.sentAt || new Date();
+    invoice.autoSentAt = invoice.autoSentAt || new Date();
+    invoice.immutableSnapshot = invoice.immutableSnapshot || invoice.toObject();
+
+    invoice.statusHistory = invoice.statusHistory || [];
+    invoice.auditLog = invoice.auditLog || [];
+    invoice.statusHistory.push({
+      from: previousStatus,
+      to: 'sent',
+      actorId: sharedBy,
+      source: 'fileshare',
+      idempotencyKey,
+      at: new Date(),
+      reason: 'File shared with client'
+    });
+    invoice.auditLog.push({
+      eventType: 'auto_sent',
+      actorId: sharedBy,
+      fromStatus: previousStatus,
+      toStatus: 'sent',
+      source: 'fileshare',
+      idempotencyKey,
+      at: new Date(),
+      payload: { fileId }
+    });
+
+    await invoice.save();
+
+    // Notify client
+    if (invoice.client?.userId) {
+      await createNotificationWithIdempotency({
+        projectId: projectId.toString(),
+        recipients: [invoice.client.userId],
+        type: 'invoice-sent',
+        title: '📄 Invoice Sent',
+        message: `Invoice ${invoice.invoiceNumber} was sent when a file was shared with you.`,
+        link: `/dashboard/invoices`,
+        priority: 'high',
+        category: 'invoice',
+        sendEmail: true,
+        eventType: 'invoice-sent',
+        metadata: {
+          invoiceId: invoice._id.toString(),
+          invoiceNumber: invoice.invoiceNumber,
+          fileId
+        }
+      });
+    }
+  } catch (err) {
+    console.error('[AutoSendInvoice] failed:', err.message);
+  }
+}
 
 /**
  * Generate a secure share token for file access
@@ -98,6 +170,9 @@ export const shareFileWithClient = async (req, res) => {
     });
 
     await file.save();
+
+    // Auto-send related invoice if applicable (idempotent)
+    await autoSendInvoiceForShare({ projectId, clientId, fileId, sharedBy: userId });
 
     const shareUrl = `${process.env.FRONTEND_URL}/shared/files/${shareToken}`;
 

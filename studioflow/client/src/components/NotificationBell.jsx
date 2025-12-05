@@ -75,12 +75,12 @@ const NotificationBell = () => {
   // Get priority color
   const getPriorityColor = (priority) => {
     const colorMap = {
-      low: 'text-gray-500',
+      low: 'text-muted-foreground',
       normal: 'text-blue-500',
       high: 'text-orange-500',
       urgent: 'text-red-500',
     };
-    return colorMap[priority] || 'text-gray-500';
+    return colorMap[priority] || 'text-muted-foreground';
   };
 
   return (

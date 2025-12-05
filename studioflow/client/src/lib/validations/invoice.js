@@ -34,7 +34,7 @@ export const newInvoiceSchema = z.object({
   }),
   notes: z.string().optional(),
   gstin: z.string().optional(),
-  status: z.enum(['draft', 'pending', 'paid', 'overdue', 'cancelled']).optional(),
+  status: z.enum(['draft', 'pending', 'sent', 'paid', 'partially_paid', 'overdue', 'cancelled']).optional(),
 });
 
 /**

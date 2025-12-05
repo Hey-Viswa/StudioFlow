@@ -26,6 +26,11 @@ const STATUS_CONFIG = {
     icon: Clock,
     style: { backgroundColor: 'rgb(251 146 60 / 0.2)', color: 'rgb(249 115 22)', borderColor: 'rgb(251 146 60 / 0.3)' },
   },
+  partially_paid: {
+    label: 'Partially Paid',
+    icon: Clock,
+    style: { backgroundColor: 'rgb(59 130 246 / 0.2)', color: 'rgb(37 99 235)', borderColor: 'rgb(59 130 246 / 0.3)' },
+  },
   paid: {
     label: 'Paid',
     icon: CheckCircle2,
@@ -43,7 +48,7 @@ const STATUS_CONFIG = {
   },
 };
 
-const AVAILABLE_STATUSES = ['draft', 'pending', 'paid', 'overdue', 'cancelled'];
+const AVAILABLE_STATUSES = ['draft', 'pending', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled'];
 
 /**
  * Invoice status badge with popover for changing status
@@ -112,8 +117,8 @@ export default function InvoiceStatusBadge({
   // Determine available next statuses based on current status
   let allowedTransitions = [];
   if (status === 'draft') {
-    allowedTransitions = ['pending']; // Can only mark as Sent (pending)
-  } else if (status === 'pending') {
+    allowedTransitions = ['pending', 'sent']; // Can mark as Sent
+  } else if (status === 'pending' || status === 'sent') {
     allowedTransitions = ['cancelled']; // Can cancel a sent invoice
   } else if (status === 'overdue') {
     allowedTransitions = ['cancelled'];

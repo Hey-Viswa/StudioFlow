@@ -45,13 +45,13 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
   }, [projectId]);
 
   if (loading) {
-    return <div className="text-slate-400">Loading invoices...</div>;
+    return <div className="text-muted-foreground">Loading invoices...</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Invoices</h3>
+        <h3 className="text-lg font-semibold text-foreground">Invoices</h3>
         {!isClient && (
           <Button onClick={() => navigate(`/dashboard/invoices/new?projectId=${projectId}`)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
@@ -90,7 +90,7 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
 
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-lg font-semibold text-white">
+                      <p className="text-lg font-semibold text-foreground">
                         {formatINR(invoice.total)}
                       </p>
                       <div className="flex items-center justify-end gap-2">
@@ -103,7 +103,7 @@ export default function ProjectInvoiceList({ projectId, clients, userRole }) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 hover:bg-blue-50 hover:text-blue-600"
+                            className="h-6 w-6 p-0 hover:bg-accent hover:text-primary"
                             onClick={() => handleResend(invoice._id)}
                             title="Resend Invoice"
                           >

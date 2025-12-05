@@ -70,6 +70,7 @@ const STATUS_TABS = [
 const INLINE_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
   { value: 'pending', label: 'Sent' },
+  { value: 'sent', label: 'Sent' },
   { value: 'paid', label: 'Paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'cancelled', label: 'Cancelled' }
@@ -150,8 +151,8 @@ export default function InvoiceTable({
 
   const startEditing = (invoice, field) => {
     if (isClient) return;
-    if (!['draft', 'overdue', 'cancelled'].includes(invoice.status)) {
-      toast.error('Only draft, overdue, or cancelled invoices can be edited');
+    if (!['draft', 'pending', 'sent', 'overdue', 'cancelled'].includes(invoice.status)) {
+      toast.error('Only draft, sent, overdue, or cancelled invoices can be edited');
       return;
     }
     setEditingField({ invoiceId: invoice._id, field });

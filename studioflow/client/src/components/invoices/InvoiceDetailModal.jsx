@@ -75,6 +75,8 @@ import { cn } from '../../lib/utils';
 const STATUS_CONFIG = {
   draft: { label: 'Draft', icon: FileText, variant: 'secondary' },
   pending: { label: 'Sent', icon: Clock, variant: 'default' },
+  sent: { label: 'Sent', icon: Clock, variant: 'default' },
+  partially_paid: { label: 'Partially Paid', icon: Clock, variant: 'default' },
   paid: { label: 'Paid', icon: CheckCircle2, variant: 'default' },
   overdue: { label: 'Overdue', icon: AlertCircle, variant: 'destructive' },
   cancelled: { label: 'Cancelled', icon: AlertCircle, variant: 'secondary' },
@@ -420,6 +422,8 @@ export default function InvoiceDetailModal({
                           <SelectContent>
                             <SelectItem value="draft">Draft</SelectItem>
                             <SelectItem value="pending">Sent</SelectItem>
+                            <SelectItem value="sent">Sent (explicit)</SelectItem>
+                            <SelectItem value="partially_paid">Partially Paid</SelectItem>
                             <SelectItem value="paid">Paid</SelectItem>
                             <SelectItem value="overdue">Overdue</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
