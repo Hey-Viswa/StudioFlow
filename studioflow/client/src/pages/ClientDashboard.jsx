@@ -489,7 +489,7 @@ export default function ClientDashboard() {
               navigate(`/dashboard/projects/${file.projectId}?tab=files`);
             }
           }}
-          onViewAll={() => navigate('/files')}
+          onViewAll={() => navigate('/dashboard/projects')}
         />
 
         {/* Analytics Charts */}

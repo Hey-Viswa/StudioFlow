@@ -1,40 +1,41 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Toaster } from './components/ui/sonner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NetworkError from './pages/NetworkError';
-import Landing from './pages/Landing';
-import DashboardLayout from './components/DashboardLayout';
 import { ThemeColorProvider } from './components/ThemeColorProvider';
 import NetworkStatusListener from './components/NetworkStatusListener';
-import DashboardHome from './pages/DashboardHome';
-import ProjectDetail from './pages/ProjectDetail';
-import CreateProject from './pages/CreateProject';
-import AcceptInvite from './pages/AcceptInvite';
-import Pricing from './pages/Pricing';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsConditions from './pages/TermsConditions';
-import CancellationRefund from './pages/CancellationRefund';
-import ShippingDelivery from './pages/ShippingDelivery';
-import ContactUs from './pages/ContactUs';
-import Projects from './pages/Projects';
-import Trash from './pages/Trash';
-import Invoices from './pages/Invoices';
-import InvoicesPage from './pages/InvoicesPage';
-import CreateInvoicePage from './pages/CreateInvoicePage';
-import ProjectFilesPage from './pages/ProjectFilesPage';
-import SharedFilePage from './pages/SharedFilePage';
-import Subscription from './pages/Subscription';
-import Settings from './pages/Settings';
-import ClientDashboard from './pages/ClientDashboard';
-import NotificationsPage from './pages/NotificationsPage';
 
-import Features from './pages/Features';
-import ClientPortal from './pages/features/ClientPortal';
-import Invoicing from './pages/features/Invoicing';
-import Compare from './pages/Compare';
+const Landing = lazy(() => import('./pages/Landing'));
+const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
+const DashboardHome = lazy(() => import('./pages/DashboardHome'));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+const CreateProject = lazy(() => import('./pages/CreateProject'));
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsConditions = lazy(() => import('./pages/TermsConditions'));
+const CancellationRefund = lazy(() => import('./pages/CancellationRefund'));
+const ShippingDelivery = lazy(() => import('./pages/ShippingDelivery'));
+const ContactUs = lazy(() => import('./pages/ContactUs'));
+const Projects = lazy(() => import('./pages/Projects'));
+const Trash = lazy(() => import('./pages/Trash'));
+const Invoices = lazy(() => import('./pages/Invoices'));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const CreateInvoicePage = lazy(() => import('./pages/CreateInvoicePage'));
+const ProjectFilesPage = lazy(() => import('./pages/ProjectFilesPage'));
+const SharedFilePage = lazy(() => import('./pages/SharedFilePage'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Settings = lazy(() => import('./pages/Settings'));
+const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const Features = lazy(() => import('./pages/Features'));
+const ClientPortal = lazy(() => import('./pages/features/ClientPortal'));
+const Invoicing = lazy(() => import('./pages/features/Invoicing'));
+const Compare = lazy(() => import('./pages/Compare'));
 
 function ProtectedRoute({ children }) {
   return (
@@ -58,7 +59,8 @@ function App() {
           <Router>
             <NetworkStatusListener />
             <Toaster position="top-right" richColors closeButton />
-            <Routes>
+            <Suspense fallback={<div className="p-6 text-center text-muted-foreground">Loading...</div>}>
+              <Routes>
               {/* ... routes ... */}
               <Route path="/" element={<Landing />} />
               <Route path="/invite" element={<AcceptInvite />} />
@@ -111,7 +113,8 @@ function App() {
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+              </Routes>
+            </Suspense>
             <Analytics />
             <SpeedInsights />
           </Router>

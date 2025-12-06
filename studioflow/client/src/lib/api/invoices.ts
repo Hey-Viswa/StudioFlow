@@ -103,7 +103,13 @@ export interface ProjectMetrics {
 
 const normalizeError = (error: unknown, fallback = 'Something went wrong'): Error => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.error || error.response?.data?.message || error.message;
+    const details =
+      error.response?.data?.details ||
+      error.response?.data?.detail ||
+      error.response?.data?.error ||
+      error.response?.data?.message;
+
+    const message = details || error.message;
     return new Error(message || fallback);
   }
   if (error instanceof Error) return error;

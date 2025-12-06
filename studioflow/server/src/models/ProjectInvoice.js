@@ -317,14 +317,10 @@ projectInvoiceSchema.pre('save', function (next) {
   this.subtotal = this.items.reduce((sum, item) => sum + item.amount, 0);
 
   // Calculate tax amount
-  if (this.tax.percentage > 0) {
-    this.tax.amount = (this.subtotal * this.tax.percentage) / 100;
-  }
+  this.tax.amount = (this.subtotal * (this.tax.percentage || 0)) / 100;
 
   // Calculate discount amount
-  if (this.discount.percentage > 0) {
-    this.discount.amount = (this.subtotal * this.discount.percentage) / 100;
-  }
+  this.discount.amount = (this.subtotal * (this.discount.percentage || 0)) / 100;
 
   // Calculate total
   this.total = this.subtotal + this.tax.amount - this.discount.amount;

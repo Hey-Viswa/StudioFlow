@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -7,6 +7,7 @@ import { useProjectSocket } from '../hooks/useSocket';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Separator } from '../components/ui/separator';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
@@ -65,10 +66,14 @@ import {
   Home,
   MoreVertical,
   RefreshCw,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Settings
 } from 'lucide-react';
 import OwnershipTransferModal from '../components/OwnershipTransferModal';
 import OwnershipAcceptanceBanner from '../components/OwnershipAcceptanceBanner';
+import ProjectHeader from '../components/ProjectHeader';
+import ProjectStats from '../components/ProjectStats';
+import TeamTab from '../components/TeamTab';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -114,6 +119,38 @@ export default function ProjectDetail() {
   const [revisionNotes, setRevisionNotes] = useState('');
   const [submittingRevision, setSubmittingRevision] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [ownershipEventTick, setOwnershipEventTick] = useState(0);
+
+  // Tab State Management (New)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'tasks';
+  const [activeTab, setActiveTabRaw] = useState(initialTab);
+
+  // Sync state with URL
+  const setActiveTab = (value) => {
+    setActiveTabRaw(value);
+    setSearchParams({ tab: value }, { replace: true });
+  };
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTabRaw(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  // Update startEditing to switch tab
+  const startEditing = () => {
+    setEditForm({
+      title: project?.title || '',
+      brief: project?.brief || '',
+      status: project?.status || 'active',
+      progress: project?.progress || 0,
+      dueDate: project?.dueDate ? new Date(project.dueDate).toISOString().split('T')[0] : ''
+    });
+    setIsEditing(true);
+    setActiveTab('settings');
+  };
 
   // Fetch project function that can be called from socket listeners
   const fetchProject = useCallback(async () => {
@@ -178,6 +215,26 @@ export default function ProjectDetail() {
     onTaskUpdated: (data) => {
       console.log('📡 Task updated:', data);
       fetchProject(); // Refresh to get updated progress
+    },
+    onTaskDeleted: (data) => {
+      console.log('📡 Task deleted:', data);
+      fetchProject(); // Refresh KPIs/progress after removals
+    },
+    onOwnershipRequest: (data) => {
+      console.log('📡 Ownership request created:', data);
+      toast.info('Ownership transfer requested');
+      setOwnershipEventTick((v) => v + 1);
+    },
+    onOwnershipAccepted: (data) => {
+      console.log('📡 Ownership transfer accepted:', data);
+      toast.success('Ownership transfer accepted');
+      setOwnershipEventTick((v) => v + 1);
+      fetchProject();
+    },
+    onOwnershipCancelled: (data) => {
+      console.log('📡 Ownership transfer cancelled:', data);
+      toast.message('Ownership transfer request cancelled');
+      setOwnershipEventTick((v) => v + 1);
     }
   });
 
@@ -185,7 +242,7 @@ export default function ProjectDetail() {
     fetchProject();
   }, [fetchProject]);
 
-  const generateInviteLink = async () => {
+  const generateInviteLink = async (role) => {
     setGeneratingInvite(true);
     try {
       const token = await getToken();
@@ -196,7 +253,7 @@ export default function ProjectDetail() {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ role: inviteRole })
+        body: JSON.stringify({ role: role || inviteRole })
       });
 
       if (!response.ok) {
@@ -223,16 +280,35 @@ export default function ProjectDetail() {
     }
   };
 
-  const startEditing = () => {
-    setEditForm({
-      title: project.title,
-      brief: project.brief || '',
-      status: project.status,
-      progress: project.progress || 0,
-      dueDate: project.dueDate ? new Date(project.dueDate).toISOString().split('T')[0] : ''
-    });
-    setIsEditing(true);
+  const handleRemoveMember = async (memberUserId) => {
+    if (!confirm('Are you sure you want to remove this member?')) return;
+
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects/${projectId}/members/${memberUserId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove member');
+      }
+
+      toast.success('Member removed successfully');
+      await fetchProject();
+    } catch (err) {
+      console.error('Remove member error:', err);
+      toast.error('Failed to remove member');
+    }
   };
+
+
+
+
+  // startEditing is defined below to use setActiveTab
 
   const cancelEditing = () => {
     setIsEditing(false);
@@ -520,17 +596,6 @@ export default function ProjectDetail() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <span className="text-lg text-muted-foreground">Loading project...</span>
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -552,499 +617,209 @@ export default function ProjectDetail() {
 
   if (!project) return null;
 
+  const isOwner = project?.ownerId === userId || project?.userRole === 'owner';
+  const userRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+
+  const taskStats = project ? {
+    total: project.tasks?.length || 0,
+    completed: project.tasks?.filter(t => t.status === 'completed').length || 0,
+    pending: project.tasks?.filter(t => t.status === 'pending' || t.status === 'in-progress').length || 0
+  } : null;
+
+  const invoiceStats = {
+    pendingCount: 0,
+    overdueCount: 0
+  };
+
   return (
-    <div className="min-h-screen bg-background overflow-y-auto">
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-12">
-        {/* Breadcrumb Navigation */}
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/dashboard" className="flex items-center gap-1">
-                  <Home className="w-4 h-4" />
-                  Dashboard
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/dashboard/projects">Projects</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{project?.title || 'Loading...'}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+    <div className="space-y-6 pb-20 fade-in p-6 max-w-screen-xl mx-auto">
+      <ProjectHeader
+        project={project}
+        userRole={project.userRole}
+        onInvite={project.userRole === 'owner' ? () => setActiveTab('team') : null}
+        onEdit={startEditing}
+        onTransferOwnership={() => setShowTransferModal(true)}
+      />
 
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
+      {/* ... (Stats Section) ... */}
+      <ProjectStats
+        project={project}
+        taskStats={taskStats}
+        invoiceStats={invoiceStats}
+      />
 
-        {/* Ownership Acceptance Banner */}
-        <OwnershipAcceptanceBanner
-          projectId={project._id}
-          onAccept={fetchProject}
-        />
+      {/* 3. Main Content Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full justify-start h-auto p-1 bg-muted/50 rounded-lg overflow-x-auto flex-wrap gap-1 mb-6">
+          <TabsTrigger value="tasks" className="gap-2">
+            <ListTodo className="h-4 w-4" /> Tasks
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="gap-2">
+            <FileText className="h-4 w-4" /> Invoices
+          </TabsTrigger>
+          <TabsTrigger value="files" className="gap-2">
+            <Upload className="h-4 w-4" /> Files
+          </TabsTrigger>
+          <TabsTrigger value="comments" className="gap-2">
+            <MessageSquare className="h-4 w-4" /> Comments
+            {comments.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">{comments.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <Activity className="h-4 w-4" /> Activity
+          </TabsTrigger>
 
-        {/* Project Info Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                {isEditing ? (
+          <div className="flex-1 min-w-4" />
+
+          <TabsTrigger value="team" id="team-tab-trigger" className="gap-2">
+            <Users className="h-4 w-4" /> Team
+          </TabsTrigger>
+          {isOwner && (
+            <TabsTrigger value="settings" className="gap-2 text-muted-foreground hover:text-foreground">
+              <Settings className="h-4 w-4" /> Settings
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="tasks" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <Card className="border-none shadow-none bg-transparent">
+              <TasksTab projectId={projectId} project={project} userRole={userRole} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="invoices" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <ProjectInvoiceList
+              projectId={projectId}
+              userRole={userRole}
+              clients={project.members?.filter(m => m.role === 'client')}
+            />
+          </TabsContent>
+
+          <TabsContent value="files" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <ProjectFilesPanel projectId={projectId} project={project} />
+          </TabsContent>
+
+          <TabsContent value="comments" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <CommentThread
+              comments={comments}
+              projectMembers={project.members || []}
+              currentUserId={userId}
+              currentUser={user}
+              onAddComment={addComment}
+              onReply={replyToComment}
+              onEdit={editComment}
+              onDelete={deleteComment}
+              onReact={reactToComment}
+              onResolve={resolveComment}
+              canModerate={project.owner === userId || project.members?.some(m => m.userId === userId && m.role === 'owner')}
+              loading={commentsLoading}
+              maxNestingLevel={3}
+            />
+          </TabsContent>
+
+          <TabsContent value="activity" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <ActivityTab projectId={projectId} />
+          </TabsContent>
+
+          <TabsContent value="team" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <TeamTab
+              project={project}
+              members={project.members || []}
+              isOwner={isOwner}
+              onGenerateInvite={generateInviteLink}
+              onRemoveMember={handleRemoveMember}
+              inviteLink={inviteLink}
+              generatingInvite={generatingInvite}
+              copied={copied}
+              setCopied={setCopied}
+            />
+          </TabsContent>
+
+          {isOwner && (
+            <TabsContent value="settings" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project Settings</CardTitle>
+                  <CardDescription>Manage project details and danger zone.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="title">Project Title</Label>
+                    <div className="grid gap-2">
+                      <Label>Project Title</Label>
                       <Input
-                        id="title"
-                        name="title"
                         value={editForm.title}
-                        onChange={handleEditChange}
-                        className="mt-1"
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                       />
-                      <p className={`text-xs mt-1 ${editForm.title.length > 50 ? 'text-red-500' :
-                        editForm.title.length > 40 ? 'text-yellow-500' :
-                          'text-muted-foreground'
-                        }`}>
-                        {editForm.title.length}/50 characters
-                      </p>
                     </div>
-                    <div>
-                      <Label htmlFor="brief">Project Brief</Label>
+                    <div className="grid gap-2">
+                      <Label>Description</Label>
                       <Textarea
-                        id="brief"
-                        name="brief"
                         value={editForm.brief}
-                        onChange={handleEditChange}
-                        maxLength={100}
-                        className="mt-1 resize-none min-h-[80px] max-h-[200px]"
+                        onChange={(e) => setEditForm({ ...editForm, brief: e.target.value })}
                       />
-                      <p className={`text-xs mt-1 ${editForm.brief.length > 100 ? 'text-red-500' :
-                        editForm.brief.length > 80 ? 'text-yellow-500' :
-                          'text-muted-foreground'
-                        }`}>
-                        {editForm.brief.length}/100 characters
-                      </p>
                     </div>
-                    <div>
-                      <Label htmlFor="status">Status</Label>
+                    <div className="grid gap-2">
+                      <Label>Status</Label>
                       <Select
                         value={editForm.status}
-                        onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
+                        onValueChange={(val) => setEditForm({ ...editForm, status: val })}
                       >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select status" />
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="on-hold">On Hold</SelectItem>
                           <SelectItem value="archived">Archived</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="dueDate">Due Date</Label>
-                      <div className="relative mt-1">
-                        <Input
-                          id="dueDate"
-                          name="dueDate"
-                          type="date"
-                          value={editForm.dueDate}
-                          onChange={handleEditChange}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
-                        />
-                        <CalendarIcon
-                          className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10"
-                          onClick={() => document.getElementById('dueDate').showPicker()}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={saveProject} disabled={saving}>
-                        {saving ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-4 h-4 mr-2" />
-                            Save Changes
-                          </>
-                        )}
-                      </Button>
-                      <Button onClick={cancelEditing} variant="outline" disabled={saving}>
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-3 mb-2">
-                      <CardTitle className="text-2xl">{project.title}</CardTitle>
-                      {project.isOwner && (
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                          <Crown className="w-3 h-3 mr-1" />
-                          Owner
-                        </Badge>
-                      )}
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
-                        {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                      </span>
-                    </div>
-                    {project.brief && (
-                      <CardDescription className="text-base mt-2">{project.brief}</CardDescription>
-                    )}
-                  </>
-                )}
-              </div>
-              {!isEditing && (
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setShowDropdown(!showDropdown)}
-                    aria-label="Project options"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-
-                  {showDropdown && (
-                    <>
-                      {/* Backdrop to close dropdown */}
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowDropdown(false)}
-                      />
-
-                      {/* Dropdown menu */}
-                      <div className="absolute right-0 top-10 w-48 bg-popover border rounded-md shadow-lg z-50 py-1">
-                        {(project.isOwner || project.userRole === 'team_member') && (
-                          <button
-                            onClick={() => {
-                              setShowDropdown(false);
-                              startEditing();
-                            }}
-                            className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit Project
-                          </button>
-                        )}
-
-                        {project.isOwner && (
-                          <button
-                            onClick={() => {
-                              setShowDropdown(false);
-                              openDeleteConfirm();
-                            }}
-                            disabled={deleting}
-                            className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-accent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {deleting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete Project
-                              </>
-                            )}
-                          </button>
-                        )}
-
-                        {project.isOwner && (
-                          <button
-                            onClick={() => {
-                              setShowDropdown(false);
-                              setShowTransferModal(true);
-                            }}
-                            className="w-full flex items-center px-3 py-2 text-sm text-amber-600 hover:bg-accent cursor-pointer"
-                          >
-                            <ArrowRightLeft className="w-4 h-4 mr-2" />
-                            Transfer Ownership
-                          </button>
-                        )}
-
-                        {project.userRole === 'client' && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setShowDropdown(false);
-                                setShowRevisionModal(true);
-                              }}
-                              className="w-full flex items-center px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                            >
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Request Revision
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowDropdown(false);
-                                setShowApproveModal(true);
-                              }}
-                              className="w-full flex items-center px-3 py-2 text-sm text-green-600 hover:bg-accent cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Approve Final
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Project Details */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <CalendarIcon className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Due Date</p>
-                  <p className="text-sm font-semibold">{formatDate(project.dueDate)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <Users className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Team Members</p>
-                  <p className="text-sm font-semibold">{project.members?.length || 0} members</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <FileText className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Created</p>
-                  <p className="text-sm font-semibold">{formatDate(project.createdAt)}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            {project.progress !== undefined && (
-              <div className="space-y-4 border-t pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-white">Progress</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Auto-calculated from completed tasks
-                    </p>
-                  </div>
-                  <div className="text-2xl font-semibold text-white">
-                    {project.progress}%
-                  </div>
-                </div>
-
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${project.progress}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Progress updates automatically when you complete tasks</span>
-                </div>
-              </div>
-            )}
-
-            {/* Invite Section - Only for owners */}
-            {project.isOwner && (
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Share2 className="w-5 h-5" />
-                  Invite Team & Clients
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Generate a secure invite link to give access to this project. Links expire after 7 days.
-                </p>
-
-                {!inviteLink ? (
-                  <div className="flex gap-3 items-end">
-                    <div className="w-48">
-                      <Label htmlFor="invite-role" className="text-xs mb-1.5 block">Role</Label>
-                      <Select value={inviteRole} onValueChange={setInviteRole}>
-                        <SelectTrigger id="invite-role">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client">Client (Restricted)</SelectItem>
-                          <SelectItem value="team_member">Team Member (Full Access)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Button onClick={generateInviteLink} disabled={generatingInvite} className="mb-[2px]">
-                      {generatingInvite ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Share2 className="w-4 h-4 mr-2" />
-                          Generate {inviteRole === 'client' ? 'Client' : 'Team'} Link
-                        </>
-                      )}
+                    <Button onClick={saveProject} disabled={saving}>
+                      {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      Save Changes
                     </Button>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Input value={inviteLink} readOnly className="font-mono text-sm" />
-                      <Button onClick={copyInviteLink} variant="outline">
-                        {copied ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy
-                          </>
-                        )}
+
+                  <Separator />
+
+                  <div className="pt-4 space-y-4">
+                    <h4 className="font-medium text-destructive">Danger Zone</h4>
+                    <div className="flex flex-col gap-2">
+                      <Button variant="outline" className="justify-start text-destructive hover:text-destructive" onClick={() => setShowTransferModal(true)}>
+                        <Crown className="w-4 h-4 mr-2" /> Transfer Ownership
+                      </Button>
+                      <Button variant="destructive" className="justify-start" onClick={openDeleteConfirm}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete Project
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Share this link with {inviteRole === 'client' ? 'clients' : 'team members'} to give them access.
-                    </p>
-                    <Button onClick={() => setInviteLink(null)} variant="ghost" size="sm">
-                      Generate New Link
-                    </Button>
                   </div>
-                )}
-              </div>
-            )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
-            {/* Team Members */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold mb-3">Team Members</h3>
-              <div className="space-y-2">
-                {project.members && project.members.length > 0 ? (
-                  project.members.map((member, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Users className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{member.name || member.email || member.userId}</p>
-                          {member.email && member.name && (
-                            <p className="text-xs text-muted-foreground">{member.email}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Joined {formatDate(member.joinedAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">
-                        {member.role === 'owner' ? <Crown className="w-3 h-3 mr-1" /> : null}
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                      </Badge>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No team members yet</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        </div>
+      </Tabs>
 
-        {/* Placeholder for future features */}
-        {/* Tasks, Files, Comments, and Invoices Tabs */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Project Workspace</CardTitle>
-            <CardDescription>Manage tasks, invoices, and communicate with your team</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="tasks" className="flex items-center gap-2">
-                  <ListTodo className="w-4 h-4" />
-                  Tasks
-                </TabsTrigger>
-                <TabsTrigger value="invoices" className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Invoices
-                </TabsTrigger>
-                <TabsTrigger value="files" className="flex items-center gap-2">
-                  <Upload className="w-4 h-4" />
-                  Files
-                </TabsTrigger>
-                <TabsTrigger value="comments" className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Comments
-                </TabsTrigger>
-                <TabsTrigger value="activity" className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Activity
-                </TabsTrigger>
-              </TabsList>
+      {/* Modals */}
+      <OwnershipTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        project={project}
+        refreshKey={ownershipEventTick}
+        onSuccess={() => {
+          fetchProject();
+          setShowTransferModal(false);
+        }}
+      />
 
-              <TabsContent value="tasks" className="mt-6">
-                <TasksTab projectId={projectId} project={project} />
-              </TabsContent>
-
-              <TabsContent value="invoices" className="mt-6">
-                <ProjectInvoiceList
-                  projectId={projectId}
-                  clients={project.members?.filter(m => m.role === 'client')}
-                  userRole={project.userRole}
-                />
-              </TabsContent>
-
-              <TabsContent value="files" className="mt-6">
-                <ProjectFilesPanel projectId={projectId} project={project} />
-              </TabsContent>
-
-              <TabsContent value="comments">
-                <CommentThread
-                  comments={comments}
-                  projectMembers={project.members || []}
-                  currentUserId={userId}
-                  currentUser={user}
-                  onAddComment={addComment}
-                  onReply={replyToComment}
-                  onEdit={editComment}
-                  onDelete={deleteComment}
-                  onReact={reactToComment}
-                  onResolve={resolveComment}
-                  canModerate={project.owner === userId || project.members?.some(m => m.userId === userId && m.role === 'owner')}
-                  loading={commentsLoading}
-                  maxNestingLevel={3}
-                />
-              </TabsContent>
-
-              <TabsContent value="activity" className="mt-6">
-                <ActivityTab projectId={projectId} />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
+      <OwnershipAcceptanceBanner
+        projectId={project._id}
+        refreshKey={ownershipEventTick}
+        onAccept={fetchProject}
+      />
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
@@ -1052,37 +827,31 @@ export default function ProjectDetail() {
           <Card className="max-w-md w-full border-red-500 border-2">
             <CardHeader>
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-6 h-6 text-red-500 mt-1" />
+                <AlertTriangle className="w-6 h-6 text-red-600 mt-1" />
                 <div>
                   <CardTitle className="text-red-600">Delete Project</CardTitle>
-                  <CardDescription className="mt-2">
-                    This will move the project to trash. It can be restored within 30 days before being permanently deleted.
+                  <CardDescription>
+                    This action cannot be undone. This will permanently delete the project
+                    <span className="font-semibold text-foreground"> {project?.title} </span>
+                    and all associated data.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Please type <strong>{project?.title}</strong> to confirm:
-                </label>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="confirm-delete">
+                  Type <span className="font-mono font-bold">{project?.title}</span> to confirm
+                </Label>
                 <Input
-                  type="text"
+                  id="confirm-delete"
                   value={deleteConfirmInput}
                   onChange={(e) => setDeleteConfirmInput(e.target.value)}
-                  placeholder="Type project name"
-                  autoFocus
-                  className="border-gray-300 focus:ring-red-500 focus:border-red-500"
+                  className="border-red-200 focus-visible:ring-red-500"
                 />
               </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={closeDeleteConfirm}
-                  disabled={deleting}
-                >
-                  Cancel
-                </Button>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={closeDeleteConfirm}>Cancel</Button>
                 <Button
                   variant="destructive"
                   onClick={deleteProjectHandler}
@@ -1197,16 +966,7 @@ export default function ProjectDetail() {
           </DialogContent>
         </Dialog>
       )}
-      {/* Ownership Transfer Modal */}
-      <OwnershipTransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        project={project}
-        onSuccess={() => {
-          fetchProject();
-          toast.success('Ownership transfer initiated');
-        }}
-      />
+
     </div>
   );
 }

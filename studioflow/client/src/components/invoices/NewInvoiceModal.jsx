@@ -77,7 +77,17 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
 
   // Calculate totals with useMemo for performance
   const totals = useMemo(() => {
-    return calculateInvoiceTotal(watchedItems, watchedTax, watchedDiscount);
+    // Coerce numeric values to avoid string concatenation like "010"
+    const safeItems = (watchedItems || []).map((item) => ({
+      ...item,
+      quantity: parseFloat(item.quantity) || 0,
+      rate: parseFloat(item.rate) || 0,
+    }));
+
+    const taxPct = parseFloat(watchedTax) || 0;
+    const discountPct = parseFloat(watchedDiscount) || 0;
+
+    return calculateInvoiceTotal(safeItems, taxPct, discountPct);
   }, [watchedItems, watchedTax, watchedDiscount]);
 
   // Fetch projects when modal opens

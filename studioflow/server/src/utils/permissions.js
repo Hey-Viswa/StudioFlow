@@ -83,6 +83,20 @@ const ROLE_PERMISSIONS = {
         PERMISSIONS.COMMENT_CREATE,
         PERMISSIONS.COMMENT_DELETE_OWN
         // File upload for client is conditional on settings. We'll handle that in controller.
+    ],
+    // Alias for 'member' which might be used in DB
+    'member': [
+        PERMISSIONS.PROJECT_VIEW,
+        PERMISSIONS.PROJECT_UPDATE,
+        PERMISSIONS.TASK_CREATE,
+        PERMISSIONS.TASK_VIEW,
+        PERMISSIONS.TASK_UPDATE,
+        PERMISSIONS.TASK_DELETE,
+        PERMISSIONS.FILE_UPLOAD,
+        PERMISSIONS.FILE_VIEW,
+        PERMISSIONS.FILE_DELETE,
+        PERMISSIONS.COMMENT_CREATE,
+        PERMISSIONS.COMMENT_DELETE_OWN
     ]
 };
 

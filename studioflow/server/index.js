@@ -34,6 +34,7 @@ import { initializeMessaging } from './src/config/appwriteMessaging.js';
 import { initializeFirebase } from './src/config/firebase.js';
 import './src/config/queue.js'; // Initialize email queue
 import { startNotificationWorker } from './src/workers/notificationWorker.js';
+import { startFileWorker } from './src/workers/fileWorker.js';
 import { startPaymentWorker } from './src/workers/paymentWorker.js';
 import { startPreviewWorker } from './src/workers/PreviewWorker.js';
 import cron from 'node-cron';
@@ -281,6 +282,9 @@ const startServer = async () => {
 
         // Start payment worker
         startPaymentWorker();
+
+        // Start file worker (new)
+        startFileWorker();
 
         // Start preview worker
         startPreviewWorker();

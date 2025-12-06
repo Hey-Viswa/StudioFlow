@@ -5,18 +5,22 @@ const PRESENCE_TTL = 45; // 45 seconds
 export class RealtimeService {
     constructor(io) {
         this.io = io;
-        // Check functionality lazily or assume available. 
-        // We will initialize redis only if available.
-        this.redis = getRedisClient();
-        this.enabled = true;
+        this.redis = null;
+        this.enabled = false;
+        // Defer Redis connection until availability is confirmed to avoid noisy disconnect errors
+        this.ready = this.initializeRedis();
+    }
 
-        // Disable if Redis is known to be down
-        isRedisAvailable().then(available => {
-            this.enabled = available;
-            if (!available) {
-                console.warn('⚠️ RealtimeService: Redis unavailable. Presence and Rate Limiting disabled.');
-            }
-        });
+    async initializeRedis() {
+        const available = await isRedisAvailable();
+        this.enabled = available;
+
+        if (!available) {
+            console.warn('⚠️ RealtimeService: Redis unavailable. Presence and Rate Limiting disabled.');
+            return;
+        }
+
+        this.redis = getRedisClient();
     }
 
     /**
@@ -26,7 +30,8 @@ export class RealtimeService {
      * @param {object} userInfo - { displayName, etc }
      */
     async updatePresence(projectId, userId, userInfo) {
-        if (!this.enabled) return;
+        await this.ready;
+        if (!this.enabled || !this.redis) return;
         try {
             const key = `presence:${projectId}:${userId}`;
             const now = Date.now();
@@ -53,7 +58,8 @@ export class RealtimeService {
      * Remove user presence
      */
     async removePresence(projectId, userId) {
-        if (!this.enabled) {
+        await this.ready;
+        if (!this.enabled || !this.redis) {
             // Fallback: just emit offline
             this.io.to(`project:${projectId}:presence`).emit('presence.update', {
                 projectId,
@@ -79,7 +85,8 @@ export class RealtimeService {
      * Get all active users in a project
      */
     async getProjectPresence(projectId) {
-        if (!this.enabled) return [];
+        await this.ready;
+        if (!this.enabled || !this.redis) return [];
         try {
             // Scan for keys matching presence:{projectId}:*
             const pattern = `presence:${projectId}:*`;
@@ -103,7 +110,8 @@ export class RealtimeService {
      * Limit: 5 comments / 10s per user per project
      */
     async checkRateLimit(projectId, userId, actionType = 'comment', limit = 5, windowSeconds = 10) {
-        if (!this.enabled) return { allowed: true }; // Allow if Redis is down
+        await this.ready;
+        if (!this.enabled || !this.redis) return { allowed: true }; // Allow if Redis is down
 
         try {
             const key = `ratelimit:${projectId}:${userId}:${actionType}`;

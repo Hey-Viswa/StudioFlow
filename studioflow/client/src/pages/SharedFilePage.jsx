@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { Loader2, Download, Eye, FileText, Clock, AlertCircle, Lock, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatFileSize } from '@/lib/api/files';
@@ -28,6 +29,12 @@ export default function SharedFilePage() {
   const [error, setError] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const formatAmount = (amount, currency) => {
+    if (amount == null) return '';
+    if (currency === 'INR') return formatINR(amount);
+    const safe = Number.isFinite(amount) ? amount.toFixed(2) : amount;
+    return `${safe} ${currency || ''}`.trim();
+  };
 
   useEffect(() => {
     if (shareToken) {
@@ -47,12 +54,18 @@ export default function SharedFilePage() {
         },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load shared file');
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.error('Failed to parse shared file response', parseErr);
+        throw new Error('Failed to load shared file');
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load shared file');
+      }
+
       setFileData(data);
     } catch (error) {
       console.error('Failed to fetch shared file:', error);
@@ -171,9 +184,32 @@ export default function SharedFilePage() {
     );
   }
 
+  if (!fileData || !fileData.file) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <div className="flex items-center gap-2 text-destructive mb-2">
+              <AlertCircle className="w-6 h-6" />
+              <CardTitle>Shared file unavailable</CardTitle>
+            </div>
+            <CardDescription>The shared link could not be loaded. Please try again or contact the owner.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/dashboard')} className="w-full">
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const { file, previewUrl, downloadUrl, allowDownload, expiresAt, invoice, isLocked } = fileData;
-  const expiresDate = new Date(expiresAt);
-  const isExpired = expiresDate < new Date();
+  const payableAmount = invoice ? (invoice.payable ?? invoice.amount) : null;
+  const invoiceDisplayAmount = formatAmount(payableAmount ?? invoice?.amount, invoice?.currency);
+  const expiresDate = expiresAt ? new Date(expiresAt) : null;
+  const isExpired = expiresDate ? expiresDate < new Date() : false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -239,7 +275,7 @@ export default function SharedFilePage() {
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <p className={`font-medium ${isExpired ? 'text-destructive' : ''}`}>
-                    {format(expiresDate, 'MMM dd, yyyy')}
+                    {expiresDate ? format(expiresDate, 'MMM dd, yyyy') : 'No expiry set'}
                     {isExpired && ' (Expired)'}
                   </p>
                 </div>
@@ -289,7 +325,7 @@ export default function SharedFilePage() {
                   ) : (
                     <CreditCard className="w-4 h-4 mr-2" />
                   )}
-                  Pay {formatINR(invoice.amount)} to Unlock
+                  Pay {invoiceDisplayAmount || 'invoice amount'} to Unlock
                 </Button>
               ) : (
                 <Button variant="outline" className="flex-1" disabled>
@@ -307,7 +343,15 @@ export default function SharedFilePage() {
                     <p className="text-amber-900 font-medium mb-1">Premium Content Locked</p>
                     <p className="text-amber-700">
                       This file is part of a premium deliverable. To download it, you must settle
-                      <strong> Invoice #{invoice.number}</strong>.
+                      <strong> Invoice #{invoice.number}</strong> ({invoiceDisplayAmount}).
+                                {!invoice && !allowDownload && (
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                                    <p className="text-blue-900 font-medium mb-1">Invoice required for download</p>
+                                    <p className="text-blue-700">
+                                      The project owner has not attached an invoice yet. Preview is available; download will unlock once an invoice is issued and paid.
+                                    </p>
+                                  </div>
+                                )}
                     </p>
                   </div>
                 </div>

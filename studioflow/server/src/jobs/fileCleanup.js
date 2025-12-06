@@ -114,6 +114,54 @@ async function cleanupOrphanedRecords() {
 }
 
 /**
+ * Cleanup expired shared files (links older than expiresAt)
+ * - Remove expired share entries
+ * - If no active shares remain, delete file from storage and mark as deleted
+ */
+async function cleanupExpiredSharedFiles() {
+  try {
+    const now = new Date();
+    const files = await ProjectFile.find({
+      'sharedWith.expiresAt': { $lt: now },
+      status: { $nin: ['deleted'] },
+    });
+
+    console.log(`[Cleanup] Found ${files.length} files with expired shares`);
+
+    let deletedCount = 0;
+    let shareTrimmed = 0;
+
+    for (const file of files) {
+      const activeShares = (file.sharedWith || []).filter(s => s.expiresAt && new Date(s.expiresAt) > now);
+      const expiredShares = (file.sharedWith || []).length - activeShares.length;
+
+      if (expiredShares > 0 && activeShares.length === 0) {
+        try {
+          await storageAdapter.deleteFile(file.storageKey);
+        } catch (err) {
+          console.warn(`[Cleanup] Failed to delete storage object for ${file.fileId}:`, err.message);
+        }
+
+        file.status = 'deleted';
+        file.deletedAt = new Date();
+        file.sharedWith = [];
+        await file.save();
+        deletedCount += 1;
+      } else if (expiredShares > 0) {
+        file.sharedWith = activeShares;
+        await file.save();
+        shareTrimmed += 1;
+      }
+    }
+
+    return { deletedCount, shareTrimmed, scanned: files.length };
+  } catch (error) {
+    console.error('[Cleanup] Error in cleanupExpiredSharedFiles:', error);
+    return { deletedCount: 0, shareTrimmed: 0, scanned: 0 };
+  }
+}
+
+/**
  * Main cleanup job that runs all cleanup tasks
  */
 async function runCleanupJob() {
@@ -122,10 +170,11 @@ async function runCleanupJob() {
   
   const startTime = Date.now();
   
-  const [archivedCount, failedCount, orphanedCount] = await Promise.all([
+  const [archivedCount, failedCount, orphanedCount, expiredSummary] = await Promise.all([
     cleanupOldArchivedFiles(),
     cleanupFailedUploads(),
     cleanupOrphanedRecords(),
+    cleanupExpiredSharedFiles(),
   ]);
   
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -135,6 +184,7 @@ async function runCleanupJob() {
   console.log(`[Cleanup]   - Old archived files deleted: ${archivedCount}`);
   console.log(`[Cleanup]   - Failed uploads cleaned: ${failedCount}`);
   console.log(`[Cleanup]   - Orphaned records removed: ${orphanedCount}`);
+  console.log(`[Cleanup]   - Expired shares: scanned ${expiredSummary.scanned}, trimmed ${expiredSummary.shareTrimmed}, deleted ${expiredSummary.deletedCount}`);
   console.log(`[Cleanup]   - Duration: ${duration}s`);
   console.log('[Cleanup] ━'.repeat(30));
 }

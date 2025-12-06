@@ -31,6 +31,8 @@ export default defineConfig({
             '@radix-ui/react-slider',
             '@radix-ui/react-tabs',
           ],
+          'icons': ['lucide-react'],
+          'ui-misc': ['sonner'],
         },
       },
     },

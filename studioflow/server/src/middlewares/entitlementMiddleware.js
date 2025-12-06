@@ -2,6 +2,7 @@ import EntitlementService from '../services/EntitlementService.js';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
 import ProjectMember from '../models/ProjectMember.js';
+import ProjectFile from '../models/ProjectFile.js';
 import Entitlement from '../models/Entitlement.js';
 
 /**
@@ -143,6 +144,16 @@ export const checkProjectEntitlement = (scope) => {
             // Team Members (COLLABORATOR) generally have access to files
             // Clients (CLIENT) require explicit Entitlement (payment)
             if (membership.role === 'client') {
+                // If at least one file has been explicitly shared with this client, allow access
+                const hasSharedFile = await ProjectFile.findOne({
+                    projectId,
+                    'sharedWith.userId': userId
+                }).select('_id').lean();
+
+                if (hasSharedFile) {
+                    return next();
+                }
+
                 const entitlement = await Entitlement.findOne({
                     userId,
                     projectId,

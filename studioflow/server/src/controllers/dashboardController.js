@@ -135,6 +135,7 @@ export const getDashboardMetrics = async (req, res) => {
 export const getRecentFiles = async (req, res) => {
   try {
     const userId = req.userId;
+    const userRole = req.userRole || 'owner';
     const limit = parseInt(req.query.limit) || 10;
 
     // 1. Find all project memberships for this user
@@ -160,27 +161,35 @@ export const getRecentFiles = async (req, res) => {
 
     const projectIds = projects.map(p => p._id);
 
-    // Get recent files from active projects only
-    const files = await ProjectFile.find({ projectId: { $in: projectIds } })
+    // Get recent files from active projects only (exclude deleted/archived)
+    const files = await ProjectFile.find({
+      projectId: { $in: projectIds },
+      status: 'active',
+      deletedAt: null,
+    })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
+    // For clients, only include files shared with them
+    const visibleFiles = userRole === 'client'
+      ? files.filter(f => Array.isArray(f.sharedWith) && f.sharedWith.some(s => s.userId === userId))
+      : files;
+
     // Generate preview URLs
-    const processedFiles = await Promise.all(files.map(async (file) => {
+    const processedFiles = await Promise.all(visibleFiles.map(async (file) => {
       let url = null;
       let previewUrl = null;
 
       if (file.storageKey) {
         try {
           // Generate signed URL for access (valid for 1 hour)
-          url = await storageAdapter.getSignedDownloadUrl(
-            file.storageKey,
-            file.filename,
-            false, // forceDownload=false for inline viewing
-            file.mimeType,
-            3600
-          );
+          url = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+            filename: file.originalFilename || file.filename,
+            forceDownload: false,
+            contentType: file.mimeType,
+            ttl: 3600,
+          });
 
           // Use the same URL for preview if it's an image or video
           if (file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {

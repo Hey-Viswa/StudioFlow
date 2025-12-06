@@ -6,7 +6,7 @@ import { Crown, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 
-export default function OwnershipAcceptanceBanner({ projectId, onAccept }) {
+export default function OwnershipAcceptanceBanner({ projectId, onAccept, refreshKey = 0 }) {
     const { getToken, userId } = useAuth();
     const { user } = useUser();
     const [pendingRequest, setPendingRequest] = useState(null);
@@ -17,7 +17,7 @@ export default function OwnershipAcceptanceBanner({ projectId, onAccept }) {
         if (projectId && userId) {
             fetchPendingRequest();
         }
-    }, [projectId, userId]);
+    }, [projectId, userId, refreshKey]);
 
     const fetchPendingRequest = async () => {
         try {

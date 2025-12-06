@@ -15,25 +15,35 @@ import {
 } from './ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import { 
-  Plus, 
-  Loader2, 
-  CheckCircle2, 
-  Circle, 
+import {
+  Plus,
+  Loader2,
+  CheckCircle2,
+  Circle,
   Clock,
-  Trash2,
   Calendar as CalendarIcon,
   Users
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useProjectSocket } from '../hooks/useSocket';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from './ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 
-export default function TasksTab({ projectId, project }) {
+export default function TasksTab({ projectId, project, userRole: propUserRole }) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = useState([]);
-  
-  const userRole = project?.userRole || 'client';
+
+  const userRole = propUserRole || project?.userRole || 'client';
   const isClient = userRole === 'client';
   const [taskStats, setTaskStats] = useState({
     total: 0,
@@ -42,6 +52,8 @@ export default function TasksTab({ projectId, project }) {
     pending: 0,
     progress: 0
   });
+  const [pendingDelete, setPendingDelete] = useState(null); // { id, title }
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -97,10 +109,10 @@ export default function TasksTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to fetch tasks');
-      
+
       const data = await response.json();
       setTasks(data.tasks || []);
-      
+
       // Update task statistics
       if (data.stats) {
         setTaskStats(data.stats);
@@ -115,7 +127,7 @@ export default function TasksTab({ projectId, project }) {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
-    
+
     if (!newTask.title.trim()) {
       toast.error('Task title is required');
       return;
@@ -135,18 +147,18 @@ export default function TasksTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to create task');
-      
+
       const data = await response.json();
       setTasks([...tasks, data.task]);
-      
+
       // Update project progress if returned
       if (data.progress !== undefined && project) {
         project.progress = data.progress;
       }
-      
+
       // Refresh tasks to get updated stats
       await fetchTasks();
-      
+
       setNewTask({ title: '', description: '', assignedTo: null, dueDate: '', status: 'pending' });
       setShowAddTask(false);
       toast.success('Task created successfully!');
@@ -171,17 +183,17 @@ export default function TasksTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to update task');
-      
+
       const data = await response.json();
-      
+
       // Update project progress if returned
       if (data.progress !== undefined && project) {
         project.progress = data.progress;
       }
-      
+
       // Refresh tasks to get updated stats
       await fetchTasks();
-      
+
       toast.success('Task updated!');
     } catch (error) {
       console.error('Update task error:', error);
@@ -189,13 +201,14 @@ export default function TasksTab({ projectId, project }) {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
+  const handleDeleteTask = async () => {
+    if (!pendingDelete) return;
 
     try {
+      setDeleting(true);
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}/tasks/${taskId}`, {
+      const response = await fetch(`${apiUrl}/projects/${projectId}/tasks/${pendingDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -204,21 +217,24 @@ export default function TasksTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to delete task');
-      
+
       const data = await response.json();
-      
+
       // Update project progress if returned
       if (data.progress !== undefined && project) {
         project.progress = data.progress;
       }
-      
+
       // Refresh tasks to get updated stats
       await fetchTasks();
-      
+
       toast.success('Task deleted!');
     } catch (error) {
       console.error('Delete task error:', error);
-      toast.error('Failed to delete task');
+      toast.error(error.message || 'Failed to delete task');
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -275,7 +291,7 @@ export default function TasksTab({ projectId, project }) {
           </div>
         </div>
       )}
-      
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Tasks</h3>
@@ -346,8 +362,8 @@ export default function TasksTab({ projectId, project }) {
               </div>
               <div>
                 <Label htmlFor="taskStatus">Status</Label>
-                <Select 
-                  value={newTask.status} 
+                <Select
+                  value={newTask.status}
                   onValueChange={(value) => setNewTask({ ...newTask, status: value })}
                 >
                   <SelectTrigger className="mt-1">
@@ -380,68 +396,107 @@ export default function TasksTab({ projectId, project }) {
           {tasks.map((task) => (
             <div
               key={task._id}
-              className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+              className="group flex flex-col sm:flex-row items-start gap-4 p-4 border rounded-xl bg-card hover:bg-muted/30 transition-all duration-200 shadow-sm"
             >
-              <div className="mt-1">{getStatusIcon(task.status)}</div>
-              <div className="flex-1 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-medium">{task.title}</h4>
+              {/* Left Side: Status Indicator (minimal) */}
+              <div className={`mt-1.5 w-2 h-2 rounded-full hidden sm:block ${task.status === 'completed' ? 'bg-green-500' :
+                task.status === 'in-progress' ? 'bg-yellow-500' : 'bg-muted-foreground/30'
+                }`} />
+
+              {/* Main Content */}
+              <div className="flex-1 w-full space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-medium text-base leading-none">{task.title}</h4>
                     {task.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
                     )}
                   </div>
+
+                  {/* Actions Area - improved alignment */}
                   {!isClient && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteTask(task._id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-1 -mr-2"
+                        onClick={() => setPendingDelete({ id: task._id, title: task.title })}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {task.assignedTo && (
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {task.assignedTo.name || task.assignedTo.email}
-                    </span>
-                  )}
-                  {task.dueDate && (
-                    <span className="flex items-center gap-1">
-                      <CalendarIcon className="w-3 h-3" />
-                      {new Date(task.dueDate).toLocaleDateString()}
-                    </span>
-                  )}
-                  <Badge className={`${getStatusColor(task.status)} text-xs`}>
-                    {task.status.replace('-', ' ')}
-                  </Badge>
-                </div>
-                {!isClient ? (
-                  <Select
-                    value={task.status}
-                    onValueChange={(value) => handleUpdateTaskStatus(task._id, value)}
-                  >
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="h-8 flex items-center">
-                    <span className="text-xs text-muted-foreground">Status: {task.status}</span>
+
+                {/* Metadata Row */}
+                <div className="flex flex-wrap items-center justify-between gap-y-3 pt-1">
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {task.dueDate && (
+                      <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md">
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        <span>{format(new Date(task.dueDate), 'MMM d, yyyy')}</span>
+                      </div>
+                    )}
+                    {task.assignedTo && (
+                      <div className="flex items-center gap-1.5 px-2 py-1">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{task.assignedTo.name || task.assignedTo.email}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Status Control */}
+                  <div className="flex items-center gap-2">
+                    {!isClient ? (
+                      <Select
+                        value={task.status}
+                        onValueChange={(value) => handleUpdateTaskStatus(task._id, value)}
+                      >
+                        <SelectTrigger className={cn(
+                          "w-[140px] h-8 text-xs border-transparent bg-muted/50 hover:bg-muted transition-colors",
+                          task.status === 'completed' && "text-green-600 bg-green-500/10 hover:bg-green-500/20",
+                          task.status === 'in-progress' && "text-yellow-600 bg-yellow-500/10 hover:bg-yellow-500/20"
+                        )}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="in-progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="secondary" className={cn(
+                        "text-xs capitalize font-normal px-2.5 py-0.5",
+                        task.status === 'completed' && "bg-green-500/10 text-green-600 hover:bg-green-500/20",
+                        task.status === 'in-progress' && "bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20"
+                      )}>
+                        {task.status.replace('-', ' ')}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.title ? `“${pendingDelete.title}” will be permanently removed.` : 'This task will be permanently removed.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTask} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

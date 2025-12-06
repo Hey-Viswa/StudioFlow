@@ -34,7 +34,7 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [allowDownload, setAllowDownload] = useState(false);
-  const [expiresInDays, setExpiresInDays] = useState(7);
+  const [expiresInDays, setExpiresInDays] = useState(90);
   const [shareUrl, setShareUrl] = useState(''); // Only used for single file
   const [copied, setCopied] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
@@ -81,9 +81,35 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
     try {
       setLoading(true);
       const token = await getToken();
+      if (isBulk) {
+        const response = await fetch(`${API_BASE}/projects/${projectId}/files/bulk-share`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clientId: selectedClient,
+            fileIds: targetFileIds,
+            allowDownload,
+            expiresInDays,
+          }),
+        });
 
-      const sharePromises = targetFileIds.map(id =>
-        fetch(`${API_BASE}/projects/${projectId}/files/${id}/share`, {
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to share files');
+        }
+
+        const sharedCount = Array.isArray(result.shared) ? result.shared.length : 0;
+        const missingCount = Array.isArray(result.missing) ? result.missing.length : 0;
+        const missingSuffix = missingCount ? ` (${missingCount} missing)` : '';
+
+        toast.success(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`);
+        onShareComplete?.();
+        handleClose(); // Close immediately for bulk
+      } else {
+        const response = await fetch(`${API_BASE}/projects/${projectId}/files/${targetFileIds[0]}/share`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -94,28 +120,17 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
             allowDownload,
             expiresInDays,
           }),
-        }).then(async res => {
-          if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Failed');
-          }
-          return res.json();
-        })
-      );
+        });
 
-      const results = await Promise.all(sharePromises);
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to share file');
+        }
 
-      if (isBulk) {
-        toast.success(`Successfully shared ${results.length} files`);
-        onShareComplete?.();
-        handleClose(); // Close immediately for bulk
-      } else {
-        // Single file flow - show link
-        setShareUrl(results[0].shareUrl);
+        setShareUrl(result.shareUrl);
         toast.success('File shared successfully');
         onShareComplete?.();
       }
-
     } catch (error) {
       console.error('Failed to share file(s):', error);
       toast.error(error.message || 'Failed to share files');
@@ -134,11 +149,16 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
   const handleClose = () => {
     setSelectedClient('');
     setAllowDownload(false);
-    setExpiresInDays(7);
+    setExpiresInDays(90);
     setShareUrl('');
     setCopied(false);
     onOpenChange(false);
   };
+
+  const shareTitle = isBulk ? `Share ${targetFileIds.length} file${targetFileIds.length === 1 ? '' : 's'}` : 'Share File';
+  const shareDescription = isBulk
+    ? 'Share selected files with a client. They will be able to preview the files.'
+    : `Share "${filename}" with a client. They will be able to preview the file.`;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -146,10 +166,10 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="w-5 h-5 text-primary" />
-            Share File
+            {shareTitle}
           </DialogTitle>
           <DialogDescription>
-            Share "{filename}" with a client. They will be able to preview the file.
+            {shareDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -245,7 +265,7 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
               </Button>
               <Button onClick={handleShare} disabled={loading || !selectedClient || clients.length === 0}>
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Share File
+                {isBulk ? 'Share Files' : 'Share File'}
               </Button>
             </>
           ) : (

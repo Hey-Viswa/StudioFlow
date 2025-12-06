@@ -5,6 +5,7 @@ import OwnershipTransferRequest from '../models/OwnershipTransferRequest.js';
 import Notification from '../models/Notification.js';
 import { logAudit } from '../services/auditService.js';
 import { ROLES } from '../utils/permissions.js';
+import { emitToProject } from '../config/socket.js';
 
 /**
  * Request ownership transfer
@@ -122,6 +123,17 @@ export const requestTransfer = async (req, res) => {
         if (io) {
             io.to(`user:${newOwnerId}`).emit('notification', notification);
             await logDebug('Socket event emitted to new owner');
+
+            // Broadcast request creation so in-flight UIs refresh pending state
+            const payload = {
+                projectId,
+                requestId: request._id,
+                newOwnerId,
+                currentOwnerId,
+                expiresAt
+            };
+            emitToProject(projectId, 'events', 'ownership:request:created', payload);
+            io.to(`project-${projectId}`).emit('ownership:request:created', payload); // legacy room
         }
 
         res.status(200).json({
@@ -259,13 +271,33 @@ export const acceptTransfer = async (req, res) => {
             // Notify old owner
             io.to(`user:${request.currentOwnerId}`).emit('notification', notification);
 
-            // Update project UI for everyone in the project
-            console.log(`📡 Emitting project-updated to project-${projectId}`);
-            io.to(`project-${projectId}`).emit('project-updated', {
+            const payload = {
                 projectId,
                 ownerId: userId,
                 updates: { ownerId: userId }
+            };
+
+            // New channelized rooms
+            emitToProject(projectId, 'events', 'project-updated', payload);
+
+            // Ownership accepted event for UI refresh
+            emitToProject(projectId, 'events', 'ownership:request:accepted', {
+                projectId,
+                requestId: request._id,
+                newOwnerId: userId,
+                currentOwnerId: request.currentOwnerId
             });
+
+            // Legacy room support (project-<id>) for existing clients
+            io.to(`project-${projectId}`).emit('project-updated', payload);
+            io.to(`project-${projectId}`).emit('ownership:request:accepted', {
+                projectId,
+                requestId: request._id,
+                newOwnerId: userId,
+                currentOwnerId: request.currentOwnerId
+            });
+
+            console.log(`📡 Emitted project-updated to project:${projectId}:events and project-${projectId}`);
         }
 
         res.status(200).json({
@@ -488,6 +520,19 @@ export const cancelRequest = async (req, res) => {
             details: { requestId: request._id },
             req
         });
+
+        // Emit cancellation so clients clear pending state
+        const io = req.app.get('io');
+        if (io) {
+            const payload = {
+                projectId,
+                requestId: request._id,
+                currentOwnerId: userId,
+                newOwnerId: request.newOwnerId
+            };
+            emitToProject(projectId, 'events', 'ownership:request:cancelled', payload);
+            io.to(`project-${projectId}`).emit('ownership:request:cancelled', payload);
+        }
 
         res.status(200).json({
             success: true,

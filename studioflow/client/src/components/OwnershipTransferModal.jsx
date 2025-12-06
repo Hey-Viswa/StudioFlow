@@ -26,7 +26,8 @@ export default function OwnershipTransferModal({
     isOpen,
     onClose,
     project,
-    onSuccess
+    onSuccess,
+    refreshKey = 0
 }) {
     const { getToken } = useAuth();
     const [selectedMemberId, setSelectedMemberId] = useState('');
@@ -37,14 +38,17 @@ export default function OwnershipTransferModal({
     // Filter active team members (exclude clients and current owner)
     const eligibleMembers = project?.members?.filter(
         m => m.role !== 'client' && m.userId !== project.ownerId && m.status === 'active'
-    ) || [];
+    )?.map((member) => ({
+        ...member,
+        displayName: member.user?.name || member.user?.email || member.name || member.email || 'Unknown user'
+    })) || [];
 
     // Fetch pending request when modal opens
     useEffect(() => {
         if (isOpen && project?._id) {
             fetchPendingRequest();
         }
-    }, [isOpen, project?._id]);
+    }, [isOpen, project?._id, refreshKey]);
 
     const fetchPendingRequest = async () => {
         setFetchingPending(true);
@@ -166,7 +170,7 @@ export default function OwnershipTransferModal({
                                         ) : (
                                             eligibleMembers.map((member) => (
                                                 <SelectItem key={member.userId} value={member.userId}>
-                                                    {member.name || member.email}
+                                                    {member.displayName}
                                                 </SelectItem>
                                             ))
                                         )}

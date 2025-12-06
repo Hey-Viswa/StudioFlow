@@ -343,29 +343,35 @@ export const generateProjectInvoice = async (req, res) => {
       amount: (item.quantity || 1) * parseFloat(item.rate)
     }));
 
-    // Find client details
-    let clientInfo = { userId: null, name: 'Client', email: '' };
+    // Find client details from ProjectMember collection (project does not embed members)
+    const projectMembers = await ProjectMember.find({
+      projectId,
+      role: 'client',
+      status: { $ne: 'removed' }
+    }).select('userId name email status');
 
-    if (clientUserId) {
-      const client = project.members.find(m => m.userId === clientUserId && m.role === 'client');
-      if (client) {
-        clientInfo = {
-          userId: client.userId,
-          name: client.name || 'Client',
-          email: client.email || ''
-        };
+    const pickClient = (targetUserId = null) => {
+      // Prefer an explicit clientUserId match, then any active client, then any client
+      if (targetUserId) {
+        const match = projectMembers.find(m => String(m.userId) === String(targetUserId));
+        if (match) return match;
       }
-    } else {
-      // Auto-select first client
-      const client = project.members.find(m => m.role === 'client');
-      if (client) {
-        clientInfo = {
-          userId: client.userId,
-          name: client.name || 'Client',
-          email: client.email || ''
-        };
-      }
-    }
+
+      const activeClient = projectMembers.find(m => m.status === 'active');
+      if (activeClient) return activeClient;
+
+      return projectMembers[0] || null;
+    };
+
+    const selectedClient = pickClient(clientUserId || null);
+
+    const clientInfo = selectedClient
+      ? {
+          userId: selectedClient.userId || null,
+          name: selectedClient.name || 'Client',
+          email: selectedClient.email || ''
+        }
+      : { userId: null, name: 'Client', email: '' };
 
     // Create invoice
     const invoice = await ProjectInvoice.create({
@@ -573,7 +579,7 @@ export const createInvoiceFromBody = async (req, res) => {
     return generateProjectInvoice(req, res);
   } catch (error) {
     console.error('❌ Create invoice error:', error);
-    res.status(500).json({ error: 'Failed to create invoice' });
+    res.status(500).json({ error: 'Failed to create invoice', details: error.message });
   }
 };
 
@@ -1499,6 +1505,22 @@ async function handlePaymentCaptured(payment, timestamp) {
         await invoice.save();
 
         console.log(`[${timestamp}] ✅ PDF generated: ${pdfPath}`);
+
+        // Auto-repair missing email if possible
+        if (!invoice.client?.email && invoice.client?.userId) {
+          try {
+            const { clerkClient } = await import('@clerk/clerk-sdk-node');
+            const clientUser = await clerkClient.users.getUser(invoice.client.userId);
+            const email = clientUser.emailAddresses?.[0]?.emailAddress;
+            if (email) {
+              invoice.client.email = email;
+              await invoice.save(); // Save repair
+              console.log(`✓ Auto-repaired missing email for invoice ${invoice.invoiceNumber}`);
+            }
+          } catch (err) {
+            console.warn(`[${timestamp}] ⚠️ Failed to auto-repair email for invoice ${invoice.invoiceNumber}:`, err.message);
+          }
+        }
 
         // Send email with PDF if client has email
         if (invoice.client.email) {

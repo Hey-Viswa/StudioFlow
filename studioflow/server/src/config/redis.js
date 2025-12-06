@@ -12,6 +12,7 @@ export const redisConfig = process.env.REDIS_URL
 
 // Singleton instance for general purpose (caching, presence, throttling)
 let redisClient = null;
+let redisErrorLogged = false;
 
 export const getRedisClient = () => {
     if (!redisClient) {
@@ -23,7 +24,10 @@ export const getRedisClient = () => {
         });
 
         redisClient.on('error', (err) => {
-            console.error('❌ Redis Error:', err);
+            if (!redisErrorLogged) {
+                console.warn('⚠️ Redis error (using in-memory fallback if available):', err.message);
+                redisErrorLogged = true;
+            }
         });
     }
     return redisClient;
@@ -37,18 +41,21 @@ export const createRedisClient = () => {
         enableReadyCheck: false,
         retryStrategy: (times) => {
             if (times > 3) {
-                console.warn('⚠️ Redis connection failed multiple times. Dependencies may not work.');
-                return null; // Stop retrying after 3 attempts to prevent log spam/crashing loops if desired, but ioredis default is better.
-                // Actually, let's keep retrying but slow down.
-                return Math.min(times * 1000, 5000);
+                if (!redisErrorLogged) {
+                    console.warn('⚠️ Redis connection failed multiple times. Realtime features falling back to memory.');
+                    redisErrorLogged = true;
+                }
+                return 5000;
             }
             return 1000;
         }
     });
 
     client.on('error', (err) => {
-        // Suppress initial connection errors to allow server to start
-        // console.warn('Redis Client Error:', err.message);
+        if (!redisErrorLogged) {
+            console.warn('⚠️ Redis Client Error:', err.message);
+            redisErrorLogged = true;
+        }
     });
 
     return client;

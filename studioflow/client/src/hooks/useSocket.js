@@ -58,8 +58,8 @@ export function useProjectSocket(projectId, callbacks = {}) {
   useEffect(() => {
     if (!socket || !projectId) return;
 
-    // Join project room
-    socket.emit('join-project', projectId);
+    // Join project room (send payload object to match server expectations)
+    socket.emit('join-project', { projectId });
 
     // Create stable handlers that call the current callback ref
     const handlers = {
@@ -70,8 +70,12 @@ export function useProjectSocket(projectId, callbacks = {}) {
       onCommentDeleted: (data) => callbacksRef.current.onCommentDeleted?.(data),
       onTaskAdded: (data) => callbacksRef.current.onTaskAdded?.(data),
       onTaskUpdated: (data) => callbacksRef.current.onTaskUpdated?.(data),
+      onTaskDeleted: (data) => callbacksRef.current.onTaskDeleted?.(data),
       onFileAdded: (data) => callbacksRef.current.onFileAdded?.(data),
       onFileDeleted: (data) => callbacksRef.current.onFileDeleted?.(data),
+      onOwnershipRequest: (data) => callbacksRef.current.onOwnershipRequest?.(data),
+      onOwnershipAccepted: (data) => callbacksRef.current.onOwnershipAccepted?.(data),
+      onOwnershipCancelled: (data) => callbacksRef.current.onOwnershipCancelled?.(data),
     };
 
     // Listen for project updates
@@ -85,12 +89,17 @@ export function useProjectSocket(projectId, callbacks = {}) {
 
     socket.on('task-added', handlers.onTaskAdded);
     socket.on('task-updated', handlers.onTaskUpdated);
+    socket.on('task-deleted', handlers.onTaskDeleted);
     socket.on('project:files:added', handlers.onFileAdded);
     socket.on('project:files:deleted', handlers.onFileDeleted);
 
+    socket.on('ownership:request:created', handlers.onOwnershipRequest);
+    socket.on('ownership:request:accepted', handlers.onOwnershipAccepted);
+    socket.on('ownership:request:cancelled', handlers.onOwnershipCancelled);
+
     // Cleanup
     return () => {
-      socket.emit('leave-project', projectId);
+      socket.emit('leave-project', { projectId });
       socket.off('project-updated', handlers.onProjectUpdated);
       socket.off('member-joined', handlers.onMemberJoined);
 
@@ -100,8 +109,13 @@ export function useProjectSocket(projectId, callbacks = {}) {
 
       socket.off('task-added', handlers.onTaskAdded);
       socket.off('task-updated', handlers.onTaskUpdated);
+      socket.off('task-deleted', handlers.onTaskDeleted);
       socket.off('project:files:added', handlers.onFileAdded);
       socket.off('project:files:deleted', handlers.onFileDeleted);
+
+      socket.off('ownership:request:created', handlers.onOwnershipRequest);
+      socket.off('ownership:request:accepted', handlers.onOwnershipAccepted);
+      socket.off('ownership:request:cancelled', handlers.onOwnershipCancelled);
     };
   }, [socket, projectId]); // Only re-run if socket or projectId changes
 

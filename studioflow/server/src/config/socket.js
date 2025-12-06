@@ -82,7 +82,18 @@ export const initializeSocket = async (httpServer) => {
 
     // --- Event Handlers ---
 
-    socket.on('join-project', ({ projectId: pid, listLastEvents }) => {
+    const normalizeProjectId = (payload) => {
+      if (typeof payload === 'string' || typeof payload === 'number') return `${payload}`;
+      if (payload && typeof payload === 'object') {
+        return payload.projectId || payload.id || payload.pid || null;
+      }
+      return null;
+    };
+
+    socket.on('join-project', (payload) => {
+      const pid = normalizeProjectId(payload);
+      if (!pid) return;
+
       joinProjectRooms(socket, pid);
 
       // Send initial presence list
@@ -91,7 +102,9 @@ export const initializeSocket = async (httpServer) => {
       });
     });
 
-    socket.on('leave-project', (pid) => {
+    socket.on('leave-project', (payload) => {
+      const pid = normalizeProjectId(payload);
+      if (!pid) return;
       leaveProjectRooms(socket, pid);
     });
 
@@ -160,16 +173,26 @@ export const initializeSocket = async (httpServer) => {
 
 // Helper to join all typed channels for a project
 const joinProjectRooms = (socket, projectId) => {
+  if (!projectId) return;
+
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.join(`project:${projectId}:${ch}`));
+
+  // Legacy room support (existing controllers use project-${id})
+  socket.join(`project-${projectId}`);
 
   socket.data.activeProjectId = projectId; // Track for disconnect cleanup
   console.log(`👤 Socket ${socket.id} joined project context: ${projectId}`);
 };
 
 const leaveProjectRooms = (socket, projectId) => {
+  if (!projectId) return;
+
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.leave(`project:${projectId}:${ch}`));
+
+  // Legacy room support (existing controllers use project-${id})
+  socket.leave(`project-${projectId}`);
 
   if (socket.data.activeProjectId === projectId) {
     socket.data.activeProjectId = null;

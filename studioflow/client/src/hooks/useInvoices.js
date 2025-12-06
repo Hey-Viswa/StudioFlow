@@ -71,12 +71,22 @@ export const useInvoices = () => {
    * Create invoice (project-based)
    * Always posts full payload to POST /api/invoices
    */
-  const createInvoice = useCallback(async (invoiceData) => {
+  const createInvoice = useCallback(async (projectIdOrPayload, maybeInvoiceData) => {
     try {
-      console.log('Creating invoice with payload:', invoiceData);
-
       await invoicesApi.setAuthToken(getToken);
-      const response = await invoicesApi.createInvoice(invoiceData);
+
+      let payload = projectIdOrPayload;
+      if (maybeInvoiceData) {
+        payload = { ...maybeInvoiceData, projectId: projectIdOrPayload };
+      }
+
+      if (!payload?.projectId) {
+        throw new Error('Project is required for invoice');
+      }
+
+      console.log('Creating invoice with payload:', payload);
+
+      const response = await invoicesApi.createInvoice(payload);
 
       console.log('Invoice created successfully:', response);
 
@@ -379,6 +389,9 @@ export const useInvoices = () => {
   // Debounce filter changes to avoid rapid API calls (200ms)
   useEffect(() => {
     const handle = setTimeout(async () => {
+      // Ensure auth header is present for maintenance calls
+      await invoicesApi.setAuthToken(getToken);
+
       // Check for overdue invoices once when fetching all invoices
       if (filters.status === 'all' && filters.search === '') {
         await invoicesApi.checkOverdueInvoices().catch(err => console.error(err));

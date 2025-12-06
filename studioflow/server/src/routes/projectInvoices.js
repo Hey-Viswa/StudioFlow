@@ -25,7 +25,8 @@ const router = express.Router();
 
 // Get all invoices for current user
 router.get('/invoices', verifyClerk, getAllUserInvoices);
-router.post('/invoices', verifyClerk, requireAdmin, createInvoiceFromBody);
+// Allow project owners (controller enforces ownership) to create invoices
+router.post('/invoices', verifyClerk, createInvoiceFromBody);
 router.get('/invoices/:invoiceId', verifyClerk, getProjectInvoiceDetails);
 router.get('/invoices/:invoiceIdentifier/pdf', verifyClerk, downloadProjectInvoicePDF);
 router.put('/invoices/:invoiceId', verifyClerk, requireAdmin, updateProjectInvoice);
@@ -36,7 +37,8 @@ router.post('/invoices/:invoiceId/send', verifyClerk, requireAdmin, sendProjectI
 router.post('/invoices/check-overdue', verifyClerk, checkOverdueInvoices);
 
 // Project-specific invoice routes (protected)
-router.post('/projects/:projectId/invoices/generate', verifyClerk, requireAdmin, generateProjectInvoice);
+// Allow project owners (controller enforces ownership) to generate invoices
+router.post('/projects/:projectId/invoices/generate', verifyClerk, generateProjectInvoice);
 router.get('/projects/:projectId/invoices', verifyClerk, getProjectInvoices);
 
 // Invoice-specific routes (protected)

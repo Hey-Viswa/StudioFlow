@@ -95,7 +95,7 @@ export const shareFileWithClient = async (req, res) => {
     });
 
     const { id: projectId, fileId } = req.params;
-    const { clientId, allowDownload = false, expiresInDays = 7 } = req.body;
+    const { clientId, allowDownload = false, expiresInDays = 90 } = req.body; // default 90 days access
     const userId = req.userId;
 
     if (!clientId) {
@@ -119,7 +119,8 @@ export const shareFileWithClient = async (req, res) => {
     }
 
     // Verify client is a member
-    let isClient = project.members.some(
+    const projectMembers = Array.isArray(project.members) ? project.members : [];
+    let isClient = projectMembers.some(
       m => m.userId === clientId && m.role === 'client'
     );
 
@@ -155,6 +156,16 @@ export const shareFileWithClient = async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
+    // Find latest unpaid invoice for gating (draft/sent/unpaid/pending)
+    const invoice = await ProjectInvoice.findOne({
+      projectId,
+      'client.userId': clientId,
+      status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
+    }).sort({ createdAt: -1 });
+
+    // If no invoice, force allowDownload to false (prevent pay/download without an invoice)
+    const effectiveAllowDownload = allowDownload && !!invoice;
+
     // Add to file's shared access
     if (!file.sharedWith) {
       file.sharedWith = [];
@@ -163,10 +174,11 @@ export const shareFileWithClient = async (req, res) => {
     file.sharedWith.push({
       userId: clientId,
       shareToken,
-      allowDownload,
+      allowDownload: effectiveAllowDownload,
       expiresAt,
       sharedBy: userId,
       sharedAt: new Date(),
+      invoiceId: invoice?._id
     });
 
     await file.save();
@@ -181,12 +193,115 @@ export const shareFileWithClient = async (req, res) => {
       shareToken,
       shareUrl,
       expiresAt,
-      allowDownload,
-      message: 'File shared successfully',
+      allowDownload: effectiveAllowDownload,
+      invoiceAttached: !!invoice,
+      message: invoice ? 'File shared successfully' : 'File shared, download locked until an invoice exists',
     });
   } catch (error) {
     console.error('❌ Error sharing file:', error);
     res.status(500).json({ error: 'Failed to share file' });
+  }
+};
+
+/**
+ * Bulk share multiple files with a single client
+ * Body: { clientId, fileIds: string[], allowDownload?: boolean, expiresInDays?: number }
+ */
+export const shareFilesWithClient = async (req, res) => {
+  try {
+    const { id: projectId } = req.params;
+    const { clientId, fileIds, allowDownload = false, expiresInDays = 90 } = req.body; // default 90 days access
+    const userId = req.userId;
+
+    if (!clientId || !Array.isArray(fileIds) || fileIds.length === 0) {
+      return res.status(400).json({ error: 'clientId and fileIds[] are required' });
+    }
+
+    const project = await Project.findById(projectId).select('ownerId members');
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (project.ownerId.toString() !== userId.toString()) {
+      return res.status(403).json({ error: 'Only project owner can share files' });
+    }
+
+    // Verify client membership
+    const projectMembers = Array.isArray(project.members) ? project.members : [];
+    let isClient = projectMembers.some(
+      m => m.userId === clientId && m.role === 'client'
+    );
+    if (!isClient) {
+      const memberModel = (await import('../models/ProjectMember.js')).default;
+      const member = await memberModel.findOne({ projectId, userId: clientId, role: 'client', status: 'active' });
+      isClient = !!member;
+    }
+    if (!isClient) {
+      return res.status(400).json({ error: 'User is not a client on this project' });
+    }
+
+    // Fetch all requested files
+    const files = await ProjectFile.find({ projectId, fileId: { $in: fileIds } });
+    const foundIds = new Set(files.map(f => f.fileId));
+    const missing = fileIds.filter(id => !foundIds.has(id));
+
+    const results = [];
+    const now = new Date();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    // Find latest unpaid invoice for gating (draft/sent/unpaid/pending)
+    const invoice = await ProjectInvoice.findOne({
+      projectId,
+      'client.userId': clientId,
+      status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
+    }).sort({ createdAt: -1 });
+
+    const effectiveAllowDownload = allowDownload && !!invoice;
+
+    for (const file of files) {
+      const shareToken = generateShareToken();
+      if (!file.sharedWith) file.sharedWith = [];
+      const existing = file.sharedWith.find(s => s.userId === clientId);
+      if (existing) {
+        existing.shareToken = shareToken;
+        existing.allowDownload = effectiveAllowDownload;
+        existing.expiresAt = expiresAt;
+        existing.sharedBy = userId;
+        existing.sharedAt = now;
+        existing.invoiceId = invoice?._id;
+      } else {
+        file.sharedWith.push({
+          userId: clientId,
+          shareToken,
+          allowDownload: effectiveAllowDownload,
+          expiresAt,
+          sharedBy: userId,
+          sharedAt: now,
+          invoiceId: invoice?._id
+        });
+      }
+
+      await file.save();
+      await autoSendInvoiceForShare({ projectId, clientId, fileId: file.fileId, sharedBy: userId });
+
+      results.push({
+        fileId: file.fileId,
+        shareToken,
+        shareUrl: `${process.env.FRONTEND_URL}/shared/files/${shareToken}`,
+        expiresAt,
+        allowDownload: effectiveAllowDownload,
+        invoiceAttached: !!invoice,
+        message: invoice ? 'File shared successfully' : 'File shared, download locked until an invoice exists'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      shared: results,
+      missing,
+      message: 'Files shared successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error bulk sharing files:', error);
+    res.status(500).json({ error: 'Failed to bulk share files' });
   }
 };
 
@@ -212,13 +327,28 @@ export const getSharedFile = async (req, res) => {
       return res.status(404).json({ error: 'Share link not found' });
     }
 
-    // Check expiration
-    if (new Date() > shareEntry.expiresAt) {
+    // Owners/teammates can bypass recipient check for testing/preview
+    let isOwnerOrTeam = false;
+    try {
+      const project = await Project.findById(file.projectId).select('ownerId');
+      if (project && String(project.ownerId) === String(userId)) {
+        isOwnerOrTeam = true;
+      } else {
+        const member = await (await import('../models/ProjectMember.js')).default.findOne({ projectId: file.projectId, userId, status: 'active', role: { $ne: 'client' } });
+        isOwnerOrTeam = !!member;
+      }
+    } catch (projErr) {
+      console.warn('Project lookup failed for shared file', projErr.message);
+    }
+
+    // Check expiration (defensive against invalid dates)
+    const expiresAt = shareEntry.expiresAt ? new Date(shareEntry.expiresAt) : null;
+    if (expiresAt && Date.now() > expiresAt.getTime()) {
       return res.status(403).json({ error: 'Share link has expired' });
     }
 
-    // Verify user is the intended recipient
-    if (shareEntry.userId !== userId) {
+    // Verify user is the intended recipient (string-safe comparison)
+    if (!isOwnerOrTeam && String(shareEntry.userId) !== String(userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -228,16 +358,27 @@ export const getSharedFile = async (req, res) => {
 
     if (shareEntry.invoiceId) {
       const ProjectInvoice = await import('../models/ProjectInvoice.js').then(m => m.default);
-      const invoice = await ProjectInvoice.findById(shareEntry.invoiceId).select('status total currency invoiceNumber');
+      const invoice = await ProjectInvoice.findById(shareEntry.invoiceId).select('status total currency invoiceNumber amountPaid dueDate tax subtotal discount');
 
-      if (invoice && invoice.status !== 'paid') {
-        isLocked = true;
+      if (invoice) {
+        const payable = Math.max((invoice.total || 0) - (invoice.amountPaid || 0), 0);
+        const lockedByStatus = invoice.status !== 'paid';
+        if (lockedByStatus || payable > 0) {
+          isLocked = true;
+        }
+
         invoiceDetails = {
           id: invoice._id,
-          invoiceNumber: invoice.invoiceNumber,
+          number: invoice.invoiceNumber,
           amount: invoice.total,
           currency: invoice.currency,
-          status: invoice.status
+          status: invoice.status,
+          amountPaid: invoice.amountPaid || 0,
+          payable,
+          dueDate: invoice.dueDate,
+          subtotal: invoice.subtotal,
+          taxAmount: invoice.tax?.amount || 0,
+          discountAmount: invoice.discount?.amount || 0
         };
       }
     }
@@ -262,21 +403,32 @@ export const getSharedFile = async (req, res) => {
     }
 
     // Generate preview URL (always preview, never download unless allowed)
-    const previewUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
-      filename: file.originalFilename,
-      ttl: 600,
-      forceDownload: false, // Preview only
-      contentType: file.mimeType  // Ensure correct MIME type
-    });
+    let previewUrl = null;
+    try {
+      previewUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+        filename: file.originalFilename,
+        ttl: 600,
+        forceDownload: false, // Preview only
+        contentType: file.mimeType  // Ensure correct MIME type
+      });
+    } catch (urlErr) {
+      console.warn('Failed to generate preview URL for shared file', urlErr.message);
+      previewUrl = null;
+    }
 
     let downloadUrl = null;
     if (shareEntry.allowDownload) {
-      downloadUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
-        filename: file.originalFilename,
-        ttl: 600,
-        forceDownload: true,
-        contentType: file.mimeType
-      });
+      try {
+        downloadUrl = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+          filename: file.originalFilename,
+          ttl: 600,
+          forceDownload: true,
+          contentType: file.mimeType
+        });
+      } catch (urlErr) {
+        console.warn('Failed to generate download URL for shared file', urlErr.message);
+        downloadUrl = null;
+      }
     }
 
     res.status(200).json({
@@ -293,6 +445,8 @@ export const getSharedFile = async (req, res) => {
       downloadUrl,
       allowDownload: shareEntry.allowDownload,
       expiresAt: shareEntry.expiresAt,
+      invoice: invoiceDetails,
+      isLocked: false,
     });
   } catch (error) {
     console.error('❌ Error accessing shared file:', error);

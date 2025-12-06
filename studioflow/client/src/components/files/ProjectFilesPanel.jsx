@@ -48,8 +48,11 @@ export function ProjectFilesPanel({ projectId, project }) {
   const [selectedFiles, setSelectedFiles] = useState(new Set());
 
   // Get user's role in the project
-  const userRole = project?.userRole || ROLES.CLIENT;
+  const rawRole = project?.userRole || ROLES.CLIENT;
+  const userRole = rawRole === 'member' || rawRole === 'teammate' ? ROLES.TEAM : rawRole;
   const isOwner = userRole === ROLES.OWNER;
+  const isTeam = userRole === ROLES.TEAM;
+  const canManageFiles = isOwner || isTeam;
 
   // Real-time updates via Socket.IO
   useProjectSocket(projectId, {
@@ -248,7 +251,7 @@ export function ProjectFilesPanel({ projectId, project }) {
   return (
     <div className="space-y-6">
       {/* Upload Area - Owner Only */}
-      {isOwner && (
+      {canManageFiles && (
         <FileUploadDropzone
           projectId={projectId}
           onUploadComplete={handleUploadComplete}
@@ -267,7 +270,7 @@ export function ProjectFilesPanel({ projectId, project }) {
                 {files.length} {files.length === 1 ? 'file' : 'files'} uploaded
               </CardDescription>
             </div>
-            {isOwner && selectedFiles.size > 0 && (
+            {canManageFiles && selectedFiles.size > 0 && (
               <Button onClick={handleBulkShare} size="sm" variant="secondary">
                 <Share2 className="w-4 h-4 mr-2" />
                 Share {selectedFiles.size} selected
@@ -289,7 +292,7 @@ export function ProjectFilesPanel({ projectId, project }) {
               <TabsTrigger value="archived">Trash</TabsTrigger>
             </TabsList>
 
-            {isOwner && filteredFiles.length > 0 && activeTab !== 'archived' && (
+            {canManageFiles && filteredFiles.length > 0 && activeTab !== 'archived' && (
               <div className="flex items-center gap-2 mb-4 px-4">
                 <Checkbox
                   checked={allSelected}
@@ -322,7 +325,8 @@ export function ProjectFilesPanel({ projectId, project }) {
                       onPreview={handlePreview}
                       onShare={handleShare}
                       onManageSharing={handleManageSharing}
-                      isOwner={isOwner}
+                      canManageFiles={canManageFiles}
+                      canDeleteFiles={isOwner}
                       isSelected={selectedFiles.has(file.fileId)}
                       onSelect={() => toggleSelection(file.fileId)}
                     />
@@ -384,7 +388,7 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, isOwner, isSelected, onSelect }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
   const isPreviewable = file.mimeType.startsWith('image/') ||
     file.mimeType.startsWith('video/') ||
     file.mimeType === 'application/pdf';
@@ -393,11 +397,19 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
   const canDownload = canDownloadFile(file, userId, userRole);
   const canView = canViewFile(file, userId, userRole);
 
+  const canPreviewAction = !isArchived && isPreviewable && canView;
+  const canDownloadAction = !isArchived && canDownload;
+  const canShareAction = !isArchived && canManageFiles;
+  const canManageShareAction = !isArchived && canManageFiles && isShared;
+  const canDeleteAction = !isArchived && canDeleteFiles;
+  const canRestoreAction = isArchived && canManageFiles;
+  const hasAnyAction = canPreviewAction || canDownloadAction || canShareAction || canManageShareAction || canDeleteAction || canRestoreAction;
+
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
       <div className="flex items-center gap-4">
         {/* Checkbox for owner */}
-        {isOwner && !isArchived && (
+        {canManageFiles && !isArchived && (
           <Checkbox checked={isSelected} onCheckedChange={onSelect} onClick={(e) => e.stopPropagation()} />
         )}
 
@@ -443,69 +455,77 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
         </div>
 
         {/* Actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm">
-              <MoreVertical className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {!isArchived ? (
-              <>
-                {/* Preview - Available to all if file type supports it and user can view */}
-                {isPreviewable && canView && (
-                  <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Preview
-                  </DropdownMenuItem>
-                )}
-
-                {/* Download - Only if explicitly allowed */}
-                {canDownload && (
-                  <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </DropdownMenuItem>
-                )}
-
-                {/* Owner-only actions */}
-                {isOwner && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share with Client
+        {hasAnyAction && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isArchived ? (
+                <>
+                  {/* Preview - Available if file type supports it and user can view */}
+                  {canPreviewAction && (
+                    <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Preview
                     </DropdownMenuItem>
-                    {isShared && (
-                      <DropdownMenuItem onClick={() => onManageSharing(file)}>
-                        <Users className="w-4 h-4 mr-2" />
-                        Manage Sharing
+                  )}
+
+                  {/* Download - Only if explicitly allowed */}
+                  {canDownloadAction && (
+                    <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* Share/manage - owners and teammates */}
+                  {canShareAction && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share with Client
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => onDelete(file.fileId, file.filename)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
+                      {canManageShareAction && (
+                        <DropdownMenuItem onClick={() => onManageSharing(file)}>
+                          <Users className="w-4 h-4 mr-2" />
+                          Manage Sharing
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+
+                  {/* Delete - owner only */}
+                  {canDeleteAction && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(file.fileId, file.filename)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Restore - owner + teammates */}
+                  {canRestoreAction && (
+                    <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
+                      <ArchiveRestore className="w-4 h-4 mr-2" />
+                      Restore
                     </DropdownMenuItem>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Restore - Owner only */}
-                {isOwner && (
-                  <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
-                    <ArchiveRestore className="w-4 h-4 mr-2" />
-                    Restore
-                  </DropdownMenuItem>
-                )}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </Card>
   );

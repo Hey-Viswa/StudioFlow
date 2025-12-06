@@ -1,5 +1,6 @@
 import ProjectFile from '../models/ProjectFile.js';
 import Project from '../models/Project.js';
+import ProjectInvoice from '../models/ProjectInvoice.js';
 import User from '../models/User.js';
 import storageAdapter from '../utils/storageAdapter.js';
 import mongoose from 'mongoose';
@@ -370,19 +371,31 @@ export const getProjectFiles = async (req, res) => {
       query.status = includeArchived === 'true' ? { $in: ['active', 'archived'] } : status;
     }
 
-    const files = await ProjectFile.find(query).sort({ createdAt: -1 }).lean();
-
-    // Entitlement check is now handled by middleware
-    let isEntitled = false;
+    // For clients, only return files shared with them
     if (role === ROLES.CLIENT) {
-      // We can assume they are entitled if they passed the middleware
-      isEntitled = true;
+      query['sharedWith.userId'] = userId;
     }
+
+    const files = await ProjectFile.find(query).sort({ createdAt: -1 }).lean();
 
     // Process files to add permission flags and signed URLs for previews
     const processedFiles = await Promise.all(files.map(async (file) => {
-      const canDownload = role === ROLES.OWNER || isEntitled;
-      const canView = role === ROLES.OWNER || isEntitled;
+      let canDownload = role === ROLES.OWNER || role === ROLES.TEAM_MEMBER;
+      let canView = canDownload;
+      let gatedInvoice = null;
+
+      if (role === ROLES.CLIENT) {
+        const shareEntry = (file.sharedWith || []).find(s => String(s.userId) === String(userId));
+        const allowDownload = shareEntry?.allowDownload === true;
+
+        if (shareEntry?.invoiceId) {
+          gatedInvoice = await ProjectInvoice.findById(shareEntry.invoiceId).select('status invoiceNumber total currency').lean();
+        }
+
+        const invoicePaid = gatedInvoice ? gatedInvoice.status === 'paid' : true;
+        canDownload = !!shareEntry && allowDownload && invoicePaid;
+        canView = !!shareEntry; // preview allowed if shared, even if download locked
+      }
 
       let previewUrl = null;
       // Generate preview URL for images and videos
@@ -405,7 +418,8 @@ export const getProjectFiles = async (req, res) => {
         ...file,
         canDownload,
         canView,
-        previewUrl
+        previewUrl,
+        gatedInvoice,
       };
     }));
 
@@ -461,6 +475,25 @@ export const getFileDetails = async (req, res) => {
     const file = await ProjectFile.findOne({ fileId, projectId });
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    // For clients, ensure file is shared with them and download is allowed (and invoice paid if present)
+    if (role === ROLES.CLIENT) {
+      const shareEntry = (file.sharedWith || []).find(s => String(s.userId) === String(userId));
+      if (!shareEntry) {
+        return res.status(403).json({ error: 'File not shared with this client' });
+      }
+
+      if (shareEntry.invoiceId) {
+        const invoice = await ProjectInvoice.findById(shareEntry.invoiceId).select('status invoiceNumber').lean();
+        if (invoice && invoice.status !== 'paid') {
+          return res.status(403).json({ error: 'Payment required before download', code: 'INVOICE_UNPAID', invoiceNumber: invoice.invoiceNumber });
+        }
+      }
+
+      if (!shareEntry.allowDownload) {
+        return res.status(403).json({ error: 'Download not enabled for this file' });
+      }
     }
 
     // Generate signed download URL with original filename for proper download

@@ -12,6 +12,7 @@ import {
 } from '../controllers/fileController.js';
 import {
   shareFileWithClient,
+  shareFilesWithClient,
   revokeFileShare,
   enableFileDownload,
   getSharedFile,
@@ -39,6 +40,7 @@ router.delete('/:fileId', deleteFile);      // Permanently delete file (owner on
 
 // Client sharing routes
 router.post('/:fileId/share', shareFileWithClient);     // Share file with client
+router.post('/bulk-share', shareFilesWithClient);       // Share multiple files with a client
 router.post('/:fileId/revoke', revokeFileShare);        // Revoke file access
 router.post('/:fileId/enable-download', enableFileDownload); // Enable download after payment
 

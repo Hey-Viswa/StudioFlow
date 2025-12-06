@@ -89,10 +89,27 @@ export const useInvoices = (options: UseInvoicesOptions = {}) => {
   }, [fetchInvoices]);
 
   const createInvoice = useCallback(
-    async (projectId: string, invoiceData: CreateInvoicePayload) => {
+    async (
+      projectIdOrPayload: string | (CreateInvoicePayload & { projectId?: string }),
+      invoiceData?: CreateInvoicePayload
+    ) => {
       try {
         await ensureAuth();
-        await apiCreateInvoice({ ...invoiceData, projectId });
+
+        let payload: CreateInvoicePayload & { projectId?: string };
+        if (invoiceData) {
+          // Signature: (projectId, invoiceData)
+          payload = { ...invoiceData, projectId: projectIdOrPayload as string };
+        } else {
+          // Signature: (payload)
+          payload = projectIdOrPayload as CreateInvoicePayload & { projectId?: string };
+        }
+
+        if (!payload.projectId) {
+          throw new Error('Project is required for invoice');
+        }
+
+        await apiCreateInvoice(payload);
         toast.success('Invoice created successfully');
         await fetchInvoices();
       } catch (err) {

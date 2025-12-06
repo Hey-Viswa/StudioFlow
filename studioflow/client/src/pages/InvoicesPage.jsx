@@ -79,7 +79,7 @@ export default function InvoicesPage() {
   // Handle create invoice
   const handleCreateInvoice = async (projectId, invoiceData) => {
     try {
-      const result = await createInvoice(projectId, invoiceData);
+      const result = await createInvoice({ ...invoiceData, projectId });
       console.log('Invoice created, result:', result);
       toast.success('Invoice created successfully');
       setShowNewInvoiceModal(false);
