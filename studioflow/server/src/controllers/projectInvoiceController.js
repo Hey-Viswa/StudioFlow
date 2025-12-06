@@ -996,6 +996,16 @@ export const sendProjectInvoice = async (req, res) => {
     invoice.lastSentAt = new Date();
     await invoice.save();
 
+    // Audit Log
+    await logAudit({
+      userId,
+      action: 'send_invoice',
+      resourceType: 'invoice',
+      resourceId: invoiceId,
+      details: { invoiceNumber: invoice.invoiceNumber, recipientEmail, status: invoice.status },
+      req
+    });
+
     res.json({ success: true, message: 'Invoice sent successfully', invoice });
   } catch (error) {
     console.error('❌ Send invoice error:', error);
@@ -1057,6 +1067,16 @@ export const resendProjectInvoice = async (req, res) => {
     invoice.resendCount = (invoice.resendCount || 0) + 1;
     invoice.lastResentAt = new Date();
     await invoice.save();
+
+    // Audit Log
+    await logAudit({
+      userId,
+      action: 'resend_invoice',
+      resourceType: 'invoice',
+      resourceId: invoiceId,
+      details: { invoiceNumber: invoice.invoiceNumber, resendCount: invoice.resendCount },
+      req
+    });
 
     res.json({ success: true, message: 'Invoice resent successfully', invoice });
   } catch (error) {

@@ -15,6 +15,7 @@ import { previewQueue } from '../config/queue.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { verifyEntitlement } from '../utils/entitlement.js';
+import { logAudit } from '../services/auditService.js';
 
 /**
  * Helper: Check if user is a project collaborator
@@ -369,7 +370,7 @@ export const getProjectFiles = async (req, res) => {
       query.status = includeArchived === 'true' ? { $in: ['active', 'archived'] } : status;
     }
 
-    const files = await ProjectFile.findOne({ projectId }) ? await ProjectFile.find(query).sort({ createdAt: -1 }).lean() : [];
+    const files = await ProjectFile.find(query).sort({ createdAt: -1 }).lean();
 
     // Entitlement check is now handled by middleware
     let isEntitled = false;
@@ -606,19 +607,17 @@ export const deleteFile = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to delete files' });
     }
 
-    // Ownership Check for non-owners
-    // If user is NOT the project owner, they can only delete their OWN files (if they have FILE_DELETE permission)
-    // Note: Project Owner has full delete permission via checkPermission (assuming matrix allows it)
-    // But let's be explicit:
+    // Fetch the file
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
 
+    // Ownership Check for non-owners
     const project = await Project.findById(projectId).select('ownerId').lean();
     const isProjectOwner = String(project.ownerId) === String(userId);
 
     if (!isProjectOwner && file.uploaderId !== userId) {
-      // Check if they have a special "delete any" permission? 
-      // Currently PERMISSIONS.FILE_DELETE is generic. 
-      // Implementation Plan says: "Only their own uploads" for Team Member/Client.
-      // So we enforce ownership here.
       return res.status(403).json({ error: 'You can only delete files you uploaded' });
     }
 
@@ -631,6 +630,16 @@ export const deleteFile = async (req, res) => {
 
     // Delete from database
     await ProjectFile.deleteOne({ _id: file._id });
+
+    // Audit Log
+    await logAudit({
+      userId,
+      action: 'delete_file',
+      resourceType: 'project',
+      resourceId: projectId,
+      details: { fileId, filename: file.filename, storageKey: file.storageKey },
+      req
+    });
 
     const io = req.app?.get('io');
     if (io) {
