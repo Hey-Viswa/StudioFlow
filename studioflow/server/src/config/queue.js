@@ -15,26 +15,49 @@ const isRedisUp = isRedisConfigured ? await isRedisAvailable() : false;
 const isQueueEnabled = isRedisUp;
 
 if (isQueueEnabled) {
-  emailQueue = new Bull('email', {
-    redis: redisConfig,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 2000
-      },
-      removeOnComplete: true,
-      removeOnFail: false
-    }
-  });
-  previewQueue = new Bull('preview', {
-    redis: redisConfig,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 1000 },
-      removeOnComplete: true,
-    }
-  });
+  if (typeof redisConfig === 'string') {
+    // Bull(name, url, opts) pattern for connection strings
+    const bullOpts = {
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+        removeOnFail: false
+      }
+    };
+    emailQueue = new Bull('email', redisConfig, bullOpts);
+
+    const previewOpts = {
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: true,
+      }
+    };
+    previewQueue = new Bull('preview', redisConfig, previewOpts);
+  } else {
+    // Bull(name, opts) pattern for object config
+    emailQueue = new Bull('email', {
+      redis: redisConfig,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000
+        },
+        removeOnComplete: true,
+        removeOnFail: false
+      }
+    });
+    previewQueue = new Bull('preview', {
+      redis: redisConfig,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: true,
+      }
+    });
+  }
 } else {
   if (isRedisConfigured) {
     console.warn('⚠️ Redis configured but unreachable. Falling back to Mock Queues.');

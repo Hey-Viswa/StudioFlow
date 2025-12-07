@@ -17,6 +17,7 @@ let redisErrorLogged = false;
 export const getRedisClient = () => {
     if (!redisClient) {
         console.log('🔌 Initializing Redis Client...');
+        // Standard ioredis constructor handles string or object
         redisClient = new Redis(redisConfig);
 
         redisClient.on('connect', () => {
@@ -35,8 +36,7 @@ export const getRedisClient = () => {
 
 // Factory for creating new instances
 export const createRedisClient = () => {
-    const client = new Redis({
-        ...redisConfig,
+    const options = {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
         retryStrategy: (times) => {
@@ -49,7 +49,18 @@ export const createRedisClient = () => {
             }
             return 1000;
         }
-    });
+    };
+
+    // Handle string vs object config to avoid spreading a string
+    let client;
+    if (typeof redisConfig === 'string') {
+        client = new Redis(redisConfig, options);
+    } else {
+        client = new Redis({
+            ...redisConfig,
+            ...options
+        });
+    }
 
     client.on('error', (err) => {
         if (!redisErrorLogged) {
