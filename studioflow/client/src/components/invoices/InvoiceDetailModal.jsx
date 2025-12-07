@@ -177,11 +177,17 @@ export default function InvoiceDetailModal({
         projectId: data.projectId,
         status: data.status || currentStatus, // Use currentStatus if form status is empty
         dueDate: data.dueDate ? data.dueDate.toISOString() : invoice.dueDate,
-        items: data.items.map(item => ({
-          ...item,
-          quantity: parseFloat(item.quantity) || 1,
-          rate: parseFloat(item.rate) || 0,
-        })),
+        items: data.items.map(item => {
+          const quantity = parseFloat(item.quantity) || 1;
+          const rate = parseFloat(item.rate) || 0;
+          return {
+            title: item.title,
+            description: item.description,
+            quantity,
+            rate,
+            amount: quantity * rate, // Explicitly calculate amount
+          };
+        }),
         tax: { percentage: Math.round(parseInt(data.tax.percentage, 10) || 0) },
         discount: { percentage: Math.round(parseInt(data.discount.percentage, 10) || 0) },
         notes: data.notes || '',
@@ -773,6 +779,22 @@ export default function InvoiceDetailModal({
                       onClick={() => onPay?.(invoice)}
                     >
                       Pay Now
+                    </Button>
+                  )}
+                  {isClient && invoice.status === 'paid' && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => {
+                        // Navigate to project files page
+                        const projectId = invoice.projectId?._id || invoice.projectId;
+                        window.location.href = `/dashboard/projects/${projectId}/files`;
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download Project Files
                     </Button>
                   )}
                 </>

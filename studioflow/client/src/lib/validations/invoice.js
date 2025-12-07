@@ -35,6 +35,7 @@ export const newInvoiceSchema = z.object({
   notes: z.string().optional(),
   gstin: z.string().optional(),
   status: z.enum(['draft', 'pending', 'sent', 'paid', 'partially_paid', 'overdue', 'cancelled']).optional(),
+  clientUserId: z.string().optional(),
 });
 
 /**
@@ -48,4 +49,5 @@ export const defaultInvoiceValues = () => ({
   discount: { percentage: 0 },
   notes: '',
   gstin: '',
+  clientUserId: '',
 });

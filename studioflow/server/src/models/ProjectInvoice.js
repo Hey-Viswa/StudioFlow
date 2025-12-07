@@ -313,6 +313,11 @@ projectInvoiceSchema.pre('save', async function (next) {
 
 // Calculate totals before saving
 projectInvoiceSchema.pre('save', function (next) {
+  // First, calculate each item's amount from quantity * rate
+  this.items.forEach(item => {
+    item.amount = (item.quantity || 1) * (item.rate || 0);
+  });
+
   // Calculate subtotal from items
   this.subtotal = this.items.reduce((sum, item) => sum + item.amount, 0);
 

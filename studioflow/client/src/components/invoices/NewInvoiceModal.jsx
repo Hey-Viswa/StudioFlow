@@ -56,6 +56,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectFiles, setProjectFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [availableClients, setAvailableClients] = useState([]);
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
@@ -63,6 +64,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
       ...defaultInvoiceValues(),
       accessType: 'all',
       linkedFileIds: [],
+      clientUserId: '',
     },
   });
 
@@ -97,13 +99,13 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
     }
   }, [isOpen]);
 
-  // Reset form when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      form.reset(defaultInvoiceValues());
-      setSelectedProject(null);
-    }
-  }, [isOpen, form]);
+  // Reset form when modal closes - REMOVED for persistence
+  // useEffect(() => {
+  //   if (!isOpen) {
+  //     form.reset(defaultInvoiceValues());
+  //     setSelectedProject(null);
+  //   }
+  // }, [isOpen, form]);
 
   const fetchProjects = async () => {
     try {
@@ -138,8 +140,22 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
 
     if (project) {
       fetchProjectFiles(projectId);
+
+      // Filter clients
+      const clients = project.members?.filter(m => m.role === 'client') || [];
+      setAvailableClients(clients);
+
+      // Auto-select if only one client
+      if (clients.length === 1) {
+        form.setValue('clientUserId', clients[0].userId);
+      } else {
+        form.setValue('clientUserId', '');
+      }
+
     } else {
       setProjectFiles([]);
+      setAvailableClients([]);
+      form.setValue('clientUserId', '');
     }
 
     if (project) {
@@ -193,11 +209,17 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
       const invoiceData = {
         projectId: data.projectId,
         dueDate: data.dueDate ? data.dueDate.toISOString() : null,
-        items: data.items.map((item) => ({
-          ...item,
-          quantity: parseFloat(item.quantity) || 1,
-          rate: parseFloat(item.rate) || 0,
-        })),
+        items: data.items.map((item) => {
+          const quantity = parseFloat(item.quantity) || 1;
+          const rate = parseFloat(item.rate) || 0;
+          return {
+            title: item.title,
+            description: item.description,
+            quantity,
+            rate,
+            amount: quantity * rate, // Explicitly calculate amount
+          };
+        }),
         tax: {
           percentage: Math.round(parseInt(data.tax.percentage, 10) || 0),
         },
@@ -207,6 +229,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
         notes: data.notes || '',
         accessType: data.accessType || 'all',
         linkedFileIds: data.accessType === 'specific_files' ? data.linkedFileIds : [],
+        clientUserId: data.clientUserId || null,
       };
 
       await onSuccess(data.projectId, invoiceData);
@@ -227,7 +250,10 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-card border border-border text-card-foreground">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] p-0 bg-card border border-border text-card-foreground"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="px-6 pt-6 border-b border-border">
           <DialogTitle>Create New Invoice</DialogTitle>
           <DialogDescription>
@@ -280,18 +306,50 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                         )}
                       </SelectContent>
                     </Select>
-                    {selectedProject && (
-                      <p className="text-xs text-muted-foreground">
-                        Client: {(() => {
-                          const client = selectedProject.members?.find((m) => m.role === 'client');
-                          return client?.name || client?.email || 'Not assigned';
-                        })()}
-                      </p>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Client Selection - Show if project selected */}
+              {selectedProject && (
+                <FormField
+                  control={form.control}
+                  name="clientUserId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bill To (Client) *</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a client" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableClients.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground">No clients in this project</div>
+                          ) : (
+                            availableClients.map(client => (
+                              <SelectItem key={client.userId} value={client.userId}>
+                                {client.name} ({client.email})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {availableClients.length === 0 && (
+                        <p className="text-xs text-destructive">
+                          This project has no clients. Invoice may not be visible to anyone.
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Access Type & File Linking */}
               {selectedProject && (
@@ -566,7 +624,17 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
         </ScrollArea>
 
         <DialogFooter className="px-6 pb-6 border-t border-border flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              // Explicitly reset on cancel
+              form.reset(defaultInvoiceValues());
+              setSelectedProject(null);
+              onClose();
+            }}
+            disabled={loading}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={loading} onClick={form.handleSubmit(onSubmit)}>
@@ -575,6 +643,6 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }

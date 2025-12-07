@@ -56,6 +56,7 @@ export default function CreateInvoicePage() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectFiles, setProjectFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [availableClients, setAvailableClients] = useState([]);
 
   const form = useForm({
     resolver: zodResolver(newInvoiceSchema),
@@ -97,6 +98,17 @@ export default function CreateInvoicePage() {
         setSelectedProject(project);
         form.setValue('projectId', project._id);
         fetchProjectFiles(project._id);
+
+        // Filter and set clients
+        const clients = project.members?.filter(m => m.role === 'client') || [];
+        setAvailableClients(clients);
+
+        // Auto-select if only one client
+        if (clients.length === 1) {
+          form.setValue('clientUserId', clients[0].userId);
+        } else {
+          form.setValue('clientUserId', '');
+        }
       }
     }
   }, [projectIdParam, projects, form]);
@@ -147,6 +159,7 @@ export default function CreateInvoicePage() {
         notes: data.notes || '',
         accessType: data.accessType || 'all',
         linkedFileIds: data.accessType === 'specific_files' ? data.linkedFileIds : [],
+        clientUserId: data.clientUserId || null,
       };
 
       await createInvoice(payload);
@@ -224,8 +237,21 @@ export default function CreateInvoicePage() {
                           setSelectedProject(project);
                           if (project) {
                             fetchProjectFiles(project._id);
+
+                            // Filter and set clients
+                            const clients = project.members?.filter(m => m.role === 'client') || [];
+                            setAvailableClients(clients);
+
+                            // Auto-select if only one client
+                            if (clients.length === 1) {
+                              form.setValue('clientUserId', clients[0].userId);
+                            } else {
+                              form.setValue('clientUserId', '');
+                            }
                           } else {
                             setProjectFiles([]);
+                            setAvailableClients([]);
+                            form.setValue('clientUserId', '');
                           }
                         }}
                         value={field.value}
@@ -249,17 +275,44 @@ export default function CreateInvoicePage() {
                   )}
                 />
 
-                {selectedProject && (() => {
-                  const client = selectedProject.members?.find(m => m.role === 'client');
-                  return (
-                    <div className="mt-4 p-3 bg-muted rounded-md">
-                      <p className="text-sm font-medium">Client: {client?.name || client?.email || 'Not assigned'}</p>
-                      {client?.email && (
-                        <p className="text-xs text-muted-foreground">{client.email}</p>
-                      )}
-                    </div>
-                  );
-                })()}
+                {selectedProject && (
+                  <FormField
+                    control={form.control}
+                    name="clientUserId"
+                    render={({ field }) => (
+                      <FormItem className="mt-4">
+                        <FormLabel>Bill To (Client) *</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a client" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableClients.length === 0 ? (
+                              <div className="p-2 text-sm text-muted-foreground">No clients in this project</div>
+                            ) : (
+                              availableClients.map(client => (
+                                <SelectItem key={client.userId} value={client.userId}>
+                                  {client.name} ({client.email})
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {availableClients.length === 0 && (
+                          <p className="text-xs text-destructive">
+                            This project has no clients. Invoice may not be visible to anyone.
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </CardContent>
             </Card>
 

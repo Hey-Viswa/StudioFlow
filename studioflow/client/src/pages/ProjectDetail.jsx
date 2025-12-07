@@ -139,6 +139,19 @@ export default function ProjectDetail() {
     }
   }, [searchParams]);
 
+  // Automatically populate edit form when entering settings tab
+  useEffect(() => {
+    if (activeTab === 'settings' && project) {
+      setEditForm({
+        title: project.title || '',
+        brief: project.brief || '',
+        status: project.status || 'active',
+        progress: project.progress || 0,
+        dueDate: project.dueDate ? new Date(project.dueDate).toISOString().split('T')[0] : ''
+      });
+    }
+  }, [activeTab, project]);
+
   // Update startEditing to switch tab
   const startEditing = () => {
     setEditForm({

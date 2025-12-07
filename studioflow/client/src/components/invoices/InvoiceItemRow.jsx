@@ -69,11 +69,24 @@ export default function InvoiceItemRow({
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground font-medium">Quantity</Label>
           <Input
-            type="number"
-            min="1"
-            step="1"
-            value={item.quantity}
-            onChange={(e) => onChange(index, 'quantity', parseFloat(e.target.value) || 1)}
+            type="text"
+            inputMode="numeric"
+            value={item.quantity || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Allow empty or valid numbers
+              if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                const num = value === '' ? 1 : parseFloat(value);
+                onChange(index, 'quantity', isNaN(num) ? 1 : num);
+              }
+            }}
+            onBlur={(e) => {
+              // Ensure minimum value of 1 on blur
+              const num = parseFloat(e.target.value);
+              if (isNaN(num) || num < 1) {
+                onChange(index, 'quantity', 1);
+              }
+            }}
             className={cn(quantityError && 'border-destructive focus-visible:ring-destructive/50')}
             aria-invalid={Boolean(quantityError)}
           />
@@ -86,11 +99,24 @@ export default function InvoiceItemRow({
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
             <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={item.rate}
-              onChange={(e) => onChange(index, 'rate', parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="decimal"
+              value={item.rate || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Allow empty or valid decimal numbers
+                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                  const num = value === '' ? 0 : parseFloat(value);
+                  onChange(index, 'rate', isNaN(num) ? 0 : num);
+                }
+              }}
+              onBlur={(e) => {
+                // Ensure minimum value of 0 on blur
+                const num = parseFloat(e.target.value);
+                if (isNaN(num) || num < 0) {
+                  onChange(index, 'rate', 0);
+                }
+              }}
               className={cn("pl-7", rateError && 'border-destructive focus-visible:ring-destructive/50')}
               aria-invalid={Boolean(rateError)}
             />

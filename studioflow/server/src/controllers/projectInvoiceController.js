@@ -367,10 +367,10 @@ export const generateProjectInvoice = async (req, res) => {
 
     const clientInfo = selectedClient
       ? {
-          userId: selectedClient.userId || null,
-          name: selectedClient.name || 'Client',
-          email: selectedClient.email || ''
-        }
+        userId: selectedClient.userId || null,
+        name: selectedClient.name || 'Client',
+        email: selectedClient.email || ''
+      }
       : { userId: null, name: 'Client', email: '' };
 
     // Create invoice
@@ -396,7 +396,7 @@ export const generateProjectInvoice = async (req, res) => {
     // Notify client about new invoice
     if (clientInfo.userId) {
       try {
-        await createNotificationWithIdempotency({
+        createNotificationWithIdempotency({
           projectId: project._id.toString(),
           recipients: [clientInfo.userId],
           type: 'invoice-generated',
@@ -414,7 +414,7 @@ export const generateProjectInvoice = async (req, res) => {
             projectId: project._id.toString(),
             projectTitle: project.title
           }
-        });
+        }).catch(err => console.error('Error sending invoice notification (async):', err));
       } catch (notifError) {
         console.error('Error sending invoice notification:', notifError);
       }
@@ -1276,6 +1276,7 @@ export const verifyProjectInvoicePayment = async (req, res) => {
       await Entitlement.create({
         userId: invoice.client.userId,
         projectId: invoice.projectId,
+        invoiceId: invoice._id, // Link entitlement to invoice
         scope: 'project_download',
         grantedAt: new Date(),
         expiresAt: null // Permanent access
@@ -1477,6 +1478,7 @@ async function handlePaymentCaptured(payment, timestamp) {
       await Entitlement.create({
         userId: invoice.client.userId,
         projectId: invoice.projectId,
+        invoiceId: invoice._id, // Link entitlement to invoice
         scope: 'project_download',
         grantedAt: new Date(),
         expiresAt: null // Permanent access
