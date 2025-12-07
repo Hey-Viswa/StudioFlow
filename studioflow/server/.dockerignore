@@ -1,0 +1,14 @@
+node_modules
+.env
+.git
+.gitignore
+debug.log
+error.log
+server.log
+invoices/*.pdf
+npm-debug.log
+Dockerfile
+.dockerignore
+__tests__
+examples
+coverage
