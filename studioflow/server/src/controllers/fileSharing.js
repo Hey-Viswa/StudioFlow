@@ -171,15 +171,32 @@ export const shareFileWithClient = async (req, res) => {
       file.sharedWith = [];
     }
 
-    file.sharedWith.push({
-      userId: clientId,
-      shareToken,
-      allowDownload: effectiveAllowDownload,
-      expiresAt,
-      sharedBy: userId,
-      sharedAt: new Date(),
-      invoiceId: invoice?._id
-    });
+    // Check if already shared with this client
+    const existingIndex = file.sharedWith.findIndex(s => s.userId === clientId);
+
+    if (existingIndex !== -1) {
+      // Update existing entry
+      file.sharedWith[existingIndex] = {
+        ...file.sharedWith[existingIndex],
+        shareToken, // Renew token
+        allowDownload: effectiveAllowDownload,
+        expiresAt,
+        sharedBy: userId,
+        sharedAt: new Date(),
+        invoiceId: invoice?._id
+      };
+    } else {
+      // Add new entry
+      file.sharedWith.push({
+        userId: clientId,
+        shareToken,
+        allowDownload: effectiveAllowDownload,
+        expiresAt,
+        sharedBy: userId,
+        sharedAt: new Date(),
+        invoiceId: invoice?._id
+      });
+    }
 
     await file.save();
 
@@ -187,6 +204,15 @@ export const shareFileWithClient = async (req, res) => {
     await autoSendInvoiceForShare({ projectId, clientId, fileId, sharedBy: userId });
 
     const shareUrl = `${process.env.FRONTEND_URL}/shared/files/${shareToken}`;
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('file-updated', {
+        fileId: file.fileId,
+        sharedWith: file.sharedWith
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -482,6 +508,15 @@ export const revokeFileShare = async (req, res) => {
       success: true,
       message: 'File access revoked',
     });
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('file-updated', {
+        fileId: file.fileId,
+        sharedWith: file.sharedWith
+      });
+    }
   } catch (error) {
     console.error('❌ Error revoking file share:', error);
     res.status(500).json({ error: 'Failed to revoke access' });
@@ -521,6 +556,15 @@ export const enableFileDownload = async (req, res) => {
       success: true,
       message: 'Download enabled for client',
     });
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project-${projectId}`).emit('file-updated', {
+        fileId: file.fileId,
+        sharedWith: file.sharedWith
+      });
+    }
   } catch (error) {
     console.error('❌ Error enabling download:', error);
     res.status(500).json({ error: 'Failed to enable download' });

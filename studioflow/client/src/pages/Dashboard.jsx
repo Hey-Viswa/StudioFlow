@@ -1,93 +1,95 @@
 ﻿import { useState, useEffect } from 'react';
-import { useUser, UserButton } from '@clerk/clerk-react';
+import { useUser, UserButton, useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
-import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight, Search } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight, Search, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '@/lib/api';
+import { useSocket } from '@/hooks/useSocket';
+import { formatINR } from '@/utils/currency';
 
 export default function Dashboard() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const navigate = useNavigate();
+  const socket = useSocket();
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [apiResponse, setApiResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Fetch projects on component mount
+  // KPI State
+  const [kpiStats, setKpiStats] = useState({
+    role: 'viewer',
+    revenue: 0,
+    spent: 0,
+    invoiceCount: 0,
+    period: 'month'
+  });
+
+  // Fetch projects and KPIs on component mount
   useEffect(() => {
-    fetchProjects();
-    
-    // Poll for updates every 60 seconds (only when tab is visible)
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = await getToken();
+
+        // Parallel fetch for Projects and KPIs
+        const [projectsRes, kpiRes] = await Promise.all([
+          api.get('/projects', { getToken }),
+          api.get('/dashboard/kpi', { getToken })
+        ]);
+
+        console.log('📊 Dashboard Data:', { projects: projectsRes, kpi: kpiRes });
+
+        setProjects(projectsRes.projects || []);
+        setKpiStats(kpiRes || { role: 'viewer', revenue: 0, spent: 0, invoiceCount: 0 });
+
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    // Poll updates
     const interval = setInterval(() => {
-      // Only poll if document is visible to save API calls
-      if (!document.hidden) {
-        fetchProjects();
-      }
-    }, 60000); // Changed from 10s to 60s
-    
-    // Also fetch when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchProjects();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+      if (!document.hidden) fetchData();
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // Filter projects based on search query
+  // Real-time KPI Updates
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredProjects(projects);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = projects.filter(project => 
-        project.title?.toLowerCase().includes(query) ||
-        project.brief?.toLowerCase().includes(query) ||
-        project.status?.toLowerCase().includes(query)
-      );
-      setFilteredProjects(filtered);
-    }
-  }, [searchQuery, projects]);
+    if (!socket) return;
 
-  const fetchProjects = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+    const handleKpiRefresh = (data) => {
+      console.log('💰 Real-Time KPI Update:', data);
+      setKpiStats(prev => {
+        if (data.type === 'revenue') {
+          return { ...prev, revenue: prev.revenue + data.amount };
+        } else if (data.type === 'expense') {
+          return { ...prev, spent: prev.spent + data.amount };
+        }
+        return prev;
       });
+    };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch projects: ${response.status} ${errorText}`);
-      }
+    socket.on('kpi-refresh', handleKpiRefresh);
 
-      const data = await response.json();
-      console.log('📊 Dashboard - Projects data received:', data);
-      console.log('📊 Dashboard - First project progress:', data.projects?.[0]?.progress);
-      setProjects(data.projects || []);
-    } catch (err) {
-      console.error('Fetch projects error:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      socket.off('kpi-refresh', handleKpiRefresh);
+    };
+  }, [socket]);
 
   const callProtectedAPI = async () => {
     const tempLoading = true;
@@ -186,8 +188,8 @@ export default function Dashboard() {
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Welcome back, {user?.firstName || 'there'}! </h2>
                 <p className="text-sm text-muted-foreground">Let's make something amazing today.</p>
               </div>
-              <Button 
-                onClick={() => navigate('/dashboard/create-project')} 
+              <Button
+                onClick={() => navigate('/dashboard/create-project')}
                 size="lg"
                 className="gap-2 w-full sm:w-auto"
               >
@@ -207,7 +209,7 @@ export default function Dashboard() {
                 className="pl-10"
               />
             </div>
-            
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -221,32 +223,42 @@ export default function Dashboard() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Dynamic KPI Card 1: Money */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Your Role</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">
+                    {kpiStats.role === 'client' ? 'Total Spent' : 'Total Revenue'}
+                  </CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {projects.filter(p => p.userRole === 'owner').length}
+                  <div className={`text-2xl font-bold ${kpiStats.role === 'client' ? 'text-orange-500' : 'text-emerald-500'}`}>
+                    {formatINR(kpiStats.role === 'client' ? kpiStats.spent : kpiStats.revenue)}
                   </div>
-                  <p className="text-xs text-muted-foreground">projects owned</p>
+                  <p className="text-xs text-muted-foreground">
+                    {kpiStats.period === 'month' ? 'This Month' : 'All Time'}
+                  </p>
                 </CardContent>
               </Card>
+
+              {/* Dynamic KPI Card 2: Invoices */}
               <Card className="sm:col-span-2 lg:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Client Access</CardTitle>
+                  <CardTitle className="text-sm font-medium">Invoices Processed</CardTitle>
                   <Receipt className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {projects.filter(p => p.userRole === 'client').length}
+                    {kpiStats.invoiceCount}
                   </div>
-                  <p className="text-xs text-muted-foreground">as client</p>
+                  <p className="text-xs text-muted-foreground">
+                    successful transactions
+                  </p>
                 </CardContent>
               </Card>
             </div>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Your Projects</CardTitle>
@@ -273,8 +285,8 @@ export default function Dashboard() {
                       {searchQuery ? 'No projects found' : 'No projects yet'}
                     </p>
                     <p className="text-sm text-muted-foreground mb-4">
-                      {searchQuery 
-                        ? 'Try adjusting your search terms' 
+                      {searchQuery
+                        ? 'Try adjusting your search terms'
                         : 'Create your first project to get started'
                       }
                     </p>
@@ -291,11 +303,10 @@ export default function Dashboard() {
                       <Card
                         key={project._id}
                         onClick={() => navigate(`/dashboard/projects/${project._id}`)}
-                        className={`cursor-pointer transition-all duration-300 border group relative overflow-hidden bg-slate-800/80 hover:bg-slate-800 hover:shadow-lg ${
-                          project.status === 'needs-revision' 
-                            ? 'border-red-500/50 hover:border-red-500' 
-                            : 'border-slate-700 hover:border-primary/50'
-                        }`}
+                        className={`cursor-pointer transition-all duration-300 border group relative overflow-hidden bg-slate-800/80 hover:bg-slate-800 hover:shadow-lg ${project.status === 'needs-revision'
+                          ? 'border-red-500/50 hover:border-red-500'
+                          : 'border-slate-700 hover:border-primary/50'
+                          }`}
                       >
                         {project.status === 'needs-revision' && project.userRole === 'owner' && (
                           <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
@@ -308,10 +319,10 @@ export default function Dashboard() {
                               {project.title}
                             </h3>
                             <div className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(project.status)} whitespace-nowrap flex-shrink-0`}>
-                              {project.status === 'active' ? 'In Progress' : 
-                               project.status === 'on-hold' ? 'On Hold' :
-                               project.status === 'needs-revision' ? 'Needs Revision' :
-                               project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                              {project.status === 'active' ? 'In Progress' :
+                                project.status === 'on-hold' ? 'On Hold' :
+                                  project.status === 'needs-revision' ? 'Needs Revision' :
+                                    project.status.charAt(0).toUpperCase() + project.status.slice(1)}
                             </div>
                           </div>
                           <p className="text-xs text-slate-400 mb-2">
@@ -321,7 +332,7 @@ export default function Dashboard() {
                             {project.brief || 'No description provided'}
                           </p>
                         </CardHeader>
-                        
+
                         <CardContent className="space-y-3">
                           {/* Progress Section */}
                           {project.progress !== undefined && (
@@ -333,7 +344,7 @@ export default function Dashboard() {
                               <Progress value={project.progress} className="h-1.5 bg-slate-700" />
                             </div>
                           )}
-                          
+
                           {/* Due Date */}
                           <div className="pt-2 border-t border-slate-700/50">
                             <span className="text-xs text-slate-400">

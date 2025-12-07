@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Loader2, Download, Eye, FileText, Clock, AlertCircle, Lock, CreditCard } from 'lucide-react';
+import { Loader2, Download, Eye, FileText, Clock, AlertCircle, Lock, CreditCard, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatFileSize } from '@/lib/api/files';
 import { formatINR } from '@/utils/currency';
@@ -98,6 +98,10 @@ export default function SharedFilePage() {
     }
   };
 
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  // ... (existing code)
+
   const handlePayment = async () => {
     if (!fileData?.invoice) return;
 
@@ -106,7 +110,7 @@ export default function SharedFilePage() {
       const token = await getToken();
 
       // 1. Create Order
-      const orderResponse = await api.post(`/invoices/${fileData.invoice.id}/pay`, {}, { getToken });
+      const orderResponse = await api.post(`/invoices/project/${fileData.invoice.id}/pay`, {}, { getToken });
 
       // 2. Open Razorpay
       const options = {
@@ -119,13 +123,20 @@ export default function SharedFilePage() {
         handler: async (response) => {
           try {
             // 3. Verify Payment
-            await api.post(`/invoices/${fileData.invoice.id}/verify`, {
+            await api.post(`/invoices/project/${fileData.invoice.id}/verify`, {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature
             }, { getToken });
 
             toast.success('Payment successful! Access granted.');
+            setPaymentSuccess(true); // Trigger success UI
+
+            // Redirect to project dashboard after a brief delay
+            setTimeout(() => {
+              navigate(`/dashboard/projects/${fileData.file.projectId}`);
+            }, 2000);
+
             fetchSharedFile(); // Refresh to get unlocked state
           } catch (err) {
             console.error('Verification error:', err);
@@ -145,8 +156,8 @@ export default function SharedFilePage() {
       rzp.open();
 
     } catch (error) {
-      console.error('Payment initiation error:', error);
-      toast.error(error.message || 'Failed to initiate payment');
+      console.error('Payment initiation failed:', error);
+      toast.error(error.message || 'Failed to initiate payment. Please try again.');
     } finally {
       setProcessingPayment(false);
     }
@@ -164,17 +175,41 @@ export default function SharedFilePage() {
   }
 
   if (error) {
+    const isNotFound = error.includes('not found') || error.includes('404');
+    const isAccessDenied = error.includes('denied') || error.includes('403') || error.includes('expired');
+
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <Card className="max-w-md w-full border-destructive/20 shadow-lg">
           <CardHeader>
-            <div className="flex items-center gap-2 text-destructive mb-2">
-              <AlertCircle className="w-6 h-6" />
-              <CardTitle>Access Denied</CardTitle>
+            <div className="flex items-center gap-3 text-destructive mb-2">
+              <AlertCircle className="w-8 h-8" />
+              <CardTitle className="text-xl">
+                {isNotFound ? 'Link Not Found' : isAccessDenied ? 'Access Denied' : 'Something went wrong'}
+              </CardTitle>
             </div>
-            <CardDescription>{error}</CardDescription>
+            <CardDescription className="text-base">
+              {isNotFound
+                ? "This shared link may be invalid or has been revoked by the owner."
+                : isAccessDenied
+                  ? "You do not have permission to view this file, or the link has expired."
+                  : error
+              }
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground">
+              <p>Troubleshooting steps:</p>
+              <ul className="list-disc ml-5 space-y-1 mt-1">
+                <li>Check if you are logged in with the correct account.</li>
+                <li>Ask the project owner to re-share the file.</li>
+                <li>Refresh the page to try again.</li>
+              </ul>
+            </div>
+            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
             <Button onClick={() => navigate('/dashboard')} className="w-full">
               Return to Dashboard
             </Button>
@@ -314,6 +349,15 @@ export default function SharedFilePage() {
                   <Download className="w-4 h-4 mr-2" />
                   Download File
                 </Button>
+              ) : paymentSuccess ? (
+                <div className="flex-1 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-center text-green-700 font-medium animate-in fade-in zoom-in duration-300">
+                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  Payment Successful! Unlocking...
+                </div>
               ) : isLocked && invoice ? (
                 <Button
                   onClick={handlePayment}
@@ -344,14 +388,14 @@ export default function SharedFilePage() {
                     <p className="text-amber-700">
                       This file is part of a premium deliverable. To download it, you must settle
                       <strong> Invoice #{invoice.number}</strong> ({invoiceDisplayAmount}).
-                                {!invoice && !allowDownload && (
-                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-                                    <p className="text-blue-900 font-medium mb-1">Invoice required for download</p>
-                                    <p className="text-blue-700">
-                                      The project owner has not attached an invoice yet. Preview is available; download will unlock once an invoice is issued and paid.
-                                    </p>
-                                  </div>
-                                )}
+                      {!invoice && !allowDownload && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                          <p className="text-blue-900 font-medium mb-1">Invoice required for download</p>
+                          <p className="text-blue-700">
+                            The project owner has not attached an invoice yet. Preview is available; download will unlock once an invoice is issued and paid.
+                          </p>
+                        </div>
+                      )}
                     </p>
                   </div>
                 </div>

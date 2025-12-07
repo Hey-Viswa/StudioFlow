@@ -34,6 +34,50 @@ export const initializeSocket = async (httpServer) => {
     adapterConfig = {
       adapter: createAdapter(pubClient, subClient)
     };
+
+    // Dedicated Subscriber for Application Events (KPIs, etc)
+    const appSubscriber = pubClient.duplicate();
+    await appSubscriber.connect();
+
+    await appSubscriber.subscribe('kpi:updates', (message) => {
+      try {
+        const data = JSON.parse(message);
+        console.log('📡 Received KPI Update via Redis:', data.invoiceId);
+
+        if (io) {
+          // 1. Notify Owner (Personal KPI)
+          if (data.ownerId) {
+            io.to(`user:${data.ownerId}`).emit('kpi-refresh', {
+              projectId: data.projectId,
+              type: 'revenue',
+              amount: data.amount
+            });
+          }
+
+          // 2. Notify Client (Personal Spending)
+          if (data.clientId) {
+            io.to(`user:${data.clientId}`).emit('kpi-refresh', {
+              projectId: data.projectId,
+              type: 'expense',
+              amount: data.amount
+            });
+          }
+
+          // 3. Notify Project Room (Invoice Status Update)
+          if (data.projectId) {
+            io.to(`project-${data.projectId}`).emit('invoice-status-changed', {
+              invoiceId: data.invoiceId,
+              status: 'paid',
+              paidAt: data.timestamp
+            });
+          }
+        }
+      } catch (err) {
+        console.error('❌ Error processing KPI redis message:', err);
+      }
+    });
+    console.log('🎧 Listening to kpi:updates on Redis');
+
   } else {
     console.warn('⚠️ Redis unreachable. Falling back to Memory Adapter for Socket.IO.');
   }

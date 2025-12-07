@@ -104,7 +104,8 @@ export default function InvoiceTable({
   onStatusUpdate,
 
   onRefresh,
-  isClient
+  isClient,
+  currentUserId
 }) {
   const { getToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -150,9 +151,15 @@ export default function InvoiceTable({
   };
 
   const startEditing = (invoice, field) => {
-    if (isClient) return;
+    const isEffectiveClient = isClient || (invoice.client?.userId === currentUserId);
+    if (isEffectiveClient) return;
     if (!['draft', 'pending', 'sent', 'overdue', 'cancelled'].includes(invoice.status)) {
       toast.error('Only draft, sent, overdue, or cancelled invoices can be edited');
+      return;
+    }
+    // Strict Immutability for Paid Invoices
+    if (invoice.status === 'paid') {
+      toast.error('Paid invoices cannot be edited');
       return;
     }
     setEditingField({ invoiceId: invoice._id, field });
@@ -334,7 +341,7 @@ export default function InvoiceTable({
                         invoiceId={invoice._id}
                         onStatusChange={handleStatusChange}
                         loading={statusUpdating === invoice._id}
-                        allowEdit={!isClient}
+                        allowEdit={!isClient && invoice.client?.userId !== currentUserId}
                       />
                     </TableCell>
                     <TableCell>
@@ -366,12 +373,17 @@ export default function InvoiceTable({
                         </div>
                       ) : (
                         <div
-                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 group"
-                          onClick={() => startEditing(invoice, 'dueDate')}
+                          className={cn(
+                            "flex items-center gap-2 text-sm px-2 py-1 -mx-2 group rounded",
+                            invoice.status !== 'paid' && "cursor-pointer hover:bg-muted/50"
+                          )}
+                          onClick={() => invoice.status !== 'paid' && startEditing(invoice, 'dueDate')}
                         >
                           <CalendarIcon className="w-3 h-3 text-muted-foreground" />
                           <span>{formatDate(invoice.dueDate)}</span>
-                          <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          {invoice.status !== 'paid' && (
+                            <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
                         </div>
                       )}
                     </TableCell>
@@ -426,7 +438,7 @@ export default function InvoiceTable({
                         >
                           <Download className={cn("w-4 h-4", invoice.status !== 'paid' && "opacity-50")} />
                         </Button>
-                        {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && (
+                        {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && invoice.client?.userId !== currentUserId && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -437,7 +449,7 @@ export default function InvoiceTable({
                             <Send className="w-4 h-4" />
                           </Button>
                         )}
-                        {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && (
+                        {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && invoice.client?.userId !== currentUserId && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -448,7 +460,7 @@ export default function InvoiceTable({
                             Edit
                           </Button>
                         )}
-                        {!isClient && (
+                        {!isClient && invoice.client?.userId !== currentUserId && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -458,7 +470,7 @@ export default function InvoiceTable({
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
-                        {isClient && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
+                        {(isClient || invoice.client?.userId === currentUserId) && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
                           <Button
                             variant="default"
                             size="sm"
@@ -517,7 +529,7 @@ export default function InvoiceTable({
                     invoiceId={invoice._id}
                     onStatusChange={handleStatusChange}
                     loading={statusUpdating === invoice._id}
-                    allowEdit={!isClient}
+                    allowEdit={!isClient && invoice.client?.userId !== currentUserId}
                   />
                 </div>
 
@@ -547,7 +559,7 @@ export default function InvoiceTable({
                     >
                       <Download className={cn("w-4 h-4", invoice.status !== 'paid' && "opacity-50")} />
                     </Button>
-                    {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && (
+                    {['pending', 'sent', 'paid', 'overdue'].includes(invoice.status) && !isClient && invoice.client?.userId !== currentUserId && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -558,7 +570,7 @@ export default function InvoiceTable({
                         <Send className="w-4 h-4" />
                       </Button>
                     )}
-                    {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && (
+                    {['draft', 'overdue', 'cancelled'].includes(invoice.status) && !isClient && invoice.client?.userId !== currentUserId && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -568,7 +580,7 @@ export default function InvoiceTable({
                         <Edit2 className="w-4 h-4" />
                       </Button>
                     )}
-                    {!isClient && (
+                    {!isClient && invoice.client?.userId !== currentUserId && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -578,7 +590,7 @@ export default function InvoiceTable({
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
-                    {isClient && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
+                    {(isClient || invoice.client?.userId === currentUserId) && ['pending', 'sent', 'overdue'].includes(invoice.status) && (
                       <Button
                         variant="default"
                         size="sm"

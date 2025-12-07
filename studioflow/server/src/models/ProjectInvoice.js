@@ -17,6 +17,20 @@ const projectInvoiceSchema = new mongoose.Schema({
     index: true
   },
 
+  // User who receives the money (Project Owner)
+  payeeUserId: {
+    type: String,
+    required: false, // Changed to false for backward compatibility
+    index: true
+  },
+
+  // User who pays the money (Client) - Explicit field for KPI tracking
+  payerUserId: {
+    type: String,
+    required: false, // Changed to false for backward compatibility
+    index: true
+  },
+
   // Link to Payment Thread (Milestone/Hourly request)
   paymentThreadId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -180,6 +194,14 @@ const projectInvoiceSchema = new mongoose.Schema({
   isImmutable: {
     type: Boolean,
     default: false
+  },
+
+  // Idempotency Key for Webhook/Payment Processing
+  idempotencyKey: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
   },
 
   lastTransitionId: {

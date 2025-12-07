@@ -16,7 +16,7 @@ import { DashboardSkeleton } from '../components/DashboardSkeleton';
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isClient, loading: roleLoading } = useRole();
+  const { isClient, loading: roleLoading, user } = useRole();
 
   // All hooks MUST be called at the top level before any conditional logic or early returns
   // This prevents "Rendered more hooks than during the previous render" error
@@ -327,7 +327,7 @@ export default function InvoicesPage() {
           onStatusUpdate={handleStatusUpdate}
           onRefresh={refreshInvoices}
           isClient={isClient}
-        />
+          currentUserId={user?.id} />
 
         {/* Modals */}
         <NewInvoiceModal
@@ -355,7 +355,7 @@ export default function InvoicesPage() {
           onStatusUpdate={handleStatusUpdate}
           onDownload={downloadInvoice}
           onPay={handlePayInvoice}
-          isClient={isClient}
+          isClient={isClient || (selectedInvoice?.client?.userId === user?.id)}
         />
 
         <SendInvoiceModal

@@ -105,7 +105,17 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
         const missingCount = Array.isArray(result.missing) ? result.missing.length : 0;
         const missingSuffix = missingCount ? ` (${missingCount} missing)` : '';
 
-        toast.success(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`);
+        const anyMissingInvoice = result.shared?.some(s => !s.invoiceAttached);
+
+        if (anyMissingInvoice && !allowDownload) {
+          toast.warning(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`, {
+            description: 'No open invoice found. Client has Preview access only.',
+            duration: 5000
+          });
+        } else {
+          toast.success(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`);
+        }
+
         onShareComplete?.();
         handleClose(); // Close immediately for bulk
       } else {
@@ -128,7 +138,16 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
         }
 
         setShareUrl(result.shareUrl);
-        toast.success('File shared successfully');
+
+        if (!result.invoiceAttached && !allowDownload) {
+          toast.warning('File shared with Preview Only access', {
+            description: 'No open invoice found for this client. Create an invoice to enable "Pay to Unlock".',
+            duration: 5000,
+          });
+        } else {
+          toast.success('File shared successfully');
+        }
+
         onShareComplete?.();
       }
     } catch (error) {

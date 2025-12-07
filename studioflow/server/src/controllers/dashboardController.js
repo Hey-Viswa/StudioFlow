@@ -161,20 +161,31 @@ export const getRecentFiles = async (req, res) => {
 
     const projectIds = projects.map(p => p._id);
 
-    // Get recent files from active projects only (exclude deleted/archived)
-    const files = await ProjectFile.find({
-      projectId: { $in: projectIds },
-      status: 'active',
-      deletedAt: null,
-    })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    // Get recent files calling optimized query for clients
+    let files;
+    if (userRole === 'client') {
+      files = await ProjectFile.find({
+        projectId: { $in: projectIds },
+        status: 'active',
+        deletedAt: null,
+        'sharedWith.userId': userId
+      })
+        .sort({ 'sharedWith.sharedAt': -1 }) // Sort by shared date for clients
+        .limit(limit)
+        .lean();
+    } else {
+      files = await ProjectFile.find({
+        projectId: { $in: projectIds },
+        status: 'active',
+        deletedAt: null,
+      })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean();
+    }
 
-    // For clients, only include files shared with them
-    const visibleFiles = userRole === 'client'
-      ? files.filter(f => Array.isArray(f.sharedWith) && f.sharedWith.some(s => s.userId === userId))
-      : files;
+    // No need to filter visibleFiles again as query handled it for clients
+    const visibleFiles = files;
 
     // Generate preview URLs
     const processedFiles = await Promise.all(visibleFiles.map(async (file) => {
@@ -455,3 +466,93 @@ function generateProjectProgressData(projects) {
 
   return Array.from(weekMap.values());
 }
+
+/**
+ * Get Real-Time KPI Stats
+ * GET /api/dashboard/kpi
+ */
+export const getKpiStats = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { projectId, period = 'month' } = req.query;
+
+    const KpiAggregate = (await import('../models/KpiAggregate.js')).default;
+    const ProjectMember = (await import('../models/ProjectMember.js')).default;
+
+    // Determine Role Context
+    // If projectId is provided, check user's role in that project
+    // If no projectId, we need to decide what to show. 
+    // Default strategy: Show aggregate across ALL projects where user is owner, vs client.
+    // For MVP, simplistic approach: "Global Owner Stats" vs "Global Client Stats" 
+    // But the prompt implies "Contextually aware".
+
+    // Let's implement Global Stats for now, splitting by role.
+    const ownerStats = await KpiAggregate.findOne({
+      userId,
+      role: 'owner',
+      projectId: projectId || { $exists: true }, // Filter by project if provided
+      periodType: period
+    }).sort({ lastUpdatedAt: -1 }); // Get most recent if multiple (shouldn't happen with unique index but good safety)
+
+    const clientStats = await KpiAggregate.findOne({
+      userId,
+      role: 'client',
+      projectId: projectId || { $exists: true },
+      periodType: period
+    }).sort({ lastUpdatedAt: -1 });
+
+    // Ensure we handle "no data" gracefully
+    const response = {
+      role: ownerStats ? 'owner' : (clientStats ? 'client' : 'viewer'),
+      revenue: ownerStats ? ownerStats.revenueIncoming : 0,
+      spent: clientStats ? clientStats.expenseOutgoing : 0,
+      invoiceCount: (ownerStats?.invoiceCount || 0) + (clientStats?.invoiceCount || 0), // naive sum
+      period
+    };
+
+    // If projectId provided, be precise
+    if (projectId) {
+      const member = await ProjectMember.findOne({ projectId, userId });
+      const role = member ? (member.role === 'owner' ? 'owner' : 'client') : 'viewer';
+
+      const projectStats = await KpiAggregate.findOne({
+        userId,
+        projectId,
+        role: role === 'owner' ? 'owner' : 'client',
+        periodType: period
+      });
+
+      res.json({
+        role,
+        revenue: role === 'owner' ? (projectStats?.revenueIncoming || 0) : 0,
+        spent: role === 'client' ? (projectStats?.expenseOutgoing || 0) : 0,
+        invoiceCount: projectStats?.invoiceCount || 0,
+        period
+      });
+      return;
+    }
+
+    // Global Aggregate (Summation if not pre-aggregated)
+    // If we want global stats across all projects:
+    const globalOwner = await KpiAggregate.aggregate([
+      { $match: { userId, role: 'owner', periodType: period } },
+      { $group: { _id: null, totalRevenue: { $sum: '$revenueIncoming' }, count: { $sum: '$invoiceCount' } } }
+    ]);
+
+    const globalClient = await KpiAggregate.aggregate([
+      { $match: { userId, role: 'client', periodType: period } },
+      { $group: { _id: null, totalSpent: { $sum: '$expenseOutgoing' }, count: { $sum: '$invoiceCount' } } }
+    ]);
+
+    res.json({
+      revenue: globalOwner[0]?.totalRevenue || 0,
+      spent: globalClient[0]?.totalSpent || 0,
+      invoiceCount: (globalOwner[0]?.count || 0) + (globalClient[0]?.count || 0),
+      period
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching KPI stats:', error);
+    res.status(500).json({ error: 'Failed to fetch KPI stats' });
+  }
+};

@@ -76,6 +76,7 @@ export function useProjectSocket(projectId, callbacks = {}) {
       onOwnershipRequest: (data) => callbacksRef.current.onOwnershipRequest?.(data),
       onOwnershipAccepted: (data) => callbacksRef.current.onOwnershipAccepted?.(data),
       onOwnershipCancelled: (data) => callbacksRef.current.onOwnershipCancelled?.(data),
+      onFileUpdated: (data) => callbacksRef.current.onFileUpdated?.(data),
     };
 
     // Listen for project updates
@@ -92,6 +93,7 @@ export function useProjectSocket(projectId, callbacks = {}) {
     socket.on('task-deleted', handlers.onTaskDeleted);
     socket.on('project:files:added', handlers.onFileAdded);
     socket.on('project:files:deleted', handlers.onFileDeleted);
+    socket.on('file-updated', handlers.onFileUpdated);
 
     socket.on('ownership:request:created', handlers.onOwnershipRequest);
     socket.on('ownership:request:accepted', handlers.onOwnershipAccepted);
@@ -112,6 +114,7 @@ export function useProjectSocket(projectId, callbacks = {}) {
       socket.off('task-deleted', handlers.onTaskDeleted);
       socket.off('project:files:added', handlers.onFileAdded);
       socket.off('project:files:deleted', handlers.onFileDeleted);
+      socket.off('file-updated', handlers.onFileUpdated);
 
       socket.off('ownership:request:created', handlers.onOwnershipRequest);
       socket.off('ownership:request:accepted', handlers.onOwnershipAccepted);

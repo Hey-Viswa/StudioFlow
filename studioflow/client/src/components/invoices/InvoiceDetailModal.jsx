@@ -354,6 +354,22 @@ export default function InvoiceDetailModal({
           </DialogHeader>
 
           <ScrollArea className="max-h-[calc(90vh-200px)] px-8 py-8 bg-card">
+            {/* Payment Details for Paid Invoices */}
+            {invoice.status === 'paid' && (
+              <Card className="bg-emerald-50 border-emerald-200 mb-8 shadow-sm">
+                <CardContent className="pt-6 flex justify-between items-center">
+                  <div>
+                    <p className="text-emerald-900 font-medium flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      Payment Successful
+                    </p>
+                    {invoice.paidAt && <p className="text-sm text-emerald-700 mt-1">Paid on {format(new Date(invoice.paidAt), 'PPP p')}</p>}
+                    {invoice.razorpayPaymentId && <p className="text-xs text-emerald-600 mt-2 font-mono bg-emerald-100/50 px-2 py-1 rounded inline-block">Ref: {invoice.razorpayPaymentId}</p>}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Client & Date Info */}
             <div className="grid grid-cols-2 gap-6 mb-8">
               <Card className="bg-muted/30 border-border shadow-sm">
@@ -587,6 +603,7 @@ export default function InvoiceDetailModal({
                                   field.onBlur();
                                 }}
                                 className="h-11 pr-8"
+                                disabled={invoice.status === 'paid'}
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
                             </div>
@@ -610,6 +627,7 @@ export default function InvoiceDetailModal({
                             className="resize-none min-h-[100px]"
                             rows={4}
                             {...field}
+                            disabled={invoice.status === 'paid'}
                           />
                         </FormControl>
                         <FormMessage />
@@ -725,7 +743,8 @@ export default function InvoiceDetailModal({
                       variant="outline"
                       size="sm"
                       onClick={() => setIsEditMode(true)}
-                      disabled={loading}
+                      disabled={loading || invoice.status === 'paid'}
+                      title={invoice.status === 'paid' ? "Paid invoices cannot be edited" : "Edit Invoice"}
                     >
                       <Edit className="w-4 h-4 mr-1" />
                       Edit

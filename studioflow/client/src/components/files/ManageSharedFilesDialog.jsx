@@ -27,7 +27,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
  * ManageSharedFilesDialog Component
  * Manage file sharing for a specific file
  */
-export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file }) {
+export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file, onUpdate }) {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [sharedWith, setSharedWith] = useState([]);
@@ -59,8 +59,17 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
         throw new Error(error.error || 'Failed to revoke access');
       }
 
-      setSharedWith(prev => prev.filter(s => s.userId !== clientId));
+      const updatedSharedWith = sharedWith.filter(s => s.userId !== clientId);
+      setSharedWith(updatedSharedWith);
       toast.success('Access revoked successfully');
+
+      // Notify parent
+      if (onUpdate) {
+        onUpdate({
+          ...file,
+          sharedWith: updatedSharedWith
+        });
+      }
     } catch (error) {
       console.error('Failed to revoke access:', error);
       toast.error(error.message || 'Failed to revoke access');
@@ -73,7 +82,7 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
     try {
       setToggling(clientId);
       const token = await getToken();
-      
+
       if (!currentValue) {
         // Enable download
         const response = await fetch(`${API_BASE}/projects/${projectId}/files/${file.fileId}/enable-download`, {
@@ -90,10 +99,19 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
           throw new Error(error.error || 'Failed to enable download');
         }
 
-        setSharedWith(prev => prev.map(s => 
+        const updatedSharedWith = sharedWith.map(s =>
           s.userId === clientId ? { ...s, allowDownload: true } : s
-        ));
+        );
+        setSharedWith(updatedSharedWith);
         toast.success('Download enabled for client');
+
+        // Notify parent
+        if (onUpdate) {
+          onUpdate({
+            ...file,
+            sharedWith: updatedSharedWith
+          });
+        }
       } else {
         toast.info('To disable download, revoke access and reshare');
       }
@@ -131,73 +149,73 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file })
             </div>
           ) : (
             <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Shared On</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Download</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sharedWith.map((share) => (
-                  <TableRow key={share.userId}>
-                    <TableCell className="font-medium">
-                      {share.userId}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(share.sharedAt), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(share.expiresAt), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant={share.allowDownload ? 'default' : 'secondary'}
-                        size="sm"
-                        onClick={() => handleToggleDownload(share.userId, share.allowDownload)}
-                        disabled={toggling === share.userId}
-                        className="min-w-[130px]"
-                      >
-                        {toggling === share.userId ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : share.allowDownload ? (
-                          <>
-                            <Download className="w-4 h-4 mr-1.5" />
-                            Enabled
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="w-4 h-4 mr-1.5" />
-                            Preview Only
-                          </>
-                        )}
-                      </Button>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRevokeAccess(share.userId)}
-                        disabled={revoking === share.userId}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        {revoking === share.userId ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Revoke
-                          </>
-                        )}
-                      </Button>
-                    </TableCell>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Shared On</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead>Download</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sharedWith.map((share) => (
+                    <TableRow key={share.userId}>
+                      <TableCell className="font-medium">
+                        {share.userId}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(share.sharedAt), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(share.expiresAt), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant={share.allowDownload ? 'default' : 'secondary'}
+                          size="sm"
+                          onClick={() => handleToggleDownload(share.userId, share.allowDownload)}
+                          disabled={toggling === share.userId}
+                          className="min-w-[130px]"
+                        >
+                          {toggling === share.userId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : share.allowDownload ? (
+                            <>
+                              <Download className="w-4 h-4 mr-1.5" />
+                              Enabled
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-4 h-4 mr-1.5" />
+                              Preview Only
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRevokeAccess(share.userId)}
+                          disabled={revoking === share.userId}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          {revoking === share.userId ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Revoke
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>

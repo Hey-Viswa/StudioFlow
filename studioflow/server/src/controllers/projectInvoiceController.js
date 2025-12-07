@@ -1099,17 +1099,15 @@ export const createPaymentOrder = async (req, res) => {
     const { invoiceId } = req.params;
     const userId = req.userId;
 
-    console.log('=== CREATE PAYMENT ORDER ===');
-    console.log('Invoice:', invoiceId);
-    console.log('User:', userId);
-
     if (!razorpay) {
+      console.error('❌ Razorpay instance is null');
       return res.status(500).json({ error: 'Payment gateway not configured' });
     }
 
     const invoice = await ProjectInvoice.findById(invoiceId);
 
     if (!invoice) {
+      console.error('❌ Invoice not found');
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
@@ -1126,44 +1124,59 @@ export const createPaymentOrder = async (req, res) => {
       return res.status(400).json({ error: 'Invoice is immutable and cannot be paid' });
     }
 
+    // Safe Project ID extraction
+    const projectIdStr = invoice.projectId && invoice.projectId._id
+      ? invoice.projectId._id.toString()
+      : (invoice.projectId ? invoice.projectId.toString() : '');
+
     // Create Razorpay order
     const amountInPaise = Math.round(invoice.total * 100);
 
-    const order = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency: invoice.currency,
-      receipt: invoice.invoiceNumber,
-      notes: {
-        invoiceId: invoice._id.toString(),
-        invoiceNumber: invoice.invoiceNumber,
-        projectId: invoice.projectId.toString(),
-        userId: invoice.userId
-      }
-    });
-
-    console.log('✓ Razorpay order created:', order.id);
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount: amountInPaise,
+        currency: invoice.currency,
+        receipt: invoice.invoiceNumber,
+        notes: {
+          invoiceId: invoice._id.toString(),
+          invoiceNumber: invoice.invoiceNumber,
+          projectId: projectIdStr,
+          userId: invoice.userId ? invoice.userId.toString() : ''
+        }
+      });
+    } catch (rpError) {
+      console.error('❌ Razorpay API Error:', rpError);
+      throw new Error(`Razorpay Error: ${rpError.message}`);
+    }
 
     // Create or Update PaymentThread
     // This is CRITICAL for the webhook to know which project/invoice this payment belongs to
-    let paymentThread = await PaymentThread.findOne({ invoiceId: invoice._id });
+    try {
+      let paymentThread = await PaymentThread.findOne({ invoiceId: invoice._id });
 
-    if (!paymentThread) {
-      paymentThread = new PaymentThread({
-        projectId: invoice.projectId,
-        title: `Payment for Invoice ${invoice.invoiceNumber}`,
-        amount: invoice.total,
-        currency: invoice.currency,
-        type: 'fixed', // Default to fixed for invoices
-        status: 'pending',
-        invoiceId: invoice._id
-      });
+      if (!paymentThread) {
+        paymentThread = new PaymentThread({
+          projectId: invoice.projectId, // Mongoose handles casting
+          title: `Payment for Invoice ${invoice.invoiceNumber}`,
+          amount: invoice.total,
+          currency: invoice.currency,
+          type: 'fixed', // Default to fixed for invoices
+          status: 'pending',
+          invoiceId: invoice._id
+        });
+      }
+
+      paymentThread.razorpayOrderId = order.id;
+      paymentThread.amount = invoice.total; // Ensure amount matches
+      await paymentThread.save();
+
+    } catch (threadError) {
+      console.error('❌ PaymentThread Error:', threadError);
+      // Don't fail the whole request if thread tracking fails, but it's bad practice
+      // Throw to see it in 500
+      throw new Error(`PaymentThread Error: ${threadError.message}`);
     }
-
-    paymentThread.razorpayOrderId = order.id;
-    paymentThread.amount = invoice.total; // Ensure amount matches
-    await paymentThread.save();
-
-    console.log('✓ PaymentThread created/updated:', paymentThread._id);
 
     // Log Audit
     await logAudit({
@@ -1174,8 +1187,7 @@ export const createPaymentOrder = async (req, res) => {
       details: {
         amount: invoice.total,
         currency: invoice.currency,
-        razorpayOrderId: order.id,
-        paymentThreadId: paymentThread._id
+        razorpayOrderId: order.id
       },
       status: 'success'
     });
@@ -1183,10 +1195,21 @@ export const createPaymentOrder = async (req, res) => {
     // Update invoice with order ID and status (respect transitions)
     const transition = applyStatusTransition(invoice, 'pending', { actorId: userId, source: 'api:create-payment-order' });
     if (!transition.ok) {
+      console.warn('⚠️ Transition failed:', transition.error);
       return res.status(400).json({ error: transition.error || 'Unable to start payment for invoice' });
     }
 
     invoice.razorpayOrderId = order.id;
+
+    // Auto-populate KPI fields for legacy invoices (Schema Backfill)
+    if (!invoice.payeeUserId) invoice.payeeUserId = invoice.userId; // Owner
+
+    // Safely check client user ID
+    const safeClientUserId = (invoice.client && invoice.client.userId) || null;
+    if (!invoice.payerUserId && safeClientUserId) {
+      invoice.payerUserId = safeClientUserId; // Client
+    }
+
     await invoice.save();
 
     res.json({
@@ -1198,10 +1221,12 @@ export const createPaymentOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create payment order error:', error);
+    console.error('❌ Create payment order error (CAUGHT):', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       error: 'Failed to create payment order',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -1267,8 +1292,16 @@ export const verifyProjectInvoicePayment = async (req, res) => {
 
     invoice.amountPaid = invoice.total;
     invoice.razorpayPaymentId = razorpay_payment_id;
+    invoice.razorpayPaymentId = razorpay_payment_id;
     invoice.razorpaySignature = razorpay_signature;
     invoice.paidAt = new Date();
+
+    // Auto-populate KPI fields (Safety Net)
+    if (!invoice.payeeUserId) invoice.payeeUserId = invoice.userId;
+    if (!invoice.payerUserId && invoice.client && invoice.client.userId) {
+      invoice.payerUserId = invoice.client.userId;
+    }
+
     await invoice.save();
 
     // Create Entitlement for Client

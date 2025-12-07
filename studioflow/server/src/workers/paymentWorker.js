@@ -38,6 +38,9 @@ export const startPaymentWorker = () => {
                 case 'payment.failed':
                     await handlePaymentFailed(payload);
                     break;
+                case 'invoice.payment.process':
+                    await handleInvoicePayment(payload);
+                    break;
                 default:
                     console.log(`⚠️ Unhandled payment event in worker: ${event}`);
             }
@@ -52,56 +55,185 @@ export const startPaymentWorker = () => {
 
 // --- Handler Functions (Moved from Controller) ---
 
-// Handle successful subscription charge
-const handleSubscriptionCharged = async (payload) => {
-    const subscriptionId = payload.subscription.entity.id;
-    const notes = payload.subscription.entity.notes || {};
-    const userId = notes.userId;
+const handleInvoicePayment = async (payload) => {
+    const { invoiceId, paymentId, idempotencyKey } = payload;
 
-    if (!userId) {
-        console.error('No userId found in subscription notes');
+    // Dynamic imports to ensure we have fresh models
+    const ProjectInvoice = (await import('../models/ProjectInvoice.js')).default;
+    const PaymentThread = (await import('../models/PaymentThread.js')).default;
+    const Entitlement = (await import('../models/Entitlement.js')).default;
+    const Project = (await import('../models/Project.js')).default;
+    const KpiAggregate = (await import('../models/KpiAggregate.js')).default;
+    const mongoose = (await import('mongoose')).default;
+
+    console.log(`Processing invoice payment: ${invoiceId} (Key: ${idempotencyKey})`);
+
+    // 1. Idempotency Check
+    const existing = await ProjectInvoice.findOne({ idempotencyKey });
+    if (existing && existing.status === 'paid') {
+        console.log(`Skipping duplicate webhook for invoice ${invoiceId}`);
         return;
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-        console.error(`User ${userId} not found`);
-        return;
-    }
-
-    // Extend subscription by 30 days
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-
-    user.subscription.status = 'active';
-    user.subscription.razorpaySubscriptionId = subscriptionId;
-    user.subscription.subscriptionEndDate = endDate;
-    user.subscription.autoRenew = true;
-
-    await user.save();
-
-    console.log(`✅ Subscription renewed for user ${userId}`);
-
-    // Send notification
+    const session = await mongoose.startSession();
     try {
-        await createNotificationWithIdempotency({
-            recipients: [userId],
-            type: 'payment-success',
-            eventType: 'payment.success',
-            actorId: 'system',
-            title: '✅ Payment Successful',
-            message: 'Your subscription has been successfully renewed.',
-            link: '/dashboard/settings/billing',
-            priority: 'high',
-            category: 'system',
-            metadata: {
-                subscriptionId
+        await session.withTransaction(async () => {
+            // 2. Update Invoice
+            const invoice = await ProjectInvoice.findByIdAndUpdate(invoiceId, {
+                status: 'paid',
+                razorpayPaymentId: paymentId,
+                paidAt: new Date(),
+                idempotencyKey: idempotencyKey,
+                isImmutable: true,
+                accessGranted: true
+            }, { session, new: true });
+
+            if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
+
+            // 3. Update Thread
+            if (invoice.paymentThreadId) {
+                await PaymentThread.findByIdAndUpdate(invoice.paymentThreadId, {
+                    status: 'paid',
+                    paidAt: new Date(),
+                    razorpayPaymentId: paymentId
+                }, { session });
             }
+
+            // 4. Create Entitlements
+            await Entitlement.create([{
+                userId: invoice.payerUserId, // Client
+                projectId: invoice.projectId,
+                sourceId: invoice._id,
+                sourceType: 'invoice',
+                scope: invoice.accessType === 'specific_files' ? 'file_download' : 'project_download',
+                resourceIds: invoice.linkedFileIds || [],
+                validUntil: new Date(Date.now() + (invoice.accessDurationDays * 24 * 60 * 60 * 1000)),
+                isActive: true
+            }], { session });
+
+            // 5. Update KPI Aggregates (Real-time Metric)
+            await updateKpiAggregates(invoice, KpiAggregate, session);
+
+            // 6. Broadcast Real-Time Event (Socket)
+            // Note: We'll broadcast *after* transaction commits to ensure data is visible
         });
-    } catch (err) {
-        console.error('Failed to send payment success notification:', err);
+
+        // Post-Transaction: Notification & Broadcast
+
+        // Notify Owner (Payee)
+        try {
+            await createNotificationWithIdempotency({
+                projectId: invoice.projectId,
+                recipients: [invoice.payeeUserId],
+                type: 'invoice-paid',
+                title: '💰 Payment Received',
+                message: `Payment of ${invoice.currency} ${invoice.total} for Invoice #${invoice.invoiceNumber} has been received.`,
+                link: `/dashboard/invoices/${invoiceId}`,
+                priority: 'high',
+                category: 'payment',
+                sendEmail: true,
+                eventType: 'invoice.paid', // Unique key for idempotency
+                metadata: {
+                    invoiceId: invoiceId,
+                    amount: invoice.total,
+                    currency: invoice.currency,
+                    payerId: invoice.payerUserId
+                }
+            });
+        } catch (notifError) {
+            console.error('Failed to send payment notification to owner:', notifError);
+        }
+
+        // Post-Transaction: Broadcast
+        // Fetch fresh invoice to get all fields
+        const finalInvoice = await ProjectInvoice.findById(invoiceId);
+
+        // Publish to Redis for Socket.IO
+        const redisPubSub = (await import('../config/redis.js')).redisPubSub;
+        if (redisPubSub) {
+            redisPubSub.publish('kpi:updates', JSON.stringify({
+                invoiceId: finalInvoice._id,
+                projectId: finalInvoice.projectId,
+                ownerId: finalInvoice.payeeUserId,
+                clientId: finalInvoice.payerUserId,
+                amount: finalInvoice.total,
+                currency: finalInvoice.currency,
+                timestamp: finalInvoice.paidAt
+            }));
+        }
+
+        console.log(`✅ Invoice ${invoiceId} processed successfully`);
+
+    } catch (error) {
+        console.error('Invoice payment transaction failed:', error);
+        throw error;
+    } finally {
+        session.endSession();
     }
 };
+
+// Helper: Upsert KPIs
+async function updateKpiAggregates(invoice, KpiModel, session) {
+    const startOfPeriod = (date, period) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        if (period === 'month') d.setDate(1);
+        if (period === 'year') { d.setMonth(0); d.setDate(1); }
+        if (period === 'all_time') return new Date(0);
+        return d;
+    };
+
+    const periods = ['day', 'month', 'year', 'all_time'];
+
+    for (const period of periods) {
+        const periodStart = startOfPeriod(invoice.paidAt, period);
+
+        // Update OWNER (Revenue)
+        const ownerId = invoice.payeeUserId || invoice.userId;
+        if (ownerId) {
+            await KpiModel.findOneAndUpdate(
+                {
+                    userId: ownerId,
+                    role: 'owner',
+                    projectId: invoice.projectId,
+                    periodType: period,
+                    periodStart: periodStart
+                },
+                {
+                    $inc: {
+                        revenueIncoming: invoice.total,
+                        revenueNet: invoice.total,
+                        invoiceCount: 1
+                    },
+                    $set: { lastUpdatedAt: new Date() }
+                },
+                { upsert: true, new: true, session }
+            );
+        }
+
+        // Update CLIENT (Expense)
+        const clientId = invoice.payerUserId || (invoice.client && invoice.client.userId);
+        if (clientId) {
+            await KpiModel.findOneAndUpdate(
+                {
+                    userId: clientId,
+                    role: 'client',
+                    projectId: invoice.projectId,
+                    periodType: period,
+                    periodStart: periodStart
+                },
+                {
+                    $inc: {
+                        expenseOutgoing: invoice.total,
+                        invoiceCount: 1
+                    },
+                    $set: { lastUpdatedAt: new Date() }
+                },
+                { upsert: true, new: true, session }
+            );
+        }
+    }
+}
 
 // Handle subscription cancellation
 const handleSubscriptionCancelled = async (payload) => {

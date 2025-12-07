@@ -65,6 +65,23 @@ export function ProjectFilesPanel({ projectId, project }) {
       console.log('🗑️ File deleted:', data);
       setFiles((prev) => prev.filter((f) => f.fileId !== data.fileId));
     },
+    onFileUpdated: (data) => {
+      console.log('🔄 File updated:', data);
+      setFiles((prev) => prev.map((f) => {
+        if (f.fileId === data.fileId) {
+          return { ...f, ...data };
+        }
+        return f;
+      }));
+
+      // Update dialog if open
+      setManageDialog((prev) => {
+        if (prev.open && prev.file?.fileId === data.fileId) {
+          return { ...prev, file: { ...prev.file, ...data } };
+        }
+        return prev;
+      });
+    },
   });
 
   // Fetch files on mount
@@ -225,6 +242,14 @@ export function ProjectFilesPanel({ projectId, project }) {
     });
   };
 
+  const handleManageSharingUpdate = (updatedFile) => {
+    // Update local state consistently
+    setFiles(prev => prev.map(f => f.fileId === updatedFile.fileId ? {
+      ...f,
+      sharedWith: updatedFile.sharedWith
+    } : f));
+  };
+
   const handleShareComplete = () => {
     fetchFiles();
     setSelectedFiles(new Set());
@@ -380,6 +405,7 @@ export function ProjectFilesPanel({ projectId, project }) {
         onOpenChange={(open) => setManageDialog({ ...manageDialog, open })}
         projectId={projectId}
         file={manageDialog.file}
+        onUpdate={handleManageSharingUpdate}
       />
     </div>
   );
