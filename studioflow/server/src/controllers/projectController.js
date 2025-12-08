@@ -1146,6 +1146,10 @@ export const deleteProject = async (req, res) => {
 
     // Create trash entry with full project data
     console.log('📦 Creating trash entry...');
+    // Normalize member roles to match Trash schema enum to avoid validation errors
+    const allowedRoles = new Set(['owner', 'team_member', 'client', 'admin', 'member']);
+    const normalizeRole = (role) => allowedRoles.has(role) ? role : 'member';
+
     const trashEntry = new Trash({
       originalProjectId: project._id.toString(),
       title: project.title,
@@ -1153,7 +1157,7 @@ export const deleteProject = async (req, res) => {
       ownerId: project.ownerId,
       members: projectMembers.map(m => ({
         userId: m.userId,
-        role: m.role,
+        role: normalizeRole(m.role),
         email: m.email
       })), // Store current members snapshot
       status: project.status,

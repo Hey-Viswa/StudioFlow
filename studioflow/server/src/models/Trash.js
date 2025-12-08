@@ -21,7 +21,8 @@ const trashSchema = new mongoose.Schema({
     name: String,
     role: {
       type: String,
-      enum: ['owner', 'admin', 'member', 'team_member', 'client'],
+      // Align with ProjectMember roles; keep admin/member for legacy snapshots
+      enum: ['owner', 'team_member', 'client', 'admin', 'member'],
       default: 'client'
     },
     joinedAt: Date
