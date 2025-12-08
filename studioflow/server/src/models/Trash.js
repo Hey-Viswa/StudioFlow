@@ -21,7 +21,7 @@ const trashSchema = new mongoose.Schema({
     name: String,
     role: {
       type: String,
-      enum: ['owner', 'admin', 'member', 'client'],
+      enum: ['owner', 'admin', 'member', 'team_member', 'client'],
       default: 'client'
     },
     joinedAt: Date
