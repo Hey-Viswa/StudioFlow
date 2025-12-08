@@ -192,7 +192,6 @@ export default function TeamTab({
                     </div>
                 </CardContent>
             </Card>
-            </Card>
 
             <AlertDialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
                 <AlertDialogContent>
