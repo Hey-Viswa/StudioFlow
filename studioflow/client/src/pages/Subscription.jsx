@@ -137,7 +137,7 @@ export default function Subscription() {
       id: 'pro',
       name: 'Pro',
       subtitle: 'For individual professionals',
-      price: 100,
+      price: 1,
       currency: '₹',
       period: '/mo',
       features: [
@@ -156,7 +156,7 @@ export default function Subscription() {
       id: 'studio',
       name: 'Studio',
       subtitle: 'For agencies & teams',
-      price: 499,
+      price: 2,
       currency: '₹',
       period: '/mo',
       features: [
@@ -470,9 +470,9 @@ export default function Subscription() {
       if (response.ok) {
         const data = await response.json();
         if (data.url) {
-            window.open(data.url, '_blank');
+          window.open(data.url, '_blank');
         } else {
-            toast.error('Invoice URL not found');
+          toast.error('Invoice URL not found');
         }
       } else {
         const err = await response.json();
@@ -605,9 +605,8 @@ export default function Subscription() {
                 </div>
 
                 <Button
-                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${getButtonStyles(plan.id)} ${
-                    isButtonDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}
+                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${getButtonStyles(plan.id)} ${isButtonDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
                   disabled={isButtonDisabled || (isReactivation && new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date())}
                   onClick={() => {
                     if (currentPlan === 'free' || isReactivation) {
