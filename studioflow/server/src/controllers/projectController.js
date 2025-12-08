@@ -654,8 +654,12 @@ export const removeMember = async (req, res) => {
     const { id: projectId, userId: targetUserId } = req.params;
     const currentUserId = req.userId;
 
+    // Fallback import in case mongoose is not bound in runtime
+    const m = mongoose || (await import('mongoose')).default;
+    const isValidObjectId = m?.Types?.ObjectId?.isValid;
+
     // Validate IDs
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (!isValidObjectId || !isValidObjectId(projectId)) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
