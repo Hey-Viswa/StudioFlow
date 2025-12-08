@@ -1,56 +1,50 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import storageAdapter from '../utils/storageAdapter.js';
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Configure storage
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const uploadDir = path.join(__dirname, '../../public/uploads');
-        // Ensure directory exists
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
+// Use memory storage for Cloud Run compatibility
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
 // Upload endpoint
-router.post('/', upload.array('files', 5), (req, res) => {
+router.post('/', upload.array('files', 5), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'No files uploaded' });
         }
 
-        const files = req.files.map(file => {
-            const apiUrl = process.env.API_URL || 'http://localhost:5000';
-            // Construct URL pointing to static file
-            const url = `${apiUrl}/uploads/${file.filename}`;
+        const files = await Promise.all(req.files.map(async (file) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const filename = uniqueSuffix + path.extname(file.originalname);
+            // Use 'uploads' prefix to distinguish from project files
+            const key = `uploads/${filename}`;
+
+            // Upload to S3/R2 via StorageAdapter
+            await storageAdapter.uploadBuffer(key, file.buffer, file.mimetype);
+
+            // Get signed URL for immediate display (valid for 24 hours)
+            // Note: For permanent access, the key should be stored and signed URLs generated on demand
+            const url = await storageAdapter.getSignedDownloadUrl(key, {
+                filename: file.originalname,
+                contentType: file.mimetype,
+                ttl: 86400 // 24 hours
+            });
 
             return {
                 name: file.originalname,
                 filename: file.originalname,
                 url: url,
+                key: key, // Store this key if you need permanent reference
                 type: file.mimetype,
                 mimeType: file.mimetype,
                 size: file.size
             };
-        });
+        }));
 
         res.json({ files });
     } catch (error) {
