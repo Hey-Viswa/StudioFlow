@@ -85,6 +85,6 @@ const CommentSchema = new mongoose.Schema({
 // Indexes for performance
 CommentSchema.index({ projectId: 1, createdAt: -1 }); // Fetch project comments
 CommentSchema.index({ taskId: 1, createdAt: -1 }); // Fetch task comments
-CommentSchema.index({ parentId: 1 }); // Fetch replies
+
 
 export default mongoose.model('Comment', CommentSchema);
