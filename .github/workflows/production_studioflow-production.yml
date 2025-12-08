@@ -31,10 +31,10 @@ jobs:
       - name: Build and push container image to registry
         uses: docker/build-push-action@v3
         with:
-          context: .
+          context: ./server
           push: true
           tags: studioflowregistry.azurecr.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_4951A98654B14C4A83A485081A220127 }}/studioflow-production:${{ github.sha }}
-          file: ./Dockerfile
+          file: ./server/Dockerfile
 
   deploy:
     runs-on: ubuntu-latest
@@ -60,4 +60,3 @@ jobs:
           app-name: 'studioflow-production'
           slot-name: 'Production'
           images: 'studioflowregistry.azurecr.io/${{ secrets.AZUREAPPSERVICE_CONTAINERUSERNAME_4951A98654B14C4A83A485081A220127 }}/studioflow-production:${{ github.sha }}'
-          
