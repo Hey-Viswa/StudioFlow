@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import Trash from '../models/Trash.js';
