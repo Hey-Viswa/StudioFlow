@@ -1423,7 +1423,7 @@ export const handleProjectInvoiceWebhook = async (req, res) => {
 
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody || JSON.stringify(req.body))
       .digest('hex');
 
     if (signature !== expectedSignature) {
