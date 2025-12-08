@@ -39,7 +39,7 @@ export default function Home() {
       id: 'pro',
       name: 'Pro',
       subtitle: 'For individual professionals',
-      price: 100,
+      price: 1,
       currency: '₹',
       period: '/month',
       features: [
@@ -57,7 +57,7 @@ export default function Home() {
       id: 'studio',
       name: 'Studio',
       subtitle: 'For agencies & teams',
-      price: 499,
+      price: 2,
       currency: '₹',
       period: '/month',
       features: [
@@ -189,9 +189,8 @@ export default function Home() {
             {plans.map((plan) => (
               <Card
                 key={plan.id}
-                className={`relative bg-card border-slate-800 p-8 ${
-                  plan.popular ? 'ring-2 ring-primary shadow-lg shadow-primary/20' : ''
-                }`}
+                className={`relative bg-card border-slate-800 p-8 ${plan.popular ? 'ring-2 ring-primary shadow-lg shadow-primary/20' : ''
+                  }`}
               >
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
@@ -228,11 +227,10 @@ export default function Home() {
                 </ul>
 
                 <Button
-                  className={`w-full ${
-                    plan.popular
+                  className={`w-full ${plan.popular
                       ? 'bg-primary hover:bg-primary/90 text-white'
                       : 'bg-slate-800 hover:bg-slate-700 text-white'
-                  }`}
+                    }`}
                   onClick={() => handleGetStarted(plan.id)}
                 >
                   {plan.cta}

@@ -785,7 +785,7 @@ const Landing = () => {
               </div>
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-primary mb-2">Pro</h3>
-                <div className="text-4xl font-bold">₹100<span className="text-base font-normal text-muted-foreground">/mo</span></div>
+                <div className="text-4xl font-bold">₹1<span className="text-base font-normal text-muted-foreground">/mo</span></div>
                 <p className="text-sm text-muted-foreground mt-2">For professional editors scaling up.</p>
               </div>
               <ul className="space-y-4 mb-8 flex-1">
@@ -808,7 +808,7 @@ const Landing = () => {
             <div className="pricing-card md:col-span-2 lg:col-span-1 p-6 sm:p-8 rounded-2xl border border-border bg-card shadow-sm hover:border-primary/30 transition-all duration-300 h-full flex flex-col">
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-muted-foreground mb-2">Studio</h3>
-                <div className="text-4xl font-bold">₹499<span className="text-base font-normal text-muted-foreground">/mo</span></div>
+                <div className="text-4xl font-bold">₹2<span className="text-base font-normal text-muted-foreground">/mo</span></div>
                 <p className="text-sm text-muted-foreground mt-2">For agencies and production houses.</p>
               </div>
               <ul className="space-y-4 mb-8 flex-1">
