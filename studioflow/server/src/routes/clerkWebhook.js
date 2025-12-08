@@ -6,8 +6,6 @@ const router = express.Router();
 
 // Clerk webhook endpoint - No auth middleware, verified by Svix signature
 // Must be configured in Clerk Dashboard: https://dashboard.clerk.com/
-'/webhook',
-  handleClerkWebhook
-);
+router.post('/webhook', handleClerkWebhook);
 
 export default router;
