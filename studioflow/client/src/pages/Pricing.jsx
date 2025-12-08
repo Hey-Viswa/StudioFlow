@@ -24,7 +24,7 @@ export default function Pricing() {
     },
     {
       name: 'Pro',
-      price: '₹100',
+      price: '₹1',
       period: '/mo',
       description: 'For professionals',
       badge: 'POPULAR',
@@ -34,7 +34,7 @@ export default function Pricing() {
     },
     {
       name: 'Studio',
-      price: '₹499',
+      price: '₹2',
       period: '/mo',
       description: 'For growing teams',
       features: ['Up to 100 projects', 'Everything in Pro', 'Team permissions', 'Advanced reviews', 'Dedicated support', 'Custom workflows'],

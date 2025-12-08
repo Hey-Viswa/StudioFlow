@@ -76,7 +76,7 @@ const SUBSCRIPTION_PLANS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    price: 100, // ₹100/month
+    price: 1, // ₹100/month
     currency: 'INR',
     trialDays: 0, // No trial
     razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
@@ -95,7 +95,7 @@ const SUBSCRIPTION_PLANS = {
   studio: {
     id: 'studio',
     name: 'Studio',
-    price: 499, // ₹499/month
+    price: 2, // ₹499/month
     currency: 'INR',
     trialDays: 0, // No trial
     razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',
@@ -283,7 +283,7 @@ export const createSubscription = async (req, res) => {
         } catch (createError) {
           // Strategy 2: If creation fails, try to fetch by email
           console.warn('⚠️ Creation failed, attempting to fetch existing customer by email...');
-          
+
           const existingCustomers = await razorpay.customers.all({
             email: customerEmail,
             count: 1
@@ -998,37 +998,37 @@ async function handleSubscriptionCharged(subscription, payment, timestamp) {
       // Create Invoice
       const planId = user.subscription.plan;
       const planConfig = SUBSCRIPTION_PLANS[planId];
-      
+
       if (planConfig) {
-          try {
-            const Invoice = await import('../models/Invoice.js').then(m => m.default);
-            const invoice = await Invoice.create({
-                userId: user.clerkUserId,
-                subscriptionId: subscription.id,
-                planId: planId,
-                planName: planConfig.name,
-                amount: planConfig.price, // Use plan price or payment.amount / 100
-                currency: 'INR',
-                type: 'renewal',
-                status: 'paid',
-                razorpayPaymentId: payment.id,
-                billingPeriodStart: new Date(subscription.current_start * 1000),
-                billingPeriodEnd: new Date(subscription.current_end * 1000),
-                description: `${planConfig.name} plan subscription renewal`,
-                metadata: {
-                    userEmail: user.email,
-                    userName: user.name
-                }
-            });
-            console.log(`[${timestamp}] ✅ Invoice created: ${invoice.invoiceNumber}`);
-            
-            // Generate PDF asynchronously
-            generateInvoiceWithPDF(invoice, user).catch(err => {
-                console.error(`[${timestamp}] ⚠️  Background invoice PDF generation failed:`, err.message);
-            });
-          } catch (invError) {
-              console.error(`[${timestamp}] ⚠️  Failed to create invoice:`, invError.message);
-          }
+        try {
+          const Invoice = await import('../models/Invoice.js').then(m => m.default);
+          const invoice = await Invoice.create({
+            userId: user.clerkUserId,
+            subscriptionId: subscription.id,
+            planId: planId,
+            planName: planConfig.name,
+            amount: planConfig.price, // Use plan price or payment.amount / 100
+            currency: 'INR',
+            type: 'renewal',
+            status: 'paid',
+            razorpayPaymentId: payment.id,
+            billingPeriodStart: new Date(subscription.current_start * 1000),
+            billingPeriodEnd: new Date(subscription.current_end * 1000),
+            description: `${planConfig.name} plan subscription renewal`,
+            metadata: {
+              userEmail: user.email,
+              userName: user.name
+            }
+          });
+          console.log(`[${timestamp}] ✅ Invoice created: ${invoice.invoiceNumber}`);
+
+          // Generate PDF asynchronously
+          generateInvoiceWithPDF(invoice, user).catch(err => {
+            console.error(`[${timestamp}] ⚠️  Background invoice PDF generation failed:`, err.message);
+          });
+        } catch (invError) {
+          console.error(`[${timestamp}] ⚠️  Failed to create invoice:`, invError.message);
+        }
       }
 
     } catch (error) {
@@ -1647,19 +1647,19 @@ export const getBillingHistory = async (req, res) => {
     if (user.subscription.razorpayCustomerId || user.subscription.razorpaySubscriptionId) {
       try {
         let payments;
-        
+
         if (user.subscription.razorpayCustomerId) {
-            console.log(`🔍 Fetching payments for Customer ID: ${user.subscription.razorpayCustomerId}`);
-            payments = await razorpay.payments.all({
-                'customer_id': user.subscription.razorpayCustomerId,
-                count: 100
-            });
+          console.log(`🔍 Fetching payments for Customer ID: ${user.subscription.razorpayCustomerId}`);
+          payments = await razorpay.payments.all({
+            'customer_id': user.subscription.razorpayCustomerId,
+            count: 100
+          });
         } else {
-            console.log(`🔍 Fetching payments for Subscription ID: ${user.subscription.razorpaySubscriptionId}`);
-            payments = await razorpay.payments.all({
-                subscription_id: user.subscription.razorpaySubscriptionId,
-                count: 100
-            });
+          console.log(`🔍 Fetching payments for Subscription ID: ${user.subscription.razorpaySubscriptionId}`);
+          payments = await razorpay.payments.all({
+            subscription_id: user.subscription.razorpaySubscriptionId,
+            count: 100
+          });
         }
 
         if (payments.items && payments.items.length > 0) {
@@ -1668,33 +1668,33 @@ export const getBillingHistory = async (req, res) => {
 
           // SAFETY FILTER: Ensure payments actually belong to this user
           const filteredPayments = payments.items.filter(p => {
-             // 1. Match by Customer ID (Strongest link for full history)
-             if (user.subscription.razorpayCustomerId && p.customer_id === user.subscription.razorpayCustomerId) {
-                 return true;
-             }
+            // 1. Match by Customer ID (Strongest link for full history)
+            if (user.subscription.razorpayCustomerId && p.customer_id === user.subscription.razorpayCustomerId) {
+              return true;
+            }
 
-             // 2. Match by Subscription ID (Current)
-             if (p.subscription_id && p.subscription_id === user.subscription.razorpaySubscriptionId) {
-                 return true;
-             }
-             
-             // 3. Match by User ID in notes (Secondary link)
-             if (p.notes && p.notes.userId === userId) {
-                 return true;
-             }
+            // 2. Match by Subscription ID (Current)
+            if (p.subscription_id && p.subscription_id === user.subscription.razorpaySubscriptionId) {
+              return true;
+            }
 
-             // 4. Match by Email in notes (Fallback)
-             if (p.notes && p.notes.email === user.email) {
-                 return true;
-             }
-             
-             return false;
+            // 3. Match by User ID in notes (Secondary link)
+            if (p.notes && p.notes.userId === userId) {
+              return true;
+            }
+
+            // 4. Match by Email in notes (Fallback)
+            if (p.notes && p.notes.email === user.email) {
+              return true;
+            }
+
+            return false;
           });
-          
+
           console.log(`🔍 Filtered payments: ${filteredPayments.length}`);
 
           if (filteredPayments.length !== payments.items.length) {
-             console.warn(`⚠️  Razorpay returned ${payments.items.length} payments, but only ${filteredPayments.length} match subscription ${user.subscription.razorpaySubscriptionId}`);
+            console.warn(`⚠️  Razorpay returned ${payments.items.length} payments, but only ${filteredPayments.length} match subscription ${user.subscription.razorpaySubscriptionId}`);
           }
 
           billingHistory.paymentHistory = filteredPayments.map(payment => ({
@@ -2232,22 +2232,22 @@ export const getInvoicePdf = async (req, res) => {
 
     const user = await User.findOne({ clerkUserId: userId });
     if (!user || !user.subscription.razorpayCustomerId) {
-        return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Fetch invoice from Razorpay
     const invoice = await razorpay.invoices.fetch(invoiceId);
 
     if (!invoice) {
-        return res.status(404).json({ error: 'Invoice not found' });
+      return res.status(404).json({ error: 'Invoice not found' });
     }
 
     // Security check: Ensure invoice belongs to the user
     // We check against customer_id. 
     // Note: If user changed accounts or something, this might mismatch, but for security it's best.
     if (invoice.customer_id !== user.subscription.razorpayCustomerId) {
-        console.warn(`⚠️ Invoice ${invoiceId} customer ${invoice.customer_id} does not match user ${user.subscription.razorpayCustomerId}`);
-        return res.status(403).json({ error: 'Access denied to this invoice' });
+      console.warn(`⚠️ Invoice ${invoiceId} customer ${invoice.customer_id} does not match user ${user.subscription.razorpayCustomerId}`);
+      return res.status(403).json({ error: 'Access denied to this invoice' });
     }
 
     // Return the short_url (hosted invoice page)

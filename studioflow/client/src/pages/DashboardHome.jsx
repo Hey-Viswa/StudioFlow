@@ -284,7 +284,7 @@ export default function DashboardHome() {
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Upgrade to Pro (₹100/mo) or Studio (₹499/mo) for more projects</p>
+                        <p>Upgrade to Pro (₹1/mo) or Studio (₹2/mo) for more projects</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
