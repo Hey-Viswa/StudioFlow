@@ -7,7 +7,8 @@ const NotificationSchema = new mongoose.Schema({
   },
   actorId: {
     type: String,
-    required: true
+    required: false,
+    default: 'system'
   },
   resourceId: {
     type: String,
