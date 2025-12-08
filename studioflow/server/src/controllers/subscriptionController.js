@@ -783,12 +783,13 @@ export const handleWebhook = async (req, res) => {
   const timestamp = new Date().toISOString();
   const signature = req.headers['x-razorpay-signature'];
 
-  // 1. Verify Signature
+  // 1. Verify Signature (must use raw body that Razorpay signs)
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
-      .update(req.body)
+      .update(rawBody)
       .digest('hex');
 
     if (signature !== expectedSignature) {
