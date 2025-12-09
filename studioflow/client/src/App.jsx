@@ -1,8 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Toaster } from './components/ui/sonner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NetworkError from './pages/NetworkError';
@@ -115,8 +113,6 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
-            <Analytics />
-            <SpeedInsights />
           </Router>
         </UploadProvider>
       </ThemeColorProvider>

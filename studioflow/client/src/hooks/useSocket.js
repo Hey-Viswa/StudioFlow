@@ -16,8 +16,13 @@ export function useSocket() {
 
     // Initialize socket connection
     const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      withCredentials: true
+      // Prefer polling first to avoid websocket setup delays/timeouts on some hosts
+      transports: ['polling', 'websocket'],
+      withCredentials: true,
+      timeout: 10000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
 
     newSocket.on('connect', () => {
