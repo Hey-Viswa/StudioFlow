@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, Trash2, Download, Eye, Users } from 'lucide-react';
+import { Loader2, Trash2, Download, Eye, Users, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -163,7 +163,24 @@ export function ManageSharedFilesDialog({ open, onOpenChange, projectId, file, o
                   {sharedWith.map((share) => (
                     <TableRow key={share.userId}>
                       <TableCell className="font-medium">
-                        {share.userId}
+                        <div className="flex flex-col gap-1">
+                          <span>{share.userId}</span>
+                          {share.shareToken && (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              className="h-6 justify-start px-0 text-muted-foreground hover:text-primary"
+                              onClick={() => {
+                                const link = `${window.location.origin}/shared/${share.shareToken}`;
+                                navigator.clipboard.writeText(link);
+                                toast.success('Link copied to clipboard');
+                              }}
+                            >
+                              <Copy className="w-3 h-3 mr-1" />
+                              Copy Link
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {format(new Date(share.sharedAt), 'MMM dd, yyyy')}
