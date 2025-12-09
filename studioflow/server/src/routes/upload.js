@@ -38,9 +38,13 @@ router.post('/', upload.array('files', 5), (req, res) => {
         }
 
         const files = req.files.map(file => {
-            const apiUrl = process.env.API_URL || 'http://localhost:5000';
+            // Derive base URL from request (supports proxies) with env override fallback
+            const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
+            const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toString().split(',')[0].trim();
+            const base = process.env.API_URL || `${proto}://${host}`;
+
             // Construct URL pointing to static file
-            const url = `${apiUrl}/uploads/${file.filename}`;
+            const url = `${base}/uploads/${file.filename}`;
 
             return {
                 name: file.originalname,

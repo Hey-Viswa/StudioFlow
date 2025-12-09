@@ -173,10 +173,11 @@ export const addComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${projectId}`).emit('comment:added', {
-        projectId,
-        comment: commentObj
-      });
+      const payload = { projectId, comment: commentObj };
+      // New room pattern
+      io.to(`project:${projectId}`).emit('comment:added', payload);
+      // Legacy room pattern
+      io.to(`project-${projectId}`).emit('comment:added', payload);
     }
 
     // Notify project members

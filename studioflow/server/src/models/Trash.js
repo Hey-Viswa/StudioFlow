@@ -29,7 +29,7 @@ const trashSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['active', 'completed', 'on-hold', 'cancelled'],
+    enum: ['active', 'completed', 'on-hold', 'cancelled', 'archived', 'needs-revision', 'finalized'],
     default: 'active'
   },
   progress: {

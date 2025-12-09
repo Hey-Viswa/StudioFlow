@@ -1,7 +1,7 @@
 import Bull from 'bull';
 import nodemailer from 'nodemailer';
 import Notification from '../models/Notification.js';
-import { redisConfig, isRedisAvailable } from './redis.js';
+import { getRedisConfig, isRedisAvailable } from './redis.js';
 
 // Create queues
 let emailQueue;
@@ -9,8 +9,16 @@ let previewQueue;
 
 // Check if Redis is enabled AND available
 const isRedisConfigured = process.env.ENABLE_REDIS_QUEUE === 'true';
-// Use top-level await to check connectivity
+const redisConfig = getRedisConfig();
+// Use top-level await to check connectivity (fast ping)
 const isRedisUp = isRedisConfigured ? await isRedisAvailable() : false;
+
+// Surface a clear boot-time log so operators know why queues are disabled
+if (!isRedisConfigured) {
+  console.log('ℹ️ Redis queues disabled: set ENABLE_REDIS_QUEUE=true and REDIS_URL to enable.');
+} else if (!isRedisUp) {
+  console.warn('⚠️ Redis configured but unreachable (ping failed). Falling back to mock queues.');
+}
 
 const isQueueEnabled = isRedisUp;
 
@@ -59,11 +67,7 @@ if (isQueueEnabled) {
     });
   }
 } else {
-  if (isRedisConfigured) {
-    console.warn('⚠️ Redis configured but unreachable. Falling back to Mock Queues.');
-  } else {
-    console.log('⚠️ Redis Queue DISABLED. Using Mock Queues.');
-  }
+  // Already logged why queues are disabled above
 
   const mockQueue = {
     process: () => { },

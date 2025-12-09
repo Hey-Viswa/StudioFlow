@@ -90,8 +90,28 @@ if (process.env.FRONTEND_URL) {
     allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
+// Explicit custom domains
+allowedOrigins.push('https://www.studioflow.studio');
+allowedOrigins.push('https://studioflow.studio');
+
 // Explicitly add the known Vercel deployment URL
 allowedOrigins.push('https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app');
+
+// Ensure credentialed requests always get the right CORS headers (App Service sometimes strips them)
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 app.use(cors({
     origin: (origin, callback) => {

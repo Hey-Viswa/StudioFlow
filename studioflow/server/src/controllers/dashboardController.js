@@ -192,6 +192,7 @@ export const getRecentFiles = async (req, res) => {
       let url = null;
       let previewUrl = null;
 
+      // Priority 1: Use storageKey if available (S3/R2)
       if (file.storageKey) {
         try {
           // Generate signed URL for access (valid for 1 hour)
@@ -201,15 +202,21 @@ export const getRecentFiles = async (req, res) => {
             contentType: file.mimeType,
             ttl: 3600,
           });
-
-          // Use the same URL for preview if it's an image or video
-          if (file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
-            previewUrl = url;
-          }
         } catch (err) {
           console.warn(`Failed to generate signed URL for file ${file._id}:`, err.message);
         }
       }
+      
+      // Priority 2: Use stored URL (Local uploads or external links)
+      if (!url && file.url) {
+        url = file.url;
+      }
+
+      // Generate preview URL
+      if (url && file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
+        previewUrl = url;
+      }
+
       return { ...file, url, previewUrl };
     }));
 
@@ -313,8 +320,8 @@ export const getChartData = async (req, res) => {
     // Invoice status distribution
     const invoiceStatusData = [
       { status: 'draft', count: invoices.filter(i => i.status === 'draft').length },
-      { status: 'sent', count: invoices.filter(i => i.status === 'pending').length }, // Map pending to sent
-      { status: 'paid', count: invoices.filter(i => i.status === 'paid').length },
+      { status: 'sent', count: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length }, // Map pending/sent to sent
+      { status: 'paid', count: invoices.filter(i => i.status === 'paid' || i.status === 'partially_paid').length },
       { status: 'overdue', count: invoices.filter(i => i.status === 'overdue' || (i.status === 'pending' && i.dueDate && new Date(i.dueDate) < new Date())).length },
       { status: 'cancelled', count: invoices.filter(i => i.status === 'cancelled').length },
       { status: 'failed', count: invoices.filter(i => i.status === 'failed').length }
@@ -377,7 +384,8 @@ function generateRevenueData(invoices, granularity) {
   }
 
   invoices.forEach(invoice => {
-    if (invoice.status !== 'paid') return;
+    // Include paid and partially_paid
+    if (invoice.status !== 'paid' && invoice.status !== 'partially_paid') return;
 
     const date = new Date(invoice.paidAt || invoice.updatedAt || invoice.createdAt);
     let key;
@@ -394,7 +402,9 @@ function generateRevenueData(invoices, granularity) {
     }
 
     if (dataMap.has(key)) {
-      dataMap.set(key, dataMap.get(key) + (invoice.total || 0));
+      // Use amountPaid if available, otherwise total (for fully paid)
+      const amount = invoice.amountPaid > 0 ? invoice.amountPaid : (invoice.total || 0);
+      dataMap.set(key, dataMap.get(key) + amount);
     }
   });
 

@@ -106,6 +106,15 @@ export const initializeSocket = async (httpServer) => {
     pingTimeout: 60000   // 60s timeout before closing
   });
 
+  // Ensure credentialed requests see the right CORS headers during the socket handshake
+  io.engine.on('headers', (headers, req) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
+  });
+
   realtimeService = new RealtimeService(io);
 
   // Authentication Middleware
