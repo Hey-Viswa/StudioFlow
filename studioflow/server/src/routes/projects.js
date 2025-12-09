@@ -2,6 +2,7 @@ import express from 'express';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import { cacheMiddleware } from '../middlewares/cache.js';
 import { checkResourceLimit } from '../middlewares/entitlementMiddleware.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 import {
   createProject,
   listProjects,
@@ -39,6 +40,9 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(verifyClerk);
+
+// Apply rate limiting to all project routes
+router.use(rateLimiter);
 
 // Project CRUD with caching on GET requests
 router.post('/', checkResourceLimit('project'), createProject);       // Create project (with limit check)

@@ -3,7 +3,7 @@
 const envApiUrl = import.meta.env.VITE_API_URL;
 export const API_BASE_URL = (envApiUrl && envApiUrl.startsWith('http'))
   ? envApiUrl
-  : 'https://studioflow-production.up.railway.app/api';
+  : 'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net/api';
 
 // Helper to construct full API URLs
 export const getApiUrl = (endpoint) => {

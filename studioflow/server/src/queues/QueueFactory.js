@@ -1,6 +1,6 @@
 import Queue from 'bull';
 import Redis from 'ioredis';
-import { redisConfig } from '../config/redis.js';
+import { getRedisConfig } from '../config/redis.js';
 
 /**
  * Factory to create Bull queues with consistent Redis connections and error handling.
@@ -25,14 +25,19 @@ export const createQueue = (queueName, options = {}) => {
 
     // Custom client creator for Bull to handle ioredis connections robustly
     const createClient = (type) => {
-        const client = new Redis({
-            ...redisConfig,
-            // Bull requirements
-            maxRetriesPerRequest: null,
-            enableReadyCheck: false,
-            // Retry strategy including a slightly longer delay to prevent rapid loops
-            retryStrategy: (times) => Math.min(times * 200, 5000)
-        });
+        const baseConfig = getRedisConfig();
+        const client = typeof baseConfig === 'string'
+            ? new Redis(baseConfig, {
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+                retryStrategy: (times) => Math.min(times * 200, 5000)
+            })
+            : new Redis({
+                ...baseConfig,
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+                retryStrategy: (times) => Math.min(times * 200, 5000)
+            });
 
         // Simple throttle for error logging
         let lastErrorTime = 0;

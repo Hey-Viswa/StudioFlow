@@ -194,8 +194,8 @@ export default function TermsConditions() {
                   <h3 className="font-semibold">Available Plans</h3>
                   <ul className="space-y-3 text-muted-foreground ml-4">
                     <li><strong className="text-foreground">Starter Plan (Free):</strong> 5 projects, 1 team member per project, email support (48h response)</li>
-                    <li><strong className="text-foreground">Pro Plan (₹100/month):</strong> 50 projects, 5 team members per project, real-time updates, priority support (24h response)</li>
-                    <li><strong className="text-foreground">Studio Plan (₹499/month):</strong> 100 projects, unlimited team members, all Pro features, advanced analytics, dedicated support (12h response)</li>
+                    <li><strong className="text-foreground">Pro Plan (₹1/month):</strong> 50 projects, 5 team members per project, real-time updates, priority support (24h response)</li>
+                    <li><strong className="text-foreground">Studio Plan (₹2/month):</strong> 100 projects, unlimited team members, all Pro features, advanced analytics, dedicated support (12h response)</li>
                   </ul>
                 </div>
 

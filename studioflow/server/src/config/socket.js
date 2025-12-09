@@ -37,9 +37,24 @@ export const initializeSocket = async (httpServer) => {
 
     // Dedicated Subscriber for Application Events (KPIs, etc)
     const appSubscriber = pubClient.duplicate();
-    await appSubscriber.connect();
+    // Note: ioredis connects automatically by default. 
+    // Calling connect() manually on an auto-connecting client causes "Redis is already connecting" error.
+    
+    // Wait for connection before subscribing to avoid race conditions
+    appSubscriber.on('ready', async () => {
+      try {
+        await appSubscriber.subscribe('kpi:updates', (err, count) => {
+          if (err) console.error('❌ Failed to subscribe to kpi:updates:', err);
+          else console.log(`🎧 Listening to kpi:updates on Redis (count: ${count})`);
+        });
+      } catch (subErr) {
+        console.error('❌ Subscription error:', subErr);
+      }
+    });
 
-    await appSubscriber.subscribe('kpi:updates', (message) => {
+    appSubscriber.on('message', (channel, message) => {
+      if (channel !== 'kpi:updates') return;
+      
       try {
         const data = JSON.parse(message);
         console.log('📡 Received KPI Update via Redis:', data.invoiceId);
@@ -76,25 +91,42 @@ export const initializeSocket = async (httpServer) => {
         console.error('❌ Error processing KPI redis message:', err);
       }
     });
-    console.log('🎧 Listening to kpi:updates on Redis');
 
   } else {
     console.warn('⚠️ Redis unreachable. Falling back to Memory Adapter for Socket.IO.');
   }
 
+  const allowedOrigins = new Set([
+    process.env.CLIENT_URL,
+    process.env.FRONTEND_URL,
+    'https://www.studioflow.studio',
+    'https://studioflow.studio',
+    'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net',
+    'https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app',
+    'http://localhost:3002',
+    'http://localhost:5173'
+  ].filter(Boolean));
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || [
-        'http://localhost:3002',
-        'http://localhost:5173',
-        'https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app'
-      ],
+      origin: Array.from(allowedOrigins),
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
     },
     transports: ['websocket', 'polling'],
     ...adapterConfig,
-    pingInterval: 20000, // 20s heartbeat interval
+    pingInterval: 25000, // 25s heartbeat interval
     pingTimeout: 60000   // 60s timeout before closing
+  });
+
+  // Ensure credentialed requests see the right CORS headers during the socket handshake
+  io.engine.on('headers', (headers, req) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      headers['Access-Control-Allow-Origin'] = origin;
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
   });
 
   realtimeService = new RealtimeService(io);
@@ -222,6 +254,9 @@ const joinProjectRooms = (socket, projectId) => {
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.join(`project:${projectId}:${ch}`));
 
+  // Join the main project room (new format)
+  socket.join(`project:${projectId}`);
+
   // Legacy room support (existing controllers use project-${id})
   socket.join(`project-${projectId}`);
 
@@ -234,6 +269,9 @@ const leaveProjectRooms = (socket, projectId) => {
 
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.leave(`project:${projectId}:${ch}`));
+
+  // Leave main project room
+  socket.leave(`project:${projectId}`);
 
   // Legacy room support (existing controllers use project-${id})
   socket.leave(`project-${projectId}`);

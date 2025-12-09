@@ -77,10 +77,11 @@ export default async function verifyClerk(req, res, next) {
             console.log('Verifying Clerk token...');
         }
 
-        // Verify the token using Clerk's verifyToken function
-        // This automatically fetches JWKS and verifies the signature
+        // Verify the token using Clerk's verifyToken function with small clock skew tolerance
+        // to avoid false negatives when server/client clocks drift by a few seconds.
         const payload = await verifyToken(sessionToken, {
             secretKey: secretKey,
+            clockSkewInMs: 60000, // allow up to 60s skew
             // Optional: Add audience if configured in Clerk
             // audience: process.env.CLERK_JWT_AUDIENCE
         });
@@ -158,6 +159,12 @@ export default async function verifyClerk(req, res, next) {
         if (process.env.NODE_ENV !== 'production') {
             console.error('Full error:', err);
         }
+
+        // Provide more specific error messaging for expired tokens
+        if (err?.reason === 'token-expired') {
+            return res.status(401).json({ error: 'Token expired. Please sign in again.' });
+        }
+
         return res.status(401).json({ error: 'Invalid token' });
     }
 }

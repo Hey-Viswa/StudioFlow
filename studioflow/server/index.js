@@ -42,6 +42,7 @@ import { runInvoiceStatusJobs } from './src/jobs/invoiceStatusUpdater.js';
 import { startVersionCleanupJob } from './src/jobs/VersionCleanupJob.js';
 import { initSentry } from './src/config/sentry.js';
 import * as Sentry from '@sentry/node';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +62,9 @@ process.on('unhandledRejection', (err) => {
 
 const app = express();
 const httpServer = createServer(app);
+
+// Trust Proxy for Azure/Vercel/Heroku (Required for correct IP rate limiting)
+app.set('trust proxy', 1);
 
 // Initialize Sentry
 initSentry(app);
@@ -90,8 +94,28 @@ if (process.env.FRONTEND_URL) {
     allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
+// Explicit custom domains
+allowedOrigins.push('https://www.studioflow.studio');
+allowedOrigins.push('https://studioflow.studio');
+
 // Explicitly add the known Vercel deployment URL
 allowedOrigins.push('https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app');
+
+// Ensure credentialed requests always get the right CORS headers (App Service sometimes strips them)
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -123,7 +147,34 @@ app.use(cors({
     },
     credentials: true
 }));
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
+
+// Rate Limiter Middleware (20 req/sec per IP)
+const rateLimiter = new RateLimiterMemory({
+  points: 20, 
+  duration: 1,
+});
+
+app.use((req, res, next) => {
+  // Skip rate limiting for health checks, static files, and webhooks
+  if (req.path.startsWith('/api/health') || 
+      req.path.startsWith('/uploads') || 
+      req.path.includes('webhook')) {
+      return next();
+  }
+  
+  rateLimiter.consume(req.ip)
+    .then(() => {
+      next();
+    })
+    .catch(() => {
+      res.status(429).json({ error: 'Too Many Requests' });
+    });
+});
 
 // Readiness check (checks database connectivity)
 app.get('/api/ready', async (req, res) => {

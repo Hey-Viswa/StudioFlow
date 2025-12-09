@@ -184,6 +184,16 @@ export const restoreProject = async (req, res) => {
 
     console.log('✅ Project restored successfully:', restoredProject._id);
 
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('project-created', {
+        projectId: restoredProject._id,
+        ownerId: restoredProject.ownerId
+      });
+      console.log('📡 Socket.IO: Emitted project-created event (restore) globally');
+    }
+
     res.json({
       message: 'Project restored successfully',
       project: restoredProject

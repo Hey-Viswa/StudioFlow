@@ -21,8 +21,8 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_ID !== 'your-razorpa
 
 // Plan prices in INR (paise - 1 INR = 100 paise)
 const PLAN_PRICES = {
-    pro: 1000, // ₹10/month
-    studio: 2500, // ₹25/month
+    pro: 100, // ₹1/month
+    studio: 200, // ₹2/month
 };
 
 // Create Razorpay order
@@ -343,7 +343,7 @@ export const handleRazorpayWebhook = async (req, res) => {
         // Verify webhook signature
         const expectedSignature = crypto
             .createHmac('sha256', webhookSecret)
-            .update(JSON.stringify(req.body))
+            .update(req.rawBody || JSON.stringify(req.body))
             .digest('hex');
 
         if (webhookSignature !== expectedSignature) {
@@ -567,7 +567,7 @@ const handlePaymentCaptured = async (payload) => {
             if (paymentThread.invoiceId) {
                 console.log(`💰 Auto-updating invoice ${paymentThread.invoiceId} to PAID status`);
                 const updatedInvoice = await ProjectInvoice.findByIdAndUpdate(
-                    paymentThread.invoiceId, 
+                    paymentThread.invoiceId,
                     {
                         status: 'paid',
                         paidAt: new Date(),
@@ -576,7 +576,7 @@ const handlePaymentCaptured = async (payload) => {
                     },
                     { new: true }
                 );
-                
+
                 if (updatedInvoice) {
                     console.log(`✅ Invoice ${updatedInvoice.invoiceNumber} successfully marked as PAID`);
                     console.log(`   Amount: ${updatedInvoice.amount} ${updatedInvoice.currency}`);

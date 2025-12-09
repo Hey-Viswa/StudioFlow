@@ -146,8 +146,8 @@ export default function BillingDetails({ subscription, onCancel, onReactivate, l
 
   const SUBSCRIPTION_PLANS = {
     free: { id: 'free', name: 'Starter', price: 0 },
-    pro: { id: 'pro', name: 'Pro', price: 100 },
-    studio: { id: 'studio', name: 'Studio', price: 499 }
+    pro: { id: 'pro', name: 'Pro', price: 1 },
+    studio: { id: 'studio', name: 'Studio', price: 2 }
   };
 
   if (!subscription) {

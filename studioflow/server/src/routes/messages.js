@@ -6,12 +6,16 @@ import {
   deleteMessage,
   addReaction
 } from '../controllers/messageController.js';
-import { verifyClerkJWKS } from '../middlewares/verifyClerkJWKS.js';
+import verifyClerk from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(verifyClerkJWKS);
+router.use(verifyClerk);
+
+// Apply rate limiting
+router.use(rateLimiter);
 
 // Message CRUD
 router.get('/:projectId/messages', getMessages);

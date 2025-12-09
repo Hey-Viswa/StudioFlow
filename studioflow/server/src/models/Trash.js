@@ -21,14 +21,15 @@ const trashSchema = new mongoose.Schema({
     name: String,
     role: {
       type: String,
-      enum: ['owner', 'admin', 'member', 'client'],
+      // Align with ProjectMember roles; keep admin/member for legacy snapshots
+      enum: ['owner', 'team_member', 'client', 'admin', 'member'],
       default: 'client'
     },
     joinedAt: Date
   }],
   status: {
     type: String,
-    enum: ['active', 'completed', 'on-hold', 'cancelled'],
+    enum: ['active', 'completed', 'on-hold', 'cancelled', 'archived', 'needs-revision', 'finalized'],
     default: 'active'
   },
   progress: {

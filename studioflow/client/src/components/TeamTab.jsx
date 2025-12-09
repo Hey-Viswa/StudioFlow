@@ -22,6 +22,16 @@ import {
     SelectValue,
 } from './ui/select';
 import { Separator } from './ui/separator';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from './ui/alert-dialog';
 
 export default function TeamTab({
     project,
@@ -35,6 +45,7 @@ export default function TeamTab({
     setCopied
 }) {
     const [inviteRole, setInviteRole] = useState('client');
+    const [memberToRemove, setMemberToRemove] = useState(null);
 
     const copyToClipboard = () => {
         if (inviteLink) {
@@ -165,7 +176,7 @@ export default function TeamTab({
                                         variant="ghost"
                                         size="icon"
                                         className="text-muted-foreground hover:text-destructive"
-                                        onClick={() => onRemoveMember(member.userId)}
+                                        onClick={() => setMemberToRemove(member.userId)}
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -181,6 +192,29 @@ export default function TeamTab({
                     </div>
                 </CardContent>
             </Card>
-        </div>
+
+            <AlertDialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove Team Member?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to remove this member from the project? They will lose access to all project data.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                onRemoveMember(memberToRemove);
+                                setMemberToRemove(null);
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Remove
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div >
     );
 }

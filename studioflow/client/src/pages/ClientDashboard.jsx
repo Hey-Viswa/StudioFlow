@@ -20,6 +20,7 @@ import { ProjectCard } from '../components/ProjectCard'
 import { FilesStrip } from '../components/FilesStrip'
 import { DashboardGraphs } from '../components/DashboardGraphs'
 import { useProjects, useProjectMetrics } from '../hooks/useProjects'
+import { useSocket } from '../hooks/useSocket'
 import { DashboardSkeleton } from '../components/DashboardSkeleton'
 import {
   Search,
@@ -37,6 +38,7 @@ import { format } from 'date-fns'
 export default function ClientDashboard() {
   const navigate = useNavigate()
   const { getToken } = useAuth()
+  const socket = useSocket()
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -117,6 +119,38 @@ export default function ClientDashboard() {
   useEffect(() => {
     fetchDashboardData()
   }, []) // Empty dependency array - only run once
+
+  // Real-time updates
+  useEffect(() => {
+    if (!socket) return
+
+    const handleRefresh = () => {
+      console.log('🔄 Real-time update received, refreshing dashboard...')
+      fetchDashboardData()
+      refetchProjects()
+    }
+
+    // Listen for relevant events
+    socket.on('project-created', handleRefresh)
+    socket.on('project-updated', handleRefresh)
+    socket.on('project-deleted', handleRefresh)
+    socket.on('invoice-created', handleRefresh)
+    socket.on('invoice-updated', handleRefresh)
+    socket.on('invoice-paid', handleRefresh)
+    socket.on('file-uploaded', handleRefresh)
+    socket.on('file-deleted', handleRefresh)
+
+    return () => {
+      socket.off('project-created', handleRefresh)
+      socket.off('project-updated', handleRefresh)
+      socket.off('project-deleted', handleRefresh)
+      socket.off('invoice-created', handleRefresh)
+      socket.off('invoice-updated', handleRefresh)
+      socket.off('invoice-paid', handleRefresh)
+      socket.off('file-uploaded', handleRefresh)
+      socket.off('file-deleted', handleRefresh)
+    }
+  }, [socket, fetchDashboardData, refetchProjects])
 
   const handleRequestRevision = (projectId) => {
     const project = projects.find(p => p._id === projectId)

@@ -7,11 +7,14 @@ import {
     handleRazorpayWebhook
 } from '../controllers/paymentController.js';
 import { verifyClerkToken } from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
 
 // Razorpay webhook - no auth required (verified via signature)
 router.post('/razorpay-webhook', express.raw({ type: 'application/json' }), handleRazorpayWebhook);
+
+router.use(rateLimiter);
 
 // All other payment routes require authentication
 router.post('/create-order', verifyClerkToken, createOrder);

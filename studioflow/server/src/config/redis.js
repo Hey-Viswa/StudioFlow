@@ -1,12 +1,13 @@
 import Redis from 'ioredis';
 
-// Basic configuration from environment variables
-export const redisConfig = process.env.REDIS_URL
+// Resolve config at call time to honor env loaded later (e.g., scripts that load dotenv after imports)
+export const getRedisConfig = () => process.env.REDIS_URL
     ? process.env.REDIS_URL
     : {
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
         password: process.env.REDIS_PASSWORD || undefined,
+        tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
         retryStrategy: (times) => Math.min(times * 50, 2000),
     };
 
@@ -18,7 +19,7 @@ export const getRedisClient = () => {
     if (!redisClient) {
         console.log('🔌 Initializing Redis Client...');
         // Standard ioredis constructor handles string or object
-        redisClient = new Redis(redisConfig);
+        redisClient = new Redis(getRedisConfig());
 
         redisClient.on('connect', () => {
             console.log('✅ Redis Connected');
@@ -36,6 +37,7 @@ export const getRedisClient = () => {
 
 // Factory for creating new instances
 export const createRedisClient = () => {
+    const redisConfig = getRedisConfig();
     const options = {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
@@ -73,20 +75,31 @@ export const createRedisClient = () => {
 };
 
 export const isRedisAvailable = async () => {
+    const redisConfig = getRedisConfig();
     // Create a temporary client with no retries to fail fast
-    const tempClient = new Redis({
-        ...redisConfig,
+    const baseOptions = {
         maxRetriesPerRequest: 0,
         retryStrategy: null,
         connectTimeout: 2000,
         lazyConnect: true
-    });
+    };
+
+    // Handle string vs object config correctly (spreading a string breaks host/port)
+    const tempClient = typeof redisConfig === 'string'
+        ? new Redis(redisConfig, baseOptions)
+        : new Redis({
+            ...redisConfig,
+            ...baseOptions
+        });
 
     // Suppress error events (like ECONNREFUSED) to prevent runtime noise
     tempClient.on('error', () => { });
 
     try {
-        await tempClient.connect();
+        // Check if already connected or connecting to avoid "Redis is already connecting" error
+        if (tempClient.status === 'wait' || tempClient.status === 'close') {
+            await tempClient.connect();
+        }
         await tempClient.ping();
         await tempClient.quit();
         return true;

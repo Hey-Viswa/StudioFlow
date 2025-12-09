@@ -400,6 +400,7 @@ export const generateProjectInvoice = async (req, res) => {
           projectId: project._id.toString(),
           recipients: [clientInfo.userId],
           type: 'invoice-generated',
+          actorId: userId,
           title: '📄 New Invoice',
           message: `Invoice ${invoice.invoiceNumber} for ₹${invoice.total.toFixed(2)} has been generated for ${project.title}`,
           link: `/dashboard/invoices`,
@@ -1325,6 +1326,7 @@ export const verifyProjectInvoicePayment = async (req, res) => {
         projectId: invoice.projectId?.toString() || 'general',
         recipients: [invoice.userId],
         type: 'payment-received',
+        actorId: req.userId,
         title: '💰 Payment Received',
         message: `Payment of ₹${invoice.total.toFixed(2)} received for Invoice ${invoice.invoiceNumber}`,
         link: `/dashboard/invoices`,
@@ -1421,7 +1423,7 @@ export const handleProjectInvoiceWebhook = async (req, res) => {
 
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody || JSON.stringify(req.body))
       .digest('hex');
 
     if (signature !== expectedSignature) {
