@@ -509,6 +509,12 @@ export const getProjectInvoices = async (req, res) => {
           invoice.isOverdue = true;
         }
       }
+
+      // Fix PDF URL in production
+      if (process.env.NODE_ENV === 'production' && invoice.pdfUrl && invoice.pdfUrl.includes('localhost:5000')) {
+        invoice.pdfUrl = invoice.pdfUrl.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio');
+      }
+
       return invoice;
     });
 
@@ -552,6 +558,11 @@ export const getProjectInvoiceDetails = async (req, res) => {
       if (dueDate < now) {
         invoiceObj.isOverdue = true;
       }
+    }
+
+    // Fix PDF URL in production
+    if (process.env.NODE_ENV === 'production' && invoiceObj.pdfUrl && invoiceObj.pdfUrl.includes('localhost:5000')) {
+      invoiceObj.pdfUrl = invoiceObj.pdfUrl.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio');
     }
 
     res.json({
