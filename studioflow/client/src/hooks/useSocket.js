@@ -16,13 +16,14 @@ export function useSocket() {
 
     // Initialize socket connection
     const newSocket = io(socketUrl, {
-      // Prefer polling first to avoid websocket setup delays/timeouts on some hosts
-      transports: ['polling', 'websocket'],
+      // Force WebSocket to avoid Azure App Service polling/sticky session issues
+      transports: ['websocket'],
       withCredentials: true,
-      timeout: 10000,
+      timeout: 20000,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      path: '/socket.io/'
     });
 
     newSocket.on('connect', () => {
