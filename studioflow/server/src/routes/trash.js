@@ -1,5 +1,6 @@
 import express from 'express';
 import { verifyClerkJWKS } from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 import {
   getTrashedProjects,
   restoreProject,
@@ -17,6 +18,7 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(verifyClerkJWKS);
+router.use(rateLimiter);
 
 // Get all trash items (projects + invoices combined)
 router.get('/all', getAllTrashItems);

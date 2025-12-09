@@ -9,11 +9,15 @@ import {
   registerDeviceToken
 } from '../controllers/notificationController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(verifyClerk);
+
+// Apply rate limiting
+router.use(rateLimiter);
 
 // GET /api/notifications - Get notifications for authenticated user
 router.get('/', getNotifications);

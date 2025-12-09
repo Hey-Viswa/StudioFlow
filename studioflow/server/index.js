@@ -42,6 +42,7 @@ import { runInvoiceStatusJobs } from './src/jobs/invoiceStatusUpdater.js';
 import { startVersionCleanupJob } from './src/jobs/VersionCleanupJob.js';
 import { initSentry } from './src/config/sentry.js';
 import * as Sentry from '@sentry/node';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +62,9 @@ process.on('unhandledRejection', (err) => {
 
 const app = express();
 const httpServer = createServer(app);
+
+// Trust Proxy for Azure/Vercel/Heroku (Required for correct IP rate limiting)
+app.set('trust proxy', 1);
 
 // Initialize Sentry
 initSentry(app);
@@ -148,6 +152,29 @@ app.use(express.json({
         req.rawBody = buf;
     }
 }));
+
+// Rate Limiter Middleware (20 req/sec per IP)
+const rateLimiter = new RateLimiterMemory({
+  points: 20, 
+  duration: 1,
+});
+
+app.use((req, res, next) => {
+  // Skip rate limiting for health checks, static files, and webhooks
+  if (req.path.startsWith('/api/health') || 
+      req.path.startsWith('/uploads') || 
+      req.path.includes('webhook')) {
+      return next();
+  }
+  
+  rateLimiter.consume(req.ip)
+    .then(() => {
+      next();
+    })
+    .catch(() => {
+      res.status(429).json({ error: 'Too Many Requests' });
+    });
+});
 
 // Readiness check (checks database connectivity)
 app.get('/api/ready', async (req, res) => {

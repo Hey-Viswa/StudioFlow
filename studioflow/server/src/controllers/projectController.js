@@ -246,17 +246,32 @@ export const listProjects = async (req, res) => {
       .lean() // Return plain objects for better performance
       .sort({ createdAt: -1 }); // Most recent first
 
+    const displayedProjectIds = projects.map(p => p._id);
+
     // Create a map of projectId -> userRole for easy lookup
     const roleMap = new Map(memberships.map(m => [m.projectId.toString(), m.role]));
+
+    // BATCH FETCH: Get all members for all projects at once
+    const allProjectMembers = await ProjectMember.find({
+      projectId: { $in: displayedProjectIds },
+      status: { $ne: 'inactive' }
+    }).lean();
+
+    // Group members by projectId
+    const membersByProject = new Map();
+    allProjectMembers.forEach(m => {
+      const pid = m.projectId.toString();
+      if (!membersByProject.has(pid)) membersByProject.set(pid, []);
+      membersByProject.get(pid).push(m);
+    });
 
     // OPTIMIZATION: Collect all unique user IDs first to batch fetch from Clerk
     const allUserIds = new Set();
     projects.forEach(project => {
       allUserIds.add(project.ownerId);
-      // Safely check members if it exists
-      if (project.members && Array.isArray(project.members)) {
-        project.members.forEach(m => allUserIds.add(m.userId));
-      }
+    });
+    allProjectMembers.forEach(m => {
+      allUserIds.add(m.userId);
     });
 
     // BATCH FETCH: Get all users at once instead of one by one
@@ -284,9 +299,6 @@ export const listProjects = async (req, res) => {
         }
       }));
     }
-
-    // Get counts for invoices, files, and comments for all projects at once
-    const displayedProjectIds = projects.map(p => p._id);
 
     // Batch fetch counts
     const [invoiceCounts, fileCounts] = await Promise.all([
@@ -317,7 +329,7 @@ export const listProjects = async (req, res) => {
     );
 
     // Enhance projects with cached user data (NO MORE API CALLS)
-    const enhancedProjects = await Promise.all(projects.map(async (project) => {
+    const enhancedProjects = projects.map((project) => {
       // Determine if this is user's own project or shared project
       const isOwner = String(project.ownerId) === String(userId);
 
@@ -325,41 +337,19 @@ export const listProjects = async (req, res) => {
       const ownerData = userCache.get(project.ownerId) || { name: 'Unknown' };
       const ownerName = ownerData.name;
 
-      // Fetch actual members from ProjectMember collection
-      const projectMembers = await ProjectMember.find({
-        projectId: project._id,
-        status: { $ne: 'inactive' }
-      }).lean();
+      // Get members from memory map
+      const projectMembers = membersByProject.get(project._id.toString()) || [];
 
       // Enhance members with cached data
-      const enhancedMembers = await Promise.all(projectMembers.map(async (member) => {
-        // We might need to fetch this user if not in our initial batch
-        let memberData = userCache.get(member.userId);
-
-        if (!memberData) {
-          try {
-            const user = await clerkClient.users.getUser(member.userId);
-            const displayName = user.firstName && user.lastName
-              ? `${user.firstName} ${user.lastName}`
-              : user.username || user.emailAddresses?.[0]?.emailAddress || 'Unknown';
-            memberData = {
-              name: displayName,
-              email: user.emailAddresses?.[0]?.emailAddress,
-              avatar: user.imageUrl
-            };
-            userCache.set(member.userId, memberData);
-          } catch (e) {
-            memberData = { name: 'Unknown', email: '', avatar: null };
-          }
-        }
-
+      const enhancedMembers = projectMembers.map((member) => {
+        const memberData = userCache.get(member.userId) || { name: 'Unknown', email: '', avatar: null };
         return {
           ...member,
           name: memberData.name,
           email: memberData.email || member.email,
           avatar: memberData.avatar
         };
-      }));
+      });
 
       // Calculate user's role
       let userRole = null;
@@ -392,7 +382,7 @@ export const listProjects = async (req, res) => {
         filesCount,
         commentsCount
       };
-    }));
+    });
 
     // Categorize projects
     const myProjects = enhancedProjects.filter(p => !p.isShared);
@@ -1219,6 +1209,16 @@ export const deleteProject = async (req, res) => {
       }
     }
     console.log('✅ Cache cleared and notifications sent');
+
+    // Emit Socket.IO event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('project-deleted', {
+        projectId: id,
+        ownerId: project.ownerId
+      });
+      console.log('📡 Socket.IO: Emitted project-deleted event globally');
+    }
 
     res.json({
       message: 'Project moved to trash. Will be permanently deleted after 30 days.',

@@ -37,9 +37,24 @@ export const initializeSocket = async (httpServer) => {
 
     // Dedicated Subscriber for Application Events (KPIs, etc)
     const appSubscriber = pubClient.duplicate();
-    await appSubscriber.connect();
+    // Note: ioredis connects automatically by default. 
+    // Calling connect() manually on an auto-connecting client causes "Redis is already connecting" error.
+    
+    // Wait for connection before subscribing to avoid race conditions
+    appSubscriber.on('ready', async () => {
+      try {
+        await appSubscriber.subscribe('kpi:updates', (err, count) => {
+          if (err) console.error('❌ Failed to subscribe to kpi:updates:', err);
+          else console.log(`🎧 Listening to kpi:updates on Redis (count: ${count})`);
+        });
+      } catch (subErr) {
+        console.error('❌ Subscription error:', subErr);
+      }
+    });
 
-    await appSubscriber.subscribe('kpi:updates', (message) => {
+    appSubscriber.on('message', (channel, message) => {
+      if (channel !== 'kpi:updates') return;
+      
       try {
         const data = JSON.parse(message);
         console.log('📡 Received KPI Update via Redis:', data.invoiceId);
@@ -76,7 +91,6 @@ export const initializeSocket = async (httpServer) => {
         console.error('❌ Error processing KPI redis message:', err);
       }
     });
-    console.log('🎧 Listening to kpi:updates on Redis');
 
   } else {
     console.warn('⚠️ Redis unreachable. Falling back to Memory Adapter for Socket.IO.');
@@ -102,7 +116,7 @@ export const initializeSocket = async (httpServer) => {
     },
     transports: ['websocket', 'polling'],
     ...adapterConfig,
-    pingInterval: 20000, // 20s heartbeat interval
+    pingInterval: 25000, // 25s heartbeat interval
     pingTimeout: 60000   // 60s timeout before closing
   });
 
@@ -240,6 +254,9 @@ const joinProjectRooms = (socket, projectId) => {
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.join(`project:${projectId}:${ch}`));
 
+  // Join the main project room (new format)
+  socket.join(`project:${projectId}`);
+
   // Legacy room support (existing controllers use project-${id})
   socket.join(`project-${projectId}`);
 
@@ -252,6 +269,9 @@ const leaveProjectRooms = (socket, projectId) => {
 
   const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
   channels.forEach(ch => socket.leave(`project:${projectId}:${ch}`));
+
+  // Leave main project room
+  socket.leave(`project:${projectId}`);
 
   // Legacy room support (existing controllers use project-${id})
   socket.leave(`project-${projectId}`);

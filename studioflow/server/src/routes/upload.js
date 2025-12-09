@@ -3,11 +3,15 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Apply rate limiting
+router.use(rateLimiter);
 
 // Configure storage
 const storage = multer.diskStorage({
@@ -41,10 +45,29 @@ router.post('/', upload.array('files', 5), (req, res) => {
             // Derive base URL from request (supports proxies) with env override fallback
             const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
             const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toString().split(',')[0].trim();
-            const base = process.env.API_URL || `${proto}://${host}`;
+            
+            let base = process.env.API_URL;
+            
+            // Fallback logic if API_URL is not set
+            if (!base) {
+                if (process.env.NODE_ENV === 'production') {
+                    // FORCE production domain if in production, ignoring localhost/internal IPs
+                    base = 'https://www.studioflow.studio';
+                } else {
+                    base = `${proto}://${host}`;
+                }
+            }
+            
+            // CRITICAL FIX: If we are in production and the base is localhost, force the production domain
+            // This handles cases where API_URL might be set to localhost in production env
+            if (process.env.NODE_ENV === 'production' && base.includes('localhost')) {
+                 base = 'https://www.studioflow.studio';
+            }
 
             // Construct URL pointing to static file
-            const url = `${base}/uploads/${file.filename}`;
+            // Ensure we don't double slash and strip /api if present (since uploads are at root /uploads)
+            const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
+            const url = `${cleanBase}/uploads/${file.filename}`;
 
             return {
                 name: file.originalname,

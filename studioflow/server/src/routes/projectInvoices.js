@@ -18,10 +18,14 @@ import {
   checkOverdueInvoices
 } from '../controllers/projectInvoiceController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 import { requireAdmin, requireOwner } from '../middlewares/checkRole.js';
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(rateLimiter);
 
 // Get all invoices for current user
 router.get('/invoices', verifyClerk, getAllUserInvoices);

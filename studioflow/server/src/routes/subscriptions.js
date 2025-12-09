@@ -16,9 +16,15 @@ import {
   getInvoicePdf
 } from '../controllers/subscriptionController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 import User from '../models/User.js';
 
 const router = express.Router();
+
+// Webhook route (no auth required, but signature verified)
+router.post('/webhook', express.json({ verify: (req, res, buf) => { req.rawBody = buf } }), handleWebhook);
+
+router.use(rateLimiter);
 
 // Debug endpoint to manually check subscription status
 router.get('/debug/:userId', async (req, res) => {
@@ -85,7 +91,6 @@ router.post('/change-plan', verifyClerk, changePlan);
 router.post('/verify-status', verifyClerk, verifySubscriptionStatus);
 router.post('/auto-renew', verifyClerk, toggleAutoRenew);
 
-// Webhook route (no auth required, but signature verified)
-router.post('/webhook', express.json({ verify: (req, res, buf) => { req.rawBody = buf } }), handleWebhook);
+
 
 export default router;

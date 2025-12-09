@@ -1,11 +1,15 @@
 import express from 'express';
 import Invoice from '../models/Invoice.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 import { getInvoicePDFPath, invoicePDFExists, generateInvoicePDF } from '../utils/pdfGenerator.js';
 import User from '../models/User.js';
 import fs from 'fs';
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(rateLimiter);
 
 // @desc    Get all invoices for current user
 // @route   GET /api/invoices

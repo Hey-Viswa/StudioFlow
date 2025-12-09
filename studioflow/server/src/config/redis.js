@@ -96,7 +96,10 @@ export const isRedisAvailable = async () => {
     tempClient.on('error', () => { });
 
     try {
-        await tempClient.connect();
+        // Check if already connected or connecting to avoid "Redis is already connecting" error
+        if (tempClient.status === 'wait' || tempClient.status === 'close') {
+            await tempClient.connect();
+        }
         await tempClient.ping();
         await tempClient.quit();
         return true;

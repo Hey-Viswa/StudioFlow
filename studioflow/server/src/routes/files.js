@@ -19,11 +19,14 @@ import {
 } from '../controllers/fileSharing.js';
 
 import { checkProjectEntitlement } from '../middlewares/entitlementMiddleware.js';
+import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router({ mergeParams: true }); // mergeParams to access :id from parent
 
 // All routes require authentication
 router.use(verifyClerk);
+
+router.use(rateLimiter);
 
 // File upload flow
 router.post('/sign', signUpload);           // Generate signed upload URL

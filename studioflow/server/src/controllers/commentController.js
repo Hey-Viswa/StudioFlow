@@ -178,6 +178,7 @@ export const addComment = async (req, res) => {
       io.to(`project:${projectId}`).emit('comment:added', payload);
       // Legacy room pattern
       io.to(`project-${projectId}`).emit('comment:added', payload);
+      console.log(`📡 Socket.IO: Emitted comment:added to project:${projectId}`);
     }
 
     // Notify project members
@@ -259,10 +260,10 @@ export const updateComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${projectId}`).emit('comment:updated', {
-        projectId,
-        comment: commentObj
-      });
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated to project:${projectId}`);
     }
 
     res.status(200).json({ comment: commentObj });
@@ -332,10 +333,10 @@ export const deleteComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${projectId}`).emit('comment:deleted', {
-        projectId,
-        commentId
-      });
+      const payload = { projectId, commentId };
+      io.to(`project:${projectId}`).emit('comment:deleted', payload);
+      io.to(`project-${projectId}`).emit('comment:deleted', payload);
+      console.log(`📡 Socket.IO: Emitted comment:deleted to project:${projectId}`);
     }
 
     res.status(200).json({ success: true });
@@ -401,10 +402,10 @@ export const reactToComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${projectId}`).emit('comment:updated', {
-        projectId,
-        comment: commentObj
-      });
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated (reaction) to project:${projectId}`);
     }
 
     // Log audit event
@@ -475,10 +476,10 @@ export const resolveComment = async (req, res) => {
     // Emit real-time update
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${projectId}`).emit('comment:updated', {
-        projectId,
-        comment: commentObj
-      });
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated (resolve) to project:${projectId}`);
     }
 
     res.status(200).json({ comment: commentObj });

@@ -109,15 +109,17 @@ export const createNotification = async ({
 
     if (io) {
       const roomName = `user:${userId}`;
+      
+      // ALWAYS emit real-time notification (Redis adapter handles cross-node delivery)
+      io.to(roomName).emit('notification:new', notification);
+      console.log(`⚡ Real-time notification emitted to user ${userId}`);
+
+      // Check local presence for fallback logic (Note: In multi-node, this might be false negative)
       const room = io.sockets.adapter.rooms.get(roomName);
       isUserOnline = room && room.size > 0;
-
-      if (isUserOnline) {
-        // User is online - Send Real-time Notification
-        io.to(roomName).emit('notification:new', notification);
-        console.log(`⚡ Real-time notification sent to online user ${userId}`);
-      } else {
-        console.log(`zzz User ${userId} is offline. Proceeding to fallback channels.`);
+      
+      if (!isUserOnline) {
+        console.log(`zzz User ${userId} appears offline (locally). Proceeding to fallback channels.`);
       }
     }
 
