@@ -399,7 +399,7 @@ export const getProjectFiles = async (req, res) => {
 
       let previewUrl = null;
       // Generate preview URL for images and videos
-      if (file.storageKey && file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
+      if (file.storageKey && file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/') || file.mimeType === 'application/pdf')) {
         try {
           // Generate a signed URL valid for 1 hour
           previewUrl = await storageAdapter.getSignedDownloadUrl(

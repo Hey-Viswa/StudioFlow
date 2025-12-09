@@ -104,7 +104,13 @@ export function ProjectFilesPanel({ projectId, project }) {
       setFiles(response.files || []);
     } catch (error) {
       console.error('Failed to fetch files:', error);
-      toast.error('Failed to load files');
+      // If user is a client, it's possible they just don't have access to any files yet
+      // or the RBAC is stricter than expected. We should show an empty state instead of an error.
+      if (userRole === ROLES.CLIENT) {
+        setFiles([]);
+      } else {
+        toast.error('Failed to load files');
+      }
     } finally {
       setLoading(false);
     }

@@ -365,8 +365,8 @@ export const getNotifications = async (userId, options = {}) => {
     type = null
   } = options;
 
-  const query = { userId };
-  if (unreadOnly) query.read = false;
+  const query = { recipientId: userId };
+  if (unreadOnly) query.isRead = false;
   if (category) query.category = category;
   if (type) query.type = type;
 
@@ -377,7 +377,7 @@ export const getNotifications = async (userId, options = {}) => {
     .lean();
 
   const total = await Notification.countDocuments(query);
-  const unreadCount = await Notification.countDocuments({ userId, read: false });
+  const unreadCount = await Notification.countDocuments({ recipientId: userId, isRead: false });
 
   return {
     notifications,
@@ -393,8 +393,8 @@ export const getNotifications = async (userId, options = {}) => {
  */
 export const markAsRead = async (userId, notificationId) => {
   const notification = await Notification.findOneAndUpdate(
-    { _id: notificationId, userId },
-    { read: true, readAt: new Date() },
+    { _id: notificationId, recipientId: userId },
+    { isRead: true, readAt: new Date() },
     { new: true }
   );
 
@@ -414,8 +414,8 @@ export const markAsRead = async (userId, notificationId) => {
  */
 export const markAllAsRead = async (userId) => {
   const result = await Notification.updateMany(
-    { userId, read: false },
-    { read: true, readAt: new Date() }
+    { recipientId: userId, isRead: false },
+    { isRead: true, readAt: new Date() }
   );
 
   // Emit realtime update
@@ -433,7 +433,7 @@ export const markAllAsRead = async (userId) => {
 export const deleteNotification = async (userId, notificationId) => {
   const notification = await Notification.findOneAndDelete({
     _id: notificationId,
-    userId
+    recipientId: userId
   });
 
   if (notification) {
@@ -451,7 +451,7 @@ export const deleteNotification = async (userId, notificationId) => {
  * Get unread count
  */
 export const getUnreadCount = async (userId) => {
-  return await Notification.countDocuments({ userId, read: false });
+  return await Notification.countDocuments({ recipientId: userId, isRead: false });
 };
 
 /**
@@ -462,7 +462,7 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
   cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
   const result = await Notification.deleteMany({
-    read: true,
+    isRead: true,
     readAt: { $lt: cutoffDate }
   });
 

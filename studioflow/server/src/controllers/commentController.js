@@ -60,11 +60,26 @@ export const getComments = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Convert reactions Map to object
-    const formattedComments = comments.map(comment => ({
-      ...comment,
-      reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
-    }));
+    // Convert reactions Map to object and fix attachment URLs
+    const formattedComments = comments.map(comment => {
+      // Fix attachment URLs in production (replace localhost with production domain)
+      if (process.env.NODE_ENV === 'production' && comment.attachments && comment.attachments.length > 0) {
+        comment.attachments = comment.attachments.map(att => {
+          if (att.url && att.url.includes('localhost:5000')) {
+            return {
+              ...att,
+              url: att.url.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio')
+            };
+          }
+          return att;
+        });
+      }
+
+      return {
+        ...comment,
+        reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
+      };
+    });
 
     // Log audit event
     await logAudit({

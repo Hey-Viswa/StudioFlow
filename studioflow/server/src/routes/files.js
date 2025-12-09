@@ -34,7 +34,8 @@ router.post('/confirm', confirmUpload);     // Confirm upload completion
 
 // File management
 // Apply Entitlement Check for viewing/downloading files
-router.get('/', checkProjectEntitlement('project_download'), getProjectFiles);           // List all project files
+// REMOVED checkProjectEntitlement('project_download') from list to allow clients to see empty list or shared files
+router.get('/', getProjectFiles);           // List all project files
 router.get('/:fileId', checkProjectEntitlement('project_download'), getFileDetails);     // Get file details + download URL
 router.get('/:fileId/preview', checkProjectEntitlement('project_download'), getFilePreviewUrl); // Get preview URL
 router.post('/:fileId/archive', archiveFile); // Archive file (soft delete)

@@ -11,7 +11,9 @@ import { format } from 'date-fns';
 import { formatFileSize } from '@/lib/api/files';
 import { formatINR } from '@/utils/currency';
 import useRazorpay from '@/hooks/useRazorpay';
-import api from '@/lib/api';
+import { useProjectSocket } from '@/hooks/useSocket';
+
+// ... existing code ...
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -29,6 +31,19 @@ export default function SharedFilePage() {
   const [error, setError] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+
+  // Real-time updates
+  useProjectSocket(fileData?.file?.projectId, {
+    onFileUpdated: (updatedFile) => {
+      // If the currently viewed file is updated (e.g. unlocked), refresh data
+      if (updatedFile.fileId === fileData?.file?.fileId) {
+        console.log('🔄 File updated via socket, refreshing...');
+        fetchSharedFile();
+      }
+    },
+    // Listen for generic project updates if needed, but file update is most relevant
+  });
+
   const formatAmount = (amount, currency) => {
     if (amount == null) return '';
     if (currency === 'INR') return formatINR(amount);
