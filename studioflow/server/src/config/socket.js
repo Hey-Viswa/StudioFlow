@@ -84,9 +84,17 @@ export const initializeSocket = async (httpServer) => {
 
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || [
+      // Explicitly list production and preview origins to ensure credentials header is emitted
+      origin: process.env.CLIENT_URL ? [
+        process.env.CLIENT_URL,
+        'https://www.studioflow.studio',
+        'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net',
+        'https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app'
+      ] : [
         'http://localhost:3002',
         'http://localhost:5173',
+        'https://www.studioflow.studio',
+        'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net',
         'https://studio-flow-grzwmv1ez-hey-viswas-projects.vercel.app'
       ],
       credentials: true
