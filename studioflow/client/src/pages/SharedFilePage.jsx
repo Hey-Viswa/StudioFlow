@@ -51,22 +51,33 @@ export default function SharedFilePage() {
     return `${safe} ${currency || ''}`.trim();
   };
 
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
   useEffect(() => {
     if (shareToken) {
       fetchSharedFile();
     }
   }, [shareToken]);
 
-  const fetchSharedFile = async () => {
+  const fetchSharedFile = async (password = null) => {
     try {
       setLoading(true);
       setError(null);
+      setPasswordError(false);
       const token = await getToken();
 
+      const headers = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+
+      if (password) {
+        headers['x-share-password'] = password;
+      }
+
       const response = await fetch(`${API_BASE}/projects/files/shared/${shareToken}`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
+        headers
       });
 
       let data = null;
@@ -81,6 +92,17 @@ export default function SharedFilePage() {
         throw new Error(data?.error || 'Failed to load shared file');
       }
 
+      if (data?.passwordRequired) {
+        setPasswordRequired(true);
+        if (password) {
+          setPasswordError(true); // If we sent a password and still got required, it was wrong
+        }
+        setFileData(data); // Store partial data (filename)
+        setLoading(false);
+        return;
+      }
+
+      setPasswordRequired(false);
       setFileData(data);
     } catch (error) {
       console.error('Failed to fetch shared file:', error);
@@ -178,6 +200,13 @@ export default function SharedFilePage() {
     }
   };
 
+
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    fetchSharedFile(passwordInput);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -185,6 +214,44 @@ export default function SharedFilePage() {
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-4" />
           <p className="text-muted-foreground">Loading shared file...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (passwordRequired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <Card className="max-w-md w-full shadow-lg">
+          <CardHeader>
+            <div className="flex items-center gap-3 mb-2 justify-center">
+              <Lock className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle className="text-center">Password Protected</CardTitle>
+            <CardDescription className="text-center">
+              This file is password protected. Please enter the password to view it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Enter password"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  autoFocus
+                />
+                {passwordError && (
+                  <p className="text-sm text-destructive font-medium">Incorrect password, please try again.</p>
+                )}
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Unlock File'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     );
   }

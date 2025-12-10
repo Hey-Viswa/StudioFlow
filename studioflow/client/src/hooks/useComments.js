@@ -136,9 +136,19 @@ export function useComments(projectId) {
       const result = await response.json()
 
       // Replace optimistic with real
-      setComments(prev => prev.map(c =>
-        c._id === optimisticComment._id ? { ...result.comment, replies: [] } : c
-      ))
+      setComments(prev => {
+        // Check if the real comment was already added via socket
+        const alreadyExists = prev.some(c => c._id === result.comment._id);
+
+        if (alreadyExists) {
+          // Just remove the optimistic one
+          return prev.filter(c => c._id !== optimisticComment._id);
+        }
+
+        return prev.map(c =>
+          c._id === optimisticComment._id ? { ...result.comment, replies: [] } : c
+        )
+      })
 
       return result.comment
     } catch (err) {

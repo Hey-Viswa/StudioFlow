@@ -407,7 +407,14 @@ export default function TasksTab({ projectId, project, userRole: propUserRole })
               <div className="flex-1 w-full space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <h4 className="font-medium text-base leading-none">{task.title}</h4>
+                    <h4 className="font-medium text-base leading-none flex items-center gap-2">
+                      {task.title}
+                      {task.tags?.includes('revision') && (
+                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-purple-200 text-purple-700 bg-purple-50">
+                          Revision
+                        </Badge>
+                      )}
+                    </h4>
                     {task.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
                     )}

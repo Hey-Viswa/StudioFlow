@@ -155,25 +155,25 @@ app.use(express.json({
 
 // Rate Limiter Middleware (20 req/sec per IP)
 const rateLimiter = new RateLimiterMemory({
-  points: 20, 
-  duration: 1,
+    points: 20,
+    duration: 1,
 });
 
 app.use((req, res, next) => {
-  // Skip rate limiting for health checks, static files, and webhooks
-  if (req.path.startsWith('/api/health') || 
-      req.path.startsWith('/uploads') || 
-      req.path.includes('webhook')) {
-      return next();
-  }
-  
-  rateLimiter.consume(req.ip)
-    .then(() => {
-      next();
-    })
-    .catch(() => {
-      res.status(429).json({ error: 'Too Many Requests' });
-    });
+    // Skip rate limiting for health checks, static files, and webhooks
+    if (req.path.startsWith('/api/health') ||
+        req.path.startsWith('/uploads') ||
+        req.path.includes('webhook')) {
+        return next();
+    }
+
+    rateLimiter.consume(req.ip)
+        .then(() => {
+            next();
+        })
+        .catch(() => {
+            res.status(429).json({ error: 'Too Many Requests' });
+        });
 });
 
 // Readiness check (checks database connectivity)
@@ -240,7 +240,7 @@ app.get('/api/test-auth', async (req, res) => {
 });
 
 app.use('/api/protected', protectedRoute);
-app.get('/api/projects/files/shared/:shareToken', verifyClerk, getSharedFile); // Shared file access
+app.get('/api/projects/files/shared/:shareToken', getSharedFile); // Public shared file access (no verifyClerk)
 app.use('/api/dashboard', dashboardRoutes); // Dashboard analytics routes
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects/:id/files', fileRoutes); // File management routes

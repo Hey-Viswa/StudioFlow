@@ -15,12 +15,16 @@ import {
   permanentlyDeleteProject,
   getProjectMetrics,
   getProjectUsage,
-  removeMember,
+  removeMember
+} from '../controllers/projectController.js';
+import {
   getProjectTasks,
   createTask,
   updateTask,
-  deleteTask
-} from '../controllers/projectController.js';
+  deleteTask,
+  requestReview,
+  submitReview
+} from '../controllers/taskController.js';
 import {
   getComments,
   addComment,
@@ -74,6 +78,10 @@ router.get('/:id/tasks', getProjectTasks);
 router.post('/:id/tasks', createTask);
 router.put('/:id/tasks/:taskId', updateTask);
 router.delete('/:id/tasks/:taskId', deleteTask);
+
+// Approval Workflow Routes
+router.post('/:id/tasks/:taskId/review', requestReview);        // Request Review
+router.post('/:id/tasks/:taskId/submit-review', submitReview);  // Approve or Request Changes
 
 // Comment endpoints (enhanced with threading, reactions, mentions)
 router.get('/:id/comments', getComments);                 // Get all comments for project

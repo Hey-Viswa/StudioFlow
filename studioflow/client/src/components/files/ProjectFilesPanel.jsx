@@ -29,8 +29,10 @@ import { FileUploadDropzone } from './FileUploadDropzone';
 import { ShareFileDialog } from './ShareFileDialog';
 import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
 import { toast } from 'sonner';
-import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users } from 'lucide-react';
+import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import useRazorpay from '@/hooks/useRazorpay';
+import api from '@/lib/api';
 
 /**
  * ProjectFilesPanel Component
@@ -39,6 +41,7 @@ import { cn } from '@/lib/utils';
 export function ProjectFilesPanel({ projectId, project }) {
   const { getToken } = useAuth();
   const { user } = useUser();
+  const { displayRazorpay } = useRazorpay();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -46,6 +49,7 @@ export function ProjectFilesPanel({ projectId, project }) {
   const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, fileIds: [], filename: '' });
   const [manageDialog, setManageDialog] = useState({ open: false, file: null });
   const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [processingPayment, setProcessingPayment] = useState(null); // invoiceId being paid
 
   // Get user's role in the project
   const rawRole = project?.userRole || ROLES.CLIENT;
@@ -277,6 +281,87 @@ export function ProjectFilesPanel({ projectId, project }) {
     return true;
   });
 
+  const handlePayment = async (invoiceId, invoiceNumber) => {
+    if (!invoiceId) return;
+
+    setProcessingPayment(invoiceId);
+    try {
+      // 1. Create Order
+      const orderResponse = await api.post(`/invoices/project/${invoiceId}/pay`, {});
+
+      // 2. Open Razorpay
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderResponse.amount,
+        currency: orderResponse.currency,
+        name: 'StudioFlow',
+        description: `Payment for Invoice #${invoiceNumber}`,
+        order_id: orderResponse.orderId,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment
+            await api.post(`/invoices/project/${invoiceId}/verify`, {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
+            toast.success('Payment successful! File unlocked.');
+            // Refresh files to update status
+            fetchFiles();
+          } catch (err) {
+            console.error('Verification error:', err);
+            toast.error('Payment verification failed');
+          }
+        },
+        prefill: {
+          name: user?.fullName || '',
+          email: user?.primaryEmailAddress?.emailAddress || '',
+        },
+        theme: {
+          color: '#2563eb',
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      console.error('Payment initiation failed:', error);
+      toast.error(error.message || 'Failed to initiate payment');
+    } finally {
+      setProcessingPayment(null);
+    }
+  };
+
+  const handleApproval = async (file, status, comment = '') => {
+    try {
+      // We need a task ID to approve. 
+      // Current logic assumes specific tasks are linked to files.
+      // BUT, we might want to approve the FILE itself directly, which then updates the task?
+      // For now, let's assume we are approving the file status on the file itself, 
+      // and we need a backend endpoint to handle "File Approval" which updates tasks.
+
+      // Actually, based on the plan, we should be using the Task Controller's submitReview if a task exists.
+      // But looking at the UI, we are on the File Panel. 
+      // Let's implement a direct file approval endpoint in fileController or just update the file status?
+      // The robust way: Create/Find a review task for this file and update it.
+      // SIMPLER WAY FOR MVP: Update File `approvalStatus` directly via new endpoint, 
+      // and have the backend find the linked task to update.
+
+      await api.post(`/projects/${projectId}/files/${file.fileId}/approval`, {
+        status,
+        comment
+      });
+
+      toast.success(status === 'approved' ? 'File Approved' : 'Changes Requested');
+      fetchFiles();
+    } catch (error) {
+      console.error('Approval failed:', error);
+      toast.error('Failed to update approval status');
+    }
+  };
+
   const allSelected = filteredFiles.length > 0 && Array.from(selectedFiles).length >= filteredFiles.length;
 
   return (
@@ -360,6 +445,9 @@ export function ProjectFilesPanel({ projectId, project }) {
                       canDeleteFiles={isOwner}
                       isSelected={selectedFiles.has(file.fileId)}
                       onSelect={() => toggleSelection(file.fileId)}
+                      onPay={handlePayment}
+                      onApprove={handleApproval}
+                      processingPayment={processingPayment}
                     />
                   ))}
                 </div>
@@ -420,13 +508,16 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
   const isPreviewable = file.mimeType.startsWith('image/') ||
     file.mimeType.startsWith('video/') ||
     file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
   const isShared = file.sharedWith && file.sharedWith.length > 0;
-  const canDownload = canDownloadFile(file, userId, userRole);
+  // If gatedInvoice exists and is NOT paid, it is considered locked for the client
+  const isLocked = userRole === ROLES.CLIENT && !file.canDownload && file.gatedInvoice && file.gatedInvoice.status !== 'paid';
+
+  const canDownload = canDownloadFile(file, userId, userRole) && !isLocked;
   const canView = canViewFile(file, userId, userRole);
 
   const canPreviewAction = !isArchived && isPreviewable && canView;
@@ -435,10 +526,18 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
   const canManageShareAction = !isArchived && canManageFiles && isShared;
   const canDeleteAction = !isArchived && canDeleteFiles;
   const canRestoreAction = isArchived && canManageFiles;
-  const hasAnyAction = canPreviewAction || canDownloadAction || canShareAction || canManageShareAction || canDeleteAction || canRestoreAction;
+  const canPayAction = isLocked && onPay;
+
+  // Prioritize Pay action if locked
+  const hasAnyAction = canPreviewAction || canDownloadAction || canShareAction || canManageShareAction || canDeleteAction || canRestoreAction || canPayAction;
+
+  // Approval Logic
+  const canApprove = userRole === ROLES.CLIENT || userRole === ROLES.OWNER; // Owners can also self-approve or override
+  const approvalStatus = file.approvalStatus || 'draft';
+  const isPendingReview = approvalStatus === 'pending_review';
 
   return (
-    <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
+    <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30", isPendingReview && "border-amber-400 bg-amber-50/30")}>
       <div className="flex items-center gap-4">
         {/* Checkbox for owner */}
         {canManageFiles && !isArchived && (
@@ -446,7 +545,14 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
         )}
 
         {/* Icon or Thumbnail */}
-        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-muted rounded overflow-hidden">
+        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-muted rounded overflow-hidden relative">
+          {/* Approval Badge Overlay */}
+          {approvalStatus === 'approved' && (
+            <div className="absolute top-0 right-0 p-0.5 bg-green-500 rounded-bl-md z-10">
+              <div className="w-2 h-2 rounded-full bg-white" />
+            </div>
+          )}
+
           {file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
             file.mimeType.startsWith('video/') ? (
               <video src={file.previewUrl} className="w-full h-full object-cover" />
@@ -462,17 +568,17 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-medium truncate">{file.filename}</p>
-            {isArchived && (
-              <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Deleted</span>
-            )}
-            {isShared && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1">
-                <Share2 className="w-3 h-3" />
-                Shared
-              </span>
-            )}
+            {/* Status Badges */}
+            {isArchived && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Deleted</span>}
+            {isShared && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1"><Share2 className="w-3 h-3" /> Shared</span>}
+
+            {/* Approval Status Badge */}
+            {approvalStatus === 'pending_review' && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">In Review</span>}
+            {approvalStatus === 'changes_requested' && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-medium">Changes Requested</span>}
+            {approvalStatus === 'approved' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Approved</span>}
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+
+          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
             <span>{formatFileSize(file.size)}</span>
             {file.version > 1 && (
               <span className="inline-flex items-center gap-1">
@@ -483,83 +589,111 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
             <span>
               {new Date(file.createdAt).toLocaleDateString()}
             </span>
+
+            {/* PAY BUTTON */}
+            {isLocked && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 ml-2"
+                disabled={processingPayment === file.gatedInvoice._id}
+                onClick={() => onPay(file.gatedInvoice._id, file.gatedInvoice.invoiceNumber)}
+              >
+                {processingPayment === file.gatedInvoice._id ? <span className="animate-spin mr-1">⌛</span> : <CreditCard className="w-3 h-3 mr-1" />}
+                Pay {file.gatedInvoice.currency} {file.gatedInvoice.total} to Unlock
+              </Button>
+            )}
+
+            {/* APPROVE BUTTONS (Client Only, Pending Review) */}
+            {canApprove && approvalStatus === 'pending_review' && !isArchived && (
+              <div className="flex items-center gap-2 ml-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs border-green-500 text-green-600 hover:bg-green-50" onClick={() => onApprove(file, 'approved')}>
+                  Approve
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-orange-500 text-orange-600 hover:bg-orange-50" onClick={() => onApprove(file, 'changes_requested')}>
+                  Request Changes
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Actions */}
-        {hasAnyAction && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {!isArchived ? (
-                <>
-                  {/* Preview - Available if file type supports it and user can view */}
-                  {canPreviewAction && (
-                    <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      Preview
-                    </DropdownMenuItem>
-                  )}
-
-                  {/* Download - Only if explicitly allowed */}
-                  {canDownloadAction && (
-                    <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                  )}
-
-                  {/* Share/manage - owners and teammates */}
-                  {canShareAction && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Share with Client
-                      </DropdownMenuItem>
-                      {canManageShareAction && (
-                        <DropdownMenuItem onClick={() => onManageSharing(file)}>
-                          <Users className="w-4 h-4 mr-2" />
-                          Manage Sharing
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-
-                  {/* Delete - owner only */}
-                  {canDeleteAction && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => onDelete(file.fileId, file.filename)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Restore - owner + teammates */}
-                  {canRestoreAction && (
-                    <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
-                      <ArchiveRestore className="w-4 h-4 mr-2" />
-                      Restore
-                    </DropdownMenuItem>
-                  )}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
-    </Card>
+
+      {/* Actions */}
+      {hasAnyAction && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="ml-auto">
+              <MoreVertical className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {!isArchived ? (
+              <>
+                {/* Preview - Available if file type supports it and user can view */}
+                {canPreviewAction && (
+                  <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </DropdownMenuItem>
+                )}
+
+                {/* Download - Only if explicitly allowed */}
+                {canDownloadAction && (
+                  <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </DropdownMenuItem>
+                )}
+
+                {/* Share/manage - owners and teammates */}
+                {canShareAction && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share with Client
+                    </DropdownMenuItem>
+                    {canManageShareAction && (
+                      <DropdownMenuItem onClick={() => onManageSharing(file)}>
+                        <Users className="w-4 h-4 mr-2" />
+                        Manage Sharing
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
+
+                {/* Delete - owner only */}
+                {canDeleteAction && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onDelete(file.fileId, file.filename)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Restore - owner + teammates */}
+                {canRestoreAction && (
+                  <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
+                    <ArchiveRestore className="w-4 h-4 mr-2" />
+                    Restore
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+
+    </Card >
   );
 }
 

@@ -101,46 +101,11 @@ const ProjectSchema = new mongoose.Schema({
       default: 0
     }
   },
-  tasks: [{
-    title: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    description: {
-      type: String,
-      default: ''
-    },
-    assignedTo: {
-      userId: String,
-      name: String,
-      email: String
-    },
-    status: {
-      type: String,
-      enum: ['pending', 'in-progress', 'completed'],
-      default: 'pending'
-    },
-    dueDate: {
-      type: Date
-    },
-    googleCalendarEventId: {
-      type: String,
-      default: null
-    },
-    createdBy: {
-      userId: String,
-      name: String
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    },
-    completedAt: {
-      type: Date,
-      default: null
-    }
-  }],
+  // Tasks are now in a separate collection.
+  // Access via Project.aggregate or Task.find({ projectId })
+
+  // Legacy support or cache (optional - clearing it for migration)
+  // tasks: [] - REMOVED
   // Comments moved to global 'Comment' collection
   deletedAt: {
     type: Date,
@@ -193,21 +158,28 @@ ProjectSchema.methods.isOwner = function (userId) {
   return String(this.ownerId) === String(userId);
 };
 
+import Task from './Task.js';
+
 // Auto-calculate progress based on task completion
-ProjectSchema.methods.calculateProgress = function () {
-  if (!this.tasks || this.tasks.length === 0) {
+ProjectSchema.methods.calculateProgress = async function () {
+  const totalTasks = await Task.countDocuments({ projectId: this._id, deletedAt: null });
+
+  if (totalTasks === 0) {
     return 0;
   }
 
-  const completedTasks = this.tasks.filter(task => task.status === 'completed').length;
-  const totalTasks = this.tasks.length;
+  const completedTasks = await Task.countDocuments({
+    projectId: this._id,
+    status: 'completed',
+    deletedAt: null
+  });
 
   return Math.round((completedTasks / totalTasks) * 100);
 };
 
 // Auto-update project status based on progress
-ProjectSchema.methods.updateStatusBasedOnProgress = function () {
-  const progress = this.calculateProgress();
+ProjectSchema.methods.updateStatusBasedOnProgress = async function () {
+  const progress = await this.calculateProgress();
 
   // Don't change status if it's archived, needs revision, or finalized
   if (this.status === 'archived' || this.status === 'needs-revision' || this.status === 'finalized') {
@@ -234,12 +206,20 @@ ProjectSchema.methods.updateStatusBasedOnProgress = function () {
 };
 
 // Pre-save middleware to auto-calculate progress and update status
-ProjectSchema.pre('save', function (next) {
-  // Only auto-update if tasks exist
-  if (this.tasks && this.tasks.length > 0) {
-    this.updateStatusBasedOnProgress();
-  }
+ProjectSchema.pre('save', async function (next) {
+  // We cannot check this.tasks anymore in the same way.
+  // Instead, rely on manual triggers or explicit calls to updateStatusBasedOnProgress()
+  // when tasks are modified in Task controller.
+
+  // Only generic field updates here.
   next();
+});
+
+// Virtual for tasks
+ProjectSchema.virtual('tasks', {
+  ref: 'Task',
+  localField: '_id',
+  foreignField: 'projectId'
 });
 
 export default mongoose.model('Project', ProjectSchema);

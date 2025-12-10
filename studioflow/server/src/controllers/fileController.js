@@ -283,6 +283,34 @@ export const confirmUpload = async (req, res) => {
           { isFinal: false },
           { session }
         );
+
+        // --- APPROVAL WORKFLOW AUTOMATION ---
+        // Find any pending revision tasks linked to this file (or its base)
+        const Task = await import('../models/Task.js').then(m => m.default);
+        const pendingRevisionTasks = await Task.find({
+          projectId,
+          linkedFileId: { $in: [fileRecord.baseFileId, fileRecord._id] }, // Check linkage
+          status: { $in: ['todo', 'in-progress', 'changes-requested'] },
+          deletedAt: null
+        });
+
+        if (pendingRevisionTasks.length > 0) {
+          console.log(`✅ [Auto] Found ${pendingRevisionTasks.length} pending revision tasks for file version update.`);
+          for (const task of pendingRevisionTasks) {
+            task.status = 'in-review'; // Move to Review
+            task.approvalStatus = 'pending'; // Reset approval
+            // Reset reviewers
+            if (task.reviewers && task.reviewers.length > 0) {
+              task.reviewers.forEach(r => {
+                r.status = 'pending';
+                r.reviewedAt = null;
+              });
+            }
+            // Add System Comment
+            // (Requires comment schema awareness, simplified for now: just update status)
+            await task.save({ session });
+          }
+        }
       }
 
       await session.commitTransaction();
@@ -755,5 +783,87 @@ export const getFilePreviewUrl = async (req, res) => {
   } catch (error) {
     console.error('❌ Error generating preview URL:', error);
     res.status(500).json({ error: 'Failed to generate preview URL', details: error.message });
+  }
+};
+
+/**
+ * @desc    Update file approval status (Approve / Request Changes)
+ * @route   POST /api/projects/:id/files/:fileId/approval
+ * @access  Protected (Client/Owner/Team)
+ */
+export const updateFileApprovalStatus = async (req, res) => {
+  try {
+    const { id: projectId, fileId } = req.params;
+    const { status, comment } = req.body; // 'approved', 'changes_requested'
+    const userId = req.userId;
+
+    // RBAC: Check project access
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) return res.status(403).json({ error: 'Access denied' });
+
+    // Clients/Owners can approve.
+    if (role !== ROLES.CLIENT && role !== ROLES.OWNER) {
+      return res.status(403).json({ error: 'Only clients or owners can approve files.' });
+    }
+
+    const file = await ProjectFile.findOne({ fileId, projectId });
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    // Update File Status
+    file.approvalStatus = status;
+    if (status === 'approved') {
+      file.lockedForApproval = true;
+    } else if (status === 'changes_requested') {
+      file.lockedForApproval = false;
+    }
+    await file.save();
+
+    console.log(`✅ File ${fileId} approval status updated to ${status} by ${userId}`);
+
+    // --- SYNC WITH TASKS ---
+    const Task = await import('../models/Task.js').then(m => m.default);
+
+    // Find a task that is 'in-review' and linked to this file
+    const linkedTask = await Task.findOne({
+      projectId,
+      linkedFileId: file._id,
+      status: { $in: ['in-review', 'changes-requested'] }
+    });
+
+    if (linkedTask) {
+      if (status === 'approved') {
+        linkedTask.status = 'approved';
+        linkedTask.approvalStatus = 'approved';
+        await linkedTask.save();
+      } else if (status === 'changes_requested') {
+        linkedTask.status = 'changes-requested';
+        linkedTask.approvalStatus = 'changes_requested';
+        await linkedTask.save();
+
+        // Create Revision Task
+        const User = await import('../models/User.js').then(m => m.default);
+        const reviewer = await User.findOne({ clerkUserId: userId }).select('firstName lastName email');
+        const reviewerName = reviewer ? (reviewer.firstName + ' ' + (reviewer.lastName || '')).trim() : 'Reviewer';
+
+        const revisionTask = await Task.create({
+          projectId: linkedTask.projectId,
+          title: `Revision: ${linkedTask.title}`,
+          description: `Changes Requested by ${reviewerName} on file "${file.filename}":\n\n${comment}`,
+          assigneeId: linkedTask.assigneeId,
+          assignedBy: userId,
+          revisionTriggeredBy: linkedTask._id,
+          linkedFileId: file._id,
+          status: 'todo',
+          priority: 'high',
+          tags: [...(linkedTask.tags || []), 'revision']
+        });
+        console.log(`♻️ [FileApproval] Auto-created Revision Task: ${revisionTask._id}`);
+      }
+    }
+
+    res.json({ success: true, file });
+  } catch (error) {
+    console.error('❌ Error updating approval:', error);
+    res.status(500).json({ error: 'Failed to update approval status', details: error.message });
   }
 };

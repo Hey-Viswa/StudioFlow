@@ -35,9 +35,12 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
   const [selectedClient, setSelectedClient] = useState('');
   const [allowDownload, setAllowDownload] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState(90);
-  const [shareUrl, setShareUrl] = useState(''); // Only used for single file
+  const [shareUrl, setShareUrl] = useState(''); // Restore missing state
   const [copied, setCopied] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [selectedInvoice, setSelectedInvoice] = useState('auto'); // 'auto', 'none', or ID
+  const [password, setPassword] = useState('');
 
   const isBulk = !!(fileIds && fileIds.length > 0);
   const targetFileIds = isBulk ? fileIds : (fileId ? [fileId] : []);
@@ -47,6 +50,12 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
       fetchProjectClients();
     }
   }, [open, projectId]);
+
+  useEffect(() => {
+    if (open && projectId && selectedClient) {
+      fetchClientInvoices();
+    }
+  }, [selectedClient, projectId, open]);
 
   const fetchProjectClients = async () => {
     try {
@@ -72,6 +81,23 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
     }
   };
 
+  const fetchClientInvoices = async () => {
+    try {
+      const token = await getToken();
+      // Fetch invoices for this specific client on this project
+      const response = await fetch(`${API_BASE}/projects/${projectId}/invoices?clientId=${selectedClient}&status=all`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Filter for valid gating candidates (unpaid)
+        setInvoices(data.invoices || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch invoices", error);
+    }
+  };
+
   const handleShare = async () => {
     if (!selectedClient) {
       toast.error('Please select a client');
@@ -81,6 +107,15 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
     try {
       setLoading(true);
       const token = await getToken();
+
+      const payload = {
+        clientId: selectedClient,
+        allowDownload,
+        expiresInDays,
+        password: password || undefined,
+        invoiceId: selectedInvoice === 'none' ? undefined : selectedInvoice
+      };
+
       if (isBulk) {
         const response = await fetch(`${API_BASE}/projects/${projectId}/files/bulk-share`, {
           method: 'POST',
@@ -88,36 +123,15 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            clientId: selectedClient,
-            fileIds: targetFileIds,
-            allowDownload,
-            expiresInDays,
-          }),
+          body: JSON.stringify({ ...payload, fileIds: targetFileIds }),
         });
 
         const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to share files');
-        }
+        if (!response.ok) throw new Error(result.error || 'Failed to share files');
 
-        const sharedCount = Array.isArray(result.shared) ? result.shared.length : 0;
-        const missingCount = Array.isArray(result.missing) ? result.missing.length : 0;
-        const missingSuffix = missingCount ? ` (${missingCount} missing)` : '';
-
-        const anyMissingInvoice = result.shared?.some(s => !s.invoiceAttached);
-
-        if (anyMissingInvoice && !allowDownload) {
-          toast.warning(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`, {
-            description: 'No open invoice found. Client has Preview access only.',
-            duration: 5000
-          });
-        } else {
-          toast.success(`Shared ${sharedCount} file${sharedCount === 1 ? '' : 's'}${missingSuffix}`);
-        }
-
+        toast.success(`Shared ${result.shared?.length || 0} files`);
         onShareComplete?.();
-        handleClose(); // Close immediately for bulk
+        handleClose();
       } else {
         const response = await fetch(`${API_BASE}/projects/${projectId}/files/${targetFileIds[0]}/share`, {
           method: 'POST',
@@ -125,29 +139,18 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            clientId: selectedClient,
-            allowDownload,
-            expiresInDays,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to share file');
-        }
+        if (!response.ok) throw new Error(result.error || 'Failed to share file');
 
         setShareUrl(result.shareUrl);
-
-        if (!result.invoiceAttached && !allowDownload) {
-          toast.warning('File shared with Preview Only access', {
-            description: 'No open invoice found for this client. Create an invoice to enable "Pay to Unlock".',
-            duration: 5000,
-          });
+        if (result.invoiceAttached) {
+          toast.success('File shared & Linked to Invoice');
         } else {
           toast.success('File shared successfully');
         }
-
         onShareComplete?.();
       }
     } catch (error) {
@@ -230,6 +233,35 @@ export function ShareFileDialog({ open, onOpenChange, projectId, fileId, fileIds
                 max="90"
                 value={expiresInDays}
                 onChange={(e) => setExpiresInDays(parseInt(e.target.value) || 7)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Link to Invoice (Pay to Unlock)</Label>
+              <Select value={selectedInvoice} onValueChange={setSelectedInvoice} disabled={!selectedClient}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Invoice gating" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">✨ Auto-detect (Latest Open)</SelectItem>
+                  <SelectItem value="none">No Gating (Always Allow)</SelectItem>
+                  {invoices.map(inv => (
+                    <SelectItem key={inv._id} value={inv._id}>
+                      {inv.invoiceNumber} ({inv.status}) - {inv.currency} {inv.total}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password Protection (Optional)</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Set a password to access"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 

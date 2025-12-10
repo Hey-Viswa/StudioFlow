@@ -734,30 +734,32 @@ export const removeMember = async (req, res) => {
 // @desc    Get project metrics for invoice autofill
 // @route   GET /api/projects/:id/metrics
 // @access  Protected (Project members)
+// @desc    Get project metrics for invoice autofill
+// @route   GET /api/projects/:id/metrics
+// @access  Protected (Project members)
 export const getProjectMetrics = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
 
     const project = await Project.findById(id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    // Check authorization via ProjectMember
+    // Check authorization
     const membership = await ProjectMember.findOne({
       projectId: id,
       userId: userId,
       status: 'active'
     });
+    if (!membership) return res.status(403).json({ error: 'Access denied' });
 
-    if (!membership) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const tasks = project.tasks || [];
-    const completedTasks = tasks.filter(task => task.status === 'completed');
+    // Fetch tasks from Task collection
+    const Task = (await import('../models/Task.js')).default;
+    const completedTasks = await Task.find({
+      projectId: id,
+      status: 'completed',
+      deletedAt: null
+    });
 
     // Attempt to derive metrics from previous invoices
     const latestInvoice = await ProjectInvoice.findOne({ projectId: id })
@@ -765,7 +767,8 @@ export const getProjectMetrics = async (req, res) => {
       .lean();
 
     const hoursFromTasks = completedTasks.reduce((sum, task) => {
-      const tracked = task?.metrics?.hoursWorked ?? task?.hoursWorked ?? task?.billableHours ?? 0;
+      // Assuming tasks have hours tracking fields (add to Task model if needed later)
+      const tracked = task?.metrics?.hoursWorked ?? task?.hoursWorked ?? 0;
       return sum + (tracked || 0);
     }, 0);
 
@@ -773,18 +776,16 @@ export const getProjectMetrics = async (req, res) => {
       ? latestInvoice.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
       : 0;
 
-    const hoursWorked = hoursFromTasks || derivedHours || completedTasks.length;
-    const billableHours = latestInvoice
-      ? latestInvoice.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
-      : hoursWorked;
+    const hoursWorked = hoursFromTasks || derivedHours || completedTasks.length; // Fallback to task count
 
+    // ... rest of logic remains similar
     const rateFromInvoice = latestInvoice && latestInvoice.items.length > 0
       ? latestInvoice.items[0].rate
       : 0;
 
     const metrics = {
       hoursWorked,
-      billableHours,
+      billableHours: hoursWorked, // Simplified default
       rate: project.billingRate || project.agreedPrice || rateFromInvoice || 0,
       expenses: project.expenses?.total || 0,
       completedTasks: completedTasks.length

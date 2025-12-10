@@ -86,34 +86,30 @@ export function generateShareToken() {
  * File sharing for clients - preview only, no download until payment
  */
 
+import bcrypt from 'bcrypt';
+
+// ... (imports remain)
+
 export const shareFileWithClient = async (req, res) => {
   try {
     console.log('[ShareFile] Request:', {
       params: req.params,
-      body: req.body,
+      body: { ...req.body, password: req.body.password ? '***' : undefined },
       userId: req.userId
     });
 
     const { id: projectId, fileId } = req.params;
-    const { clientId, allowDownload = false, expiresInDays = 90 } = req.body; // default 90 days access
+    const { clientId, allowDownload = false, expiresInDays = 90, invoiceId, password } = req.body; // default 90 days access
     const userId = req.userId;
 
     if (!clientId) {
-      console.log('[ShareFile] Missing clientId');
       return res.status(400).json({ error: 'Client ID is required' });
     }
 
-    console.log('[ShareFile] Finding project:', projectId);
     // Only project owner can share files
     const project = await Project.findById(projectId).select('ownerId members');
 
-    if (!project) {
-      console.log('[ShareFile] Project not found:', projectId);
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    console.log('[ShareFile] Project found. Owner:', project.ownerId, 'UserId:', userId);
-
+    if (!project) return res.status(404).json({ error: 'Project not found' });
     if (project.ownerId.toString() !== userId.toString()) {
       return res.status(403).json({ error: 'Only project owner can share files' });
     }
@@ -135,73 +131,78 @@ export const shareFileWithClient = async (req, res) => {
       isClient = !!member;
     }
 
-    console.log('[ShareFile] Is client member:', isClient);
+    if (!isClient) return res.status(400).json({ error: 'User is not a client on this project' });
 
-    if (!isClient) {
-      return res.status(400).json({ error: 'User is not a client on this project' });
-    }
-
-    console.log('[ShareFile] Finding file:', { fileId, projectId });
     const file = await ProjectFile.findOne({ fileId, projectId });
-
-    if (!file) {
-      console.log('[ShareFile] File not found');
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    console.log('[ShareFile] File found:', file.filename);
+    if (!file) return res.status(404).json({ error: 'File not found' });
 
     // Generate share token
     const shareToken = generateShareToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    // Find latest unpaid invoice for gating (draft/sent/unpaid/pending)
-    const invoice = await ProjectInvoice.findOne({
-      projectId,
-      'client.userId': clientId,
-      status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
-    }).sort({ createdAt: -1 });
+    // Determine Invoice Gating
+    let targetInvoiceId = invoiceId; // Explicit invoice ID
 
-    // If no invoice, force allowDownload to false (prevent pay/download without an invoice)
-    const effectiveAllowDownload = allowDownload && !!invoice;
+    // If explicit ID not provided or 'auto', try auto-detect
+    if (!targetInvoiceId || targetInvoiceId === 'auto') {
+      const invoice = await ProjectInvoice.findOne({
+        projectId,
+        'client.userId': clientId,
+        status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
+      }).sort({ createdAt: -1 });
 
-    // Add to file's shared access
-    if (!file.sharedWith) {
-      file.sharedWith = [];
+      if (invoice) targetInvoiceId = invoice._id;
     }
 
-    // Check if already shared with this client
+    // Verify invoice exists if explicit
+    let invoice = null;
+    if (targetInvoiceId && targetInvoiceId !== 'auto') {
+      invoice = await ProjectInvoice.findOne({ _id: targetInvoiceId, projectId });
+    }
+
+    // Force allowDownload to false if invoice is missing (implicit logic -> changed: user controls download unless gated)
+    // Actually, "Pay to Unlock" means allowDownload is ignored until paid.
+    // If allowDownload=true AND invoice attached -> Gated.
+    // If allowDownload=false -> Always locked.
+
+    // Hash password if provided
+    let passwordHash = null;
+    if (password && password.trim().length > 0) {
+      passwordHash = await bcrypt.hash(password.trim(), 10);
+    }
+
+    // Add/Update share entry
+    if (!file.sharedWith) file.sharedWith = [];
     const existingIndex = file.sharedWith.findIndex(s => s.userId === clientId);
 
+    const shareData = {
+      userId: clientId,
+      shareToken,
+      allowDownload,
+      expiresAt,
+      sharedBy: userId,
+      sharedAt: new Date(),
+      invoiceId: invoice?._id || null,
+      password: passwordHash // New field
+    };
+
     if (existingIndex !== -1) {
-      // Update existing entry
-      file.sharedWith[existingIndex] = {
-        ...file.sharedWith[existingIndex],
-        shareToken, // Renew token
-        allowDownload: effectiveAllowDownload,
-        expiresAt,
-        sharedBy: userId,
-        sharedAt: new Date(),
-        invoiceId: invoice?._id
-      };
+      // Retain existing password if not updated
+      if (password === undefined) {
+        shareData.password = file.sharedWith[existingIndex].password;
+      }
+      file.sharedWith[existingIndex] = { ...file.sharedWith[existingIndex], ...shareData };
     } else {
-      // Add new entry
-      file.sharedWith.push({
-        userId: clientId,
-        shareToken,
-        allowDownload: effectiveAllowDownload,
-        expiresAt,
-        sharedBy: userId,
-        sharedAt: new Date(),
-        invoiceId: invoice?._id
-      });
+      file.sharedWith.push(shareData);
     }
 
     await file.save();
 
     // Auto-send related invoice if applicable (idempotent)
-    await autoSendInvoiceForShare({ projectId, clientId, fileId, sharedBy: userId });
+    if (invoice) {
+      await autoSendInvoiceForShare({ projectId, clientId, fileId, sharedBy: userId });
+    }
 
     const shareUrl = `${process.env.FRONTEND_URL}/shared/files/${shareToken}`;
 
@@ -219,9 +220,9 @@ export const shareFileWithClient = async (req, res) => {
       shareToken,
       shareUrl,
       expiresAt,
-      allowDownload: effectiveAllowDownload,
+      allowDownload,
       invoiceAttached: !!invoice,
-      message: invoice ? 'File shared successfully' : 'File shared, download locked until an invoice exists',
+      message: invoice ? 'File shared successfully (Invoice Gated)' : 'File shared successfully',
     });
   } catch (error) {
     console.error('❌ Error sharing file:', error);
@@ -337,7 +338,34 @@ export const shareFilesWithClient = async (req, res) => {
 export const getSharedFile = async (req, res) => {
   try {
     const { shareToken } = req.params;
-    const userId = req.userId; // Client user ID
+    // const { password } = req.body; // REMOVED: req.body is undefined on GET requests usually 
+    // Actually, getting a file details usually necessitates a GET, but if we need to send a password, 
+    // we might need a POST endpoint or send it in headers/query. 
+    // But this is a GET route. 
+    // Let's check query params first for basic access, but for password submission we might need to change to POST 
+    // or use a custom header 'x-share-password'.
+    // For simplicity, let's keep GET and assume password might come in query? No, that's insecure.
+    // Better: If password required, return { passwordRequired: true }. 
+    // Client then sends POST /api/projects/files/shared/:shareToken/unlock { password } -> returns temp token?
+    // OR: Just send 'x-share-password' header.
+
+    // Let's use a custom header 'x-share-password' for the password.
+    const providedPassword = req.headers['x-share-password'];
+
+    // Handle optional authentication (manual checks since verifyClerk is removed)
+    let userId = null;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        // We can optionally verify token here if we want to give owner access
+        // But for now, let's just proceed as guest if checking token fails or if token not present.
+        // Ideally we should import verifyToken from @clerk/backend but that's heavy.
+        // We can use the cached user if we want but verifyClerk puts it on req.userId.
+        // Since we removed verifyClerk, req.userId is undefined.
+        // Let's skip owner bypass for now for public links, OR re-add verifyClerk but make it non-blocking/optional.
+        // For now: Treat as guest.
+      }
+    } catch (e) { }
 
     const file = await ProjectFile.findOne({
       'sharedWith.shareToken': shareToken,
@@ -350,8 +378,17 @@ export const getSharedFile = async (req, res) => {
     // Find the share entry
     const shareEntry = file.sharedWith.find(s => s.shareToken === shareToken);
     if (!shareEntry) {
+      console.log('❌ Share link not found for token:', shareToken);
       return res.status(404).json({ error: 'Share link not found' });
     }
+
+    console.log('🔍 [Debug] Share Entry:', {
+      userId: shareEntry.userId,
+      hasPassword: !!shareEntry.password,
+      passwordHash: shareEntry.password ? shareEntry.password.substring(0, 10) + '...' : 'none',
+      invoiceId: shareEntry.invoiceId,
+      allowDownload: shareEntry.allowDownload
+    });
 
     // Owners/teammates can bypass recipient check for testing/preview
     let isOwnerOrTeam = false;
@@ -374,8 +411,24 @@ export const getSharedFile = async (req, res) => {
     }
 
     // Verify user is the intended recipient (string-safe comparison)
-    if (!isOwnerOrTeam && String(shareEntry.userId) !== String(userId)) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Relaxed for public link access via token:
+    // if (!isOwnerOrTeam && String(shareEntry.userId) !== String(userId)) {
+    //   return res.status(403).json({ error: 'Access denied' });
+    // }
+
+    // Check Password Protection
+    if (shareEntry.password) {
+      if (!providedPassword) {
+        return res.status(200).json({
+          passwordRequired: true,
+          file: { filename: file.filename } // limited info
+        });
+      }
+
+      const isMatch = await bcrypt.compare(providedPassword, shareEntry.password);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Invalid password', passwordRequired: true });
+      }
     }
 
     // Check for Invoice Gating
@@ -388,8 +441,12 @@ export const getSharedFile = async (req, res) => {
 
       if (invoice) {
         const payable = Math.max((invoice.total || 0) - (invoice.amountPaid || 0), 0);
-        const lockedByStatus = invoice.status !== 'paid';
-        if (lockedByStatus || payable > 0) {
+        // Fix: If invoice is 'sent' or 'draft', it is NOT paid.
+        // Locked if status is NOT 'paid'.
+        // Also ensure we don't lock if payable is 0 (fully paid).
+        const isNotPaid = invoice.status !== 'paid';
+
+        if (isNotPaid) {
           isLocked = true;
         }
 

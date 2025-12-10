@@ -9,6 +9,7 @@ import {
   getFilePreviewUrl,
   archiveFile,
   restoreFile,
+  updateFileApprovalStatus
 } from '../controllers/fileController.js';
 import {
   shareFileWithClient,
@@ -47,5 +48,6 @@ router.post('/:fileId/share', shareFileWithClient);     // Share file with clien
 router.post('/bulk-share', shareFilesWithClient);       // Share multiple files with a client
 router.post('/:fileId/revoke', revokeFileShare);        // Revoke file access
 router.post('/:fileId/enable-download', enableFileDownload); // Enable download after payment
+router.post('/:fileId/approval', updateFileApprovalStatus); // Approve / Request Changes
 
 export default router;
