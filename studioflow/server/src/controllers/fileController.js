@@ -153,19 +153,19 @@ export const signUpload = async (req, res) => {
 
     // Auto-detect if file with same name exists (Implicit Versioning)
     if (!isNewVersion && !baseFileId) {
+      console.log(`🔍 Checking for existing versions of "${filename}" in project ${projectId}`);
       const existingFile = await ProjectFile.findOne({
         projectId,
         originalFilename: filename,
-        status: { $in: ['active'] },
-        status: { $in: ['active', 'uploading'] },
-        // isFinal check removed to catch legacy files. Sort by version handles validity.
+        status: { $ne: 'deleted' }
       }).sort({ version: -1 });
 
-      console.log(`🔍 Version Check for ${filename}:`, existingFile ? `Found Ver ${existingFile.version} (ID: ${existingFile._id})` : 'No existing file found');
+      console.log(`🔍 Version Check Result:`, existingFile ? `Found Ver ${existingFile.version} (ID: ${existingFile._id})` : 'New File (Ver 1)');
 
       if (existingFile) {
         baseFileIdRef = existingFile.baseFileId || existingFile._id;
-        version = await ProjectFile.getNextVersion(projectId, baseFileIdRef);
+        // Always increment the version found
+        version = existingFile.version + 1;
         console.log(`♻️ Auto-detected duplicate filename. Creating Version ${version} of ${baseFileIdRef}`);
       }
     } else if (isNewVersion && baseFileId) {
