@@ -30,6 +30,8 @@ import {
 } from "lucide-react"
 import { cn } from "../lib/utils"
 import { format, formatDistanceToNow } from "date-fns"
+import { getFilePreviewUrl } from "../lib/api/files"
+import { useAuth } from "@clerk/clerk-react"
 
 const formatTime = (dateString) => {
   const date = new Date(dateString)
@@ -383,6 +385,7 @@ const CommentItem = ({
   comment,
   projectMembers = [],
   currentUserId,
+  projectId,
   isNested = false,
   maxNestLevel = 3,
   nestLevel = 0,
@@ -414,6 +417,33 @@ const CommentItem = ({
   const handleEditSubmit = (data) => {
     onEdit?.(comment._id, data)
     setIsEditing(false)
+  }
+
+  const { getToken } = useAuth()
+
+  const handleFileClick = async (e, file) => {
+    e.preventDefault()
+
+    if (file.url && !projectId) {
+      window.open(file.url, '_blank')
+      return
+    }
+
+    // Use signed URL if available or fetch one
+    if (projectId && file.fileId) {
+      try {
+        const token = await getToken()
+        const response = await getFilePreviewUrl(projectId, file.fileId, token)
+        window.open(response.previewUrl, '_blank')
+      } catch (error) {
+        console.error("Failed to get preview URL:", error)
+        toast.error("Failed to open file")
+      }
+    } else if (file.url) {
+      window.open(file.url, '_blank')
+    } else {
+      toast.error("Cannot open file: Missing URL or ID")
+    }
   }
 
   return (
@@ -528,10 +558,9 @@ const CommentItem = ({
                       {comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
                         <a
                           key={`img-${idx}`}
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="relative aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted/20 group/image"
+                          href={file.url || '#'}
+                          onClick={(e) => handleFileClick(e, file)}
+                          className="relative aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted/20 group/image cursor-pointer"
                         >
                           <img
                             src={file.url}
@@ -550,10 +579,9 @@ const CommentItem = ({
                       {comment.attachments.filter(f => !(f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
                         <a
                           key={`file-${idx}`}
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-sm shadow-sm hover:border-primary/50 hover:shadow-md transition-all group/file max-w-xs"
+                          href={file.url || '#'}
+                          onClick={(e) => handleFileClick(e, file)}
+                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-sm shadow-sm hover:border-primary/50 hover:shadow-md transition-all group/file max-w-xs cursor-pointer"
                         >
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                             <Paperclip className="h-5 w-5" />
@@ -643,6 +671,7 @@ const CommentItem = ({
                       comment={reply}
                       projectMembers={projectMembers}
                       currentUserId={currentUserId}
+                      projectId={projectId}
                       isNested
                       nestLevel={nestLevel + 1}
                       maxNestLevel={maxNestLevel}
@@ -670,6 +699,7 @@ const CommentThread = React.forwardRef(({
   comments = [],
   projectMembers = [],
   currentUserId,
+  projectId,
   onAddComment,
   onReply,
   onEdit,
@@ -789,6 +819,7 @@ const CommentThread = React.forwardRef(({
                   comment={comment}
                   projectMembers={projectMembers}
                   currentUserId={currentUserId}
+                  projectId={projectId}
                   onReply={onReply}
                   onEdit={onEdit}
                   onDelete={onDelete}

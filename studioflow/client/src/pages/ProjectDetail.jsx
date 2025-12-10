@@ -748,6 +748,7 @@ export default function ProjectDetail() {
             <CommentThread
               comments={comments}
               projectMembers={project.members || []}
+              projectId={projectId}
               currentUserId={userId}
               currentUser={user}
               onAddComment={addComment}
