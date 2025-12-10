@@ -69,6 +69,7 @@ import {
   ArrowRightLeft,
   Settings
 } from 'lucide-react';
+import { ShimmerProjectDetail } from '../components/skeletons/ShimmerProjectDetail';
 import OwnershipTransferModal from '../components/OwnershipTransferModal';
 import OwnershipAcceptanceBanner from '../components/OwnershipAcceptanceBanner';
 import ProjectHeader from '../components/ProjectHeader';
