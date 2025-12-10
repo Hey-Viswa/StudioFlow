@@ -11,7 +11,7 @@ import SendInvoiceModal from '../components/invoices/SendInvoiceModal';
 import { useInvoices } from '../hooks/useInvoices';
 import { useRole } from '../hooks/useRole';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpayCheckout';
-import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { ShimmerInvoices } from '../components/skeletons/ShimmerInvoices';
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -255,7 +255,7 @@ export default function InvoicesPage() {
   };
 
   if (loading && invoices.length === 0) {
-    return <DashboardSkeleton />;
+    return <ShimmerInvoices />;
   }
 
   return (

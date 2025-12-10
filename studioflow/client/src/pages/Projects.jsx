@@ -45,7 +45,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "../components/ui/avatar"
-import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { ShimmerProjects } from '../components/skeletons/ShimmerProjects';
 import { ProjectCard } from '../components/ProjectCard';
 
 export default function Projects() {
@@ -216,7 +216,7 @@ export default function Projects() {
   const activeProjects = projects.filter(p => p.status === 'active').length;
 
   if (loading) {
-    return <DashboardSkeleton />;
+    return <ShimmerProjects />;
   }
 
   return (

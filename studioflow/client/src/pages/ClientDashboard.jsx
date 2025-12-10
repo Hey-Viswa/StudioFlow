@@ -21,7 +21,7 @@ import { FilesStrip } from '../components/FilesStrip'
 import { DashboardGraphs } from '../components/DashboardGraphs'
 import { useProjects, useProjectMetrics } from '../hooks/useProjects'
 import { useSocket } from '../hooks/useSocket'
-import { DashboardSkeleton } from '../components/DashboardSkeleton'
+import { ShimmerDashboard } from '../components/skeletons/ShimmerDashboard'
 import {
   Search,
   IndianRupee,
@@ -271,7 +271,7 @@ export default function ClientDashboard() {
 
   // Loading State - Shimmer Effect
   if (projectsLoading || metricsLoading) {
-    return <DashboardSkeleton />
+    return <ShimmerDashboard />
   }
 
   return (

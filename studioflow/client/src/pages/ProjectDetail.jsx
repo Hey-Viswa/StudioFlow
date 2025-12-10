@@ -609,6 +609,12 @@ export default function ProjectDetail() {
     });
   };
 
+  // Assuming 'loading' is a state variable defined earlier in the component
+  // For example: const [loading, setLoading] = useState(true);
+  if (loading) {
+    return <ShimmerProjectDetail />;
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
