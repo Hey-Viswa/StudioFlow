@@ -17,16 +17,16 @@ class ErrorBoundary extends React.Component {
 
     // Auto-reload on chunk load errors (once) to handle deployment updates
     if (error.message && (
-      error.message.includes('Failed to fetch dynamically imported module') || 
+      error.message.includes('Failed to fetch dynamically imported module') ||
       error.message.includes('Importing a module script failed')
     )) {
-        if (!sessionStorage.getItem('chunk_reload')) {
-            sessionStorage.setItem('chunk_reload', 'true');
-            window.location.reload();
-        } else {
-            // Prevent infinite loops if reload doesn't fix it
-            sessionStorage.removeItem('chunk_reload');
-        }
+      if (!sessionStorage.getItem('chunk_reload')) {
+        sessionStorage.setItem('chunk_reload', 'true');
+        window.location.reload();
+      } else {
+        // Prevent infinite loops if reload doesn't fix it
+        sessionStorage.removeItem('chunk_reload');
+      }
     }
   }
 
@@ -46,6 +46,13 @@ class ErrorBoundary extends React.Component {
           <p className="text-muted-foreground max-w-[500px] mb-8">
             An unexpected error occurred. We've been notified and are working to fix it.
           </p>
+          {this.state.error && (
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg text-left max-w-[600px] overflow-auto max-h-[200px]">
+              <p className="font-mono text-xs text-red-500 break-all">
+                {this.state.error.toString()}
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-4">
             <Button onClick={() => window.location.reload()} className="gap-2">
