@@ -166,6 +166,10 @@ const projectFileSchema = new mongoose.Schema({
       type: Date,
       required: true,
     },
+    password: {
+      type: String, // Hashed password for protected links
+      select: false // Don't return by default
+    },
     sharedBy: {
       type: String,
       required: true,
