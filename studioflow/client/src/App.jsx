@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NetworkError from './pages/NetworkError';
 import { ThemeColorProvider } from './components/ThemeColorProvider';
 import NetworkStatusListener from './components/NetworkStatusListener';
+import CookieConsent from './components/CookieConsent';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
@@ -77,6 +78,7 @@ function App() {
           <Router>
             <NetworkStatusListener />
             <Toaster position="top-right" richColors closeButton />
+            <CookieConsent />
             <Suspense fallback={<div className="p-6 text-center text-muted-foreground">Loading...</div>}>
               <Routes>
                 {/* ... routes ... */}
