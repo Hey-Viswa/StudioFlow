@@ -291,10 +291,8 @@ const Landing = () => {
           </div>
 
           <h1 className="hero-title text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
-            Manage Projects. <br className="hidden sm:block" />
-            <span className="bg-gradient-to-r from-primary via-green-400 to-primary bg-clip-text text-transparent animate-gradient-x">
-              Master Your Flow.
-            </span>
+            StudioFlow <br className="hidden sm:block" />
+            <span className="text-3xl sm:text-5xl lg:text-6xl block mt-2">Manage Projects. Master Your Flow.</span>
           </h1>
 
           <p className="hero-desc text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed px-4">
