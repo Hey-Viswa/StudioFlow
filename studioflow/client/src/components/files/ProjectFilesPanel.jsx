@@ -617,81 +617,81 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
             )}
           </div>
         </div>
-      </div>
 
-      {/* Actions */}
-      {hasAnyAction && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="ml-auto">
-              <MoreVertical className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {!isArchived ? (
-              <>
-                {/* Preview - Available if file type supports it and user can view */}
-                {canPreviewAction && (
-                  <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
-                    <Eye className="w-4 h-4 mr-2" />
-                    Preview
-                  </DropdownMenuItem>
-                )}
 
-                {/* Download - Only if explicitly allowed */}
-                {canDownloadAction && (
-                  <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </DropdownMenuItem>
-                )}
-
-                {/* Share/manage - owners and teammates */}
-                {canShareAction && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share with Client
+        {/* Actions */}
+        {hasAnyAction && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="ml-auto">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isArchived ? (
+                <>
+                  {/* Preview - Available if file type supports it and user can view */}
+                  {canPreviewAction && (
+                    <DropdownMenuItem onClick={() => onPreview(file.fileId, file.filename)}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Preview
                     </DropdownMenuItem>
-                    {canManageShareAction && (
-                      <DropdownMenuItem onClick={() => onManageSharing(file)}>
-                        <Users className="w-4 h-4 mr-2" />
-                        Manage Sharing
+                  )}
+
+                  {/* Download - Only if explicitly allowed */}
+                  {canDownloadAction && (
+                    <DropdownMenuItem onClick={() => onDownload(file.fileId, file.filename)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* Share/manage - owners and teammates */}
+                  {canShareAction && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onShare(file.fileId, file.filename)}>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share with Client
                       </DropdownMenuItem>
-                    )}
-                  </>
-                )}
+                      {canManageShareAction && (
+                        <DropdownMenuItem onClick={() => onManageSharing(file)}>
+                          <Users className="w-4 h-4 mr-2" />
+                          Manage Sharing
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
 
-                {/* Delete - owner only */}
-                {canDeleteAction && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => onDelete(file.fileId, file.filename)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
+                  {/* Delete - owner only */}
+                  {canDeleteAction && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(file.fileId, file.filename)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Restore - owner + teammates */}
+                  {canRestoreAction && (
+                    <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
+                      <ArchiveRestore className="w-4 h-4 mr-2" />
+                      Restore
                     </DropdownMenuItem>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Restore - owner + teammates */}
-                {canRestoreAction && (
-                  <DropdownMenuItem onClick={() => onRestore(file.fileId, file.filename)}>
-                    <ArchiveRestore className="w-4 h-4 mr-2" />
-                    Restore
-                  </DropdownMenuItem>
-                )}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
     </Card >
   );
