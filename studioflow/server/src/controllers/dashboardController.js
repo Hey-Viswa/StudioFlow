@@ -206,7 +206,7 @@ export const getRecentFiles = async (req, res) => {
           console.warn(`Failed to generate signed URL for file ${file._id}:`, err.message);
         }
       }
-      
+
       // Priority 2: Use stored URL (Local uploads or external links)
       if (!url && file.url) {
         url = file.url;
@@ -308,11 +308,13 @@ export const getChartData = async (req, res) => {
     });
 
     const projectIds = projects.map(p => p._id);
+    console.log('📊 Chart Debug:', { userId, projectsFound: projectIds.length });
 
     // Get invoices for revenue chart
     const invoices = await ProjectInvoice.find({ projectId: { $in: projectIds } })
       .sort({ createdAt: 1 })
       .lean();
+    console.log('📊 Chart Debug Invoices:', { count: invoices.length, detailed: invoices.map(i => ({ id: i._id, status: i.status })) });
 
     // Generate revenue data based on granularity
     const revenueData = generateRevenueData(invoices, granularity);
