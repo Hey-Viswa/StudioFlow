@@ -167,31 +167,36 @@ export const getCurrentSubscription = async (req, res) => {
       // SELF-HEALING: Check if user is on Free plan but has a valid Paid Invoice active
       // This recovers users who were accidentally downgraded or if webhook failed
       if (user.subscription.plan === 'free') {
+        console.log('🔍 Checking for lost subscription (Self-Healing)...');
         try {
-          // Find most recent PAID invoice that hasn't expired
-          const latestPaidInvoice = await Invoice.findOne({
-            userId: userId,
-            status: 'paid',
-            billingPeriodEnd: { $gt: new Date() }
-          }).sort({ createdAt: -1 });
+          const invoices = await Invoice.find({ userId: userId }).sort({ createdAt: -1 }).limit(3);
+          console.log(`Found ${invoices.length} recent invoices`);
+
+          let latestPaidInvoice = null;
+
+          for (const inv of invoices) {
+            console.log(`Inv: ${inv.invoiceNumber}, Status: ${inv.status}, End: ${inv.billingPeriodEnd}`);
+            if (inv.status === 'paid' && new Date(inv.billingPeriodEnd) > new Date()) {
+              latestPaidInvoice = inv;
+              break;
+            }
+          }
 
           if (latestPaidInvoice) {
-            console.log('🔄 Self-Healing: Found valid paid invoice for Free user. Restoring plan...');
-            console.log('   Invoice:', latestPaidInvoice.invoiceNumber);
-            console.log('   Restoring to:', latestPaidInvoice.planId);
+            console.log('🔄 Self-Healing: Triggered! Restoring plan:', latestPaidInvoice.planId);
 
             user.subscription.plan = latestPaidInvoice.planId;
             user.subscription.status = 'active';
             user.subscription.subscriptionEndDate = latestPaidInvoice.billingPeriodEnd;
             user.subscription.razorpaySubscriptionId = latestPaidInvoice.subscriptionId;
 
-            // Explicitly save
             await user.save();
-            console.log('✅ Plan restored successfully.');
+            console.log('✅ Plan restored.');
+          } else {
+            console.log('❌ No valid restoration invoice found.');
           }
         } catch (healError) {
-          console.error('⚠️ Self-healing check failed:', healError);
-          // Don't fail the request, just skip healing
+          console.error('⚠️ Self-healing error:', healError);
         }
       }
     }
