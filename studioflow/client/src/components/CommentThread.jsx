@@ -212,36 +212,26 @@ const CommentComposer = React.forwardRef(({
       className={cn(
         "space-y-3 transition-all",
         isInline
-          ? "rounded-xl border border-border/60 bg-muted/30 p-3"
-          : "rounded-2xl border border-border/60 bg-background/95 p-4 sm:p-5 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+          ? "rounded-xl border border-border/60 bg-muted/30 p-2"
+          : "rounded-xl border border-border/60 bg-background/50 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80",
         className
       )}
       {...props}
     >
-      <div className={cn("flex gap-3", isInline && "gap-2")}
-      >
+      <div className="flex gap-2">
         {!isInline && (
-          <Avatar className="h-11 w-11 border border-border/40 bg-background shadow-sm">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
         )}
-        <div className="flex-1 space-y-3">
-          {!isInline && (
-            <div className="flex flex-wrap items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
-              <span className="font-medium text-foreground normal-case">
-                Comment as <span className="text-foreground/90 font-semibold">{displayName}</span>
-              </span>
-              <span className="text-muted-foreground/80">{text.length}/{maxChars}</span>
-            </div>
-          )}
-
+        <div className="flex-1 space-y-2">
           <div
             className={cn(
-              "relative rounded-2xl border bg-muted/20 transition-all focus-within:ring-1 focus-within:ring-primary/30",
-              isInline && "rounded-xl",
-              isFocused ? "border-primary/60 bg-background" : "border-border/60"
+              "relative rounded-xl border bg-muted/20 transition-all focus-within:ring-1 focus-within:ring-primary/20",
+              isInline && "rounded-lg",
+              isFocused ? "border-primary/50 bg-background" : "border-border/50"
             )}
           >
             <Textarea
@@ -254,8 +244,8 @@ const CommentComposer = React.forwardRef(({
               placeholder={placeholder}
               autoFocus={autoFocus}
               className={cn(
-                "w-full resize-none border-0 bg-transparent px-4 py-3 text-base shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/70",
-                isInline && "min-h-[70px] px-3 py-2 text-sm"
+                "w-full resize-none border-0 bg-transparent px-3 py-2 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/70 min-h-[40px]",
+                isInline && "min-h-[60px]"
               )}
               aria-label="Comment text"
             />
@@ -425,6 +415,11 @@ const CommentItem = ({
     e.preventDefault()
 
     if (file.url && !projectId) {
+      // For optimistic files with object URLs, just open them
+      if (file.isOptimistic) {
+        window.open(file.url, '_blank')
+        return
+      }
       window.open(file.url, '_blank')
       return
     }
@@ -798,9 +793,7 @@ const CommentThread = React.forwardRef(({
       <div className="relative flex-1 min-h-0">
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
           className="h-full overflow-y-auto overflow-x-hidden pr-4 scroll-smooth"
-          style={{ maxHeight: 'calc(100vh - 250px)' }}
         >
           {loading ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">

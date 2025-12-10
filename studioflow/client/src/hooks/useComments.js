@@ -73,16 +73,25 @@ export function useComments(projectId) {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
       // Optimistic update
+      const optimisticAttachments = (data.files || []).map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        url: URL.createObjectURL(file), // Create local preview URL
+        isOptimistic: true
+      }));
+
       const optimisticComment = {
         _id: `temp-${Date.now()}`,
         text: data.text,
-        content: data.text, // Ensure content is also set for consistency
+        content: data.text,
         userId: user?.id,
         userName: user?.fullName || user?.firstName || 'You',
         userEmail: user?.primaryEmailAddress?.emailAddress,
         createdAt: new Date().toISOString(),
         reactions: {},
         replies: [],
+        attachments: optimisticAttachments,
         isOptimistic: true
       }
 
@@ -110,7 +119,6 @@ export function useComments(projectId) {
         ...data,
         attachments: uploadedAttachments
       };
-      // Remove raw files from payload
       delete commentData.files;
 
       const response = await fetch(`${apiUrl}/projects/${projectId}/comments`, {
@@ -350,13 +358,13 @@ export function useComments(projectId) {
   // Real-time socket handlers
   const handleCommentAdded = useCallback((data) => {
     console.log('🔔 Real-time comment received:', data)
-    
+
     setComments(prev => {
       // Check if comment already exists to prevent duplicates
       // This handles the race condition between optimistic update resolution and socket event
-      const exists = prev.some(c => c._id === data.comment._id) || 
-                     prev.some(c => c.replies?.some(r => r._id === data.comment._id));
-      
+      const exists = prev.some(c => c._id === data.comment._id) ||
+        prev.some(c => c.replies?.some(r => r._id === data.comment._id));
+
       if (exists) return prev;
 
       if (data.comment.parentId) {
