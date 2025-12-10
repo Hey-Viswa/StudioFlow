@@ -109,7 +109,7 @@ export const createNotification = async ({
 
     if (io) {
       const roomName = `user:${userId}`;
-      
+
       // ALWAYS emit real-time notification (Redis adapter handles cross-node delivery)
       io.to(roomName).emit('notification:new', notification);
       console.log(`⚡ Real-time notification emitted to user ${userId}`);
@@ -117,7 +117,7 @@ export const createNotification = async ({
       // Check local presence for fallback logic (Note: In multi-node, this might be false negative)
       const room = io.sockets.adapter.rooms.get(roomName);
       isUserOnline = room && room.size > 0;
-      
+
       if (!isUserOnline) {
         console.log(`zzz User ${userId} appears offline (locally). Proceeding to fallback channels.`);
       }
@@ -282,14 +282,22 @@ const sendNotificationPush = async (userId, notification) => {
  * Get user's FCM token from database
  * TODO: Implement storage of FCM tokens when users register devices
  */
+/**
+ * Get user's FCM token from database
+ */
 const getUserFCMToken = async (userId) => {
   try {
-    // For now, you'll need to store FCM tokens in your User model or a separate collection
-    // Example: const user = await User.findOne({ clerkId: userId });
-    // return user?.fcmToken;
+    // Import dynamically to avoid circular dependencies
+    const DeviceToken = (await import('../models/DeviceToken.js')).default;
 
-    // Placeholder: return null until you implement FCM token storage
-    return null;
+    // Find active token for this user
+    // We sort by lastUsedAt to get the most recently active device
+    const deviceToken = await DeviceToken.findOne({
+      userId,
+      isActive: true
+    }).sort({ lastUsedAt: -1 });
+
+    return deviceToken?.token || null;
   } catch (error) {
     console.error('Error getting FCM token:', error);
     return null;
@@ -529,7 +537,8 @@ export const processNotificationEvent = async (type, data, actorId) => {
         'project.finalized': 'project_finalized',
         'file.uploaded': 'file_uploaded',
         'invoice.created': 'invoice_created',
-        'invoice.paid': 'invoice_paid'
+        'invoice.paid': 'invoice_paid',
+        'project.updated': 'project_updated'
       };
 
       const modelType = typeMapping[type] || 'mention'; // Default fallback

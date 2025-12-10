@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { HelmetProvider } from 'react-helmet-async';
 import { initSentry } from './config/sentry';
 import './index.css';
 // Production deployment v3
@@ -47,7 +48,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     {PUBLISHABLE_KEY ? (
-      <ClerkProvider 
+      <ClerkProvider
         publishableKey={PUBLISHABLE_KEY}
         appearance={{
           baseTheme: undefined,
@@ -59,22 +60,24 @@ root.render(
             borderRadius: '0.5rem',
           },
           elements: {
-            formButtonPrimary: 
+            formButtonPrimary:
               'bg-primary hover:bg-primary/90 text-white font-semibold transition-all duration-200',
             card: 'shadow-2xl border border-gray-200',
             headerTitle: 'text-2xl font-bold',
             headerSubtitle: 'text-gray-600',
-            socialButtonsBlockButton: 
+            socialButtonsBlockButton:
               'border-2 hover:bg-gray-50 transition-all duration-200',
-            formFieldInput: 
+            formFieldInput:
               'border-2 focus:border-primary transition-all duration-200',
             footerActionLink: 'text-primary hover:text-primary/80 font-semibold',
           },
         }}
       >
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <App />
-        </ThemeProvider>
+        <HelmetProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <App />
+          </ThemeProvider>
+        </HelmetProvider>
       </ClerkProvider>
     ) : (
       <MissingKey />

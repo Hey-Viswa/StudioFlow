@@ -2,6 +2,8 @@
 User-agent: *
 Allow: /
 
+
+
 # Disallow private areas
 Disallow: /dashboard/
 Disallow: /invite

@@ -10,12 +10,12 @@ importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js')
 // your app's Firebase config object.
 // https://firebase.google.com/docs/web/setup#config-object
 firebase.initializeApp({
-    apiKey: "YOUR_API_KEY", // We'll need to inject these or hardcode for now (SW can't access env vars easily)
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAwAQaJYuVMzDPP5meLynnqPbuXTJMlXkA",
+    authDomain: "studioflow-ce748.firebaseapp.com",
+    projectId: "studioflow-ce748",
+    storageBucket: "studioflow-ce748.firebasestorage.app",
+    messagingSenderId: "215493589916",
+    appId: "1:215493589916:web:82320e4b7a73bc0ae56659"
 });
 
 // Retrieve an instance of Firebase Messaging so that it can handle background

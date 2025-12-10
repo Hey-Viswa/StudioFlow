@@ -34,6 +34,7 @@ export const NotificationRulesService = {
                 }
                 break;
 
+            case 'project.updated':
             case 'project.status_changed':
             case 'project.needs_revision':
             case 'project.finalized':

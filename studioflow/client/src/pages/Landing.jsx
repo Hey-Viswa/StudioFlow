@@ -12,6 +12,7 @@ import { Flip } from 'gsap/Flip';
 
 gsap.registerPlugin(ScrollTrigger, Draggable, Flip, useGSAP);
 import { AbstractShape1, AbstractShape2, AbstractShape3, AbstractShape4 } from '../components/landing/FeatureGraphics';
+import SEO from '../components/SEO';
 
 const Landing = () => {
   const [activeSection, setActiveSection] = useState('');
@@ -219,6 +220,10 @@ const Landing = () => {
 
   return (
     <div ref={container} className="min-h-screen bg-background text-foreground overflow-x-hidden selection:bg-primary/20">
+      <SEO
+        title="All-in-One Project Management for Creative Agencies"
+        description="Stop chasing client feedback in emails. StudioFlow is the all-in-one project management tool for creative agencies with real-time proofing, invoicing, and secure file delivery."
+      />
 
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">

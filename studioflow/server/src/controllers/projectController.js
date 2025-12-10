@@ -974,6 +974,22 @@ export const updateProject = async (req, res) => {
       console.log('📡 Socket.IO: Emitted project-updated event globally');
     }
 
+    // Trigger Notification for Project Update (if significant changes)
+    // Avoid triggering if it's just a task update (handled separately below) or minor progress update
+    // But for now, let's trigger it for visibility if title, brief, status, or dueDate changed
+    if (title || brief || status || dueDate) {
+      const { triggerNotification } = await import('../services/notificationService.js');
+      await triggerNotification('project.updated', {
+        projectId: id,
+        title: `Project Updated: ${project.title}`,
+        message: `Project details have been updated by ${userName || 'a team member'}.`,
+        link: `/projects/${id}`,
+        category: 'info',
+        priority: 'medium',
+        idempotencyKey: `project-update-${id}-${Date.now()}` // Simple key to allow multiple updates
+      }, userId);
+    }
+
     // Check for Task Assignments and Trigger Notifications
     if (tasks && tasks.length > 0) {
       const oldTasksMap = new Map(oldTasks.map(t => [t._id?.toString(), t]));

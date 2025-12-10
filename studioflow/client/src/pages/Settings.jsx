@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUser, useAuth } from '@clerk/clerk-react';
+import { usePushToken } from '../hooks/usePushToken';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -61,6 +62,8 @@ export default function Settings() {
     projectUpdates: true,
     marketingEmails: false
   });
+
+  const { permission, requestPermission } = usePushToken();
 
   useEffect(() => {
     fetchSubscription();
@@ -498,6 +501,27 @@ export default function Settings() {
                         <Switch
                           checked={preferences.emailNotifications}
                           onCheckedChange={(checked) => handlePreferenceChange('emailNotifications', checked)}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-primary" />
+                            <Label className="text-base">Push Notifications</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground pl-6">Receive notifications on this device</p>
+                        </div>
+                        <Switch
+                          checked={permission === 'granted'}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              requestPermission();
+                            } else {
+                              // Start: We can't revoke permission programmatically, but we can instruct user
+                              toast.info('To disable notifications, please change your browser settings.');
+                            }
+                          }}
                         />
                       </div>
 

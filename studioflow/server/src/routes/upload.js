@@ -26,7 +26,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             const filename = uniqueSuffix + path.extname(file.originalname);
             // Use 'uploads' prefix to distinguish from project files
-            const key = uploads/;
+            const key = `uploads/${filename}`;
 
             // Upload to S3/R2 via StorageAdapter
             await storageAdapter.uploadBuffer(key, file.buffer, file.mimetype);
