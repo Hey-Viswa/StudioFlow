@@ -175,7 +175,10 @@ export function useProjectMetrics() {
     totalBilled: 0,
     totalPaid: 0,
     outstanding: 0,
-    overdue: 0
+    overdue: 0,
+    totalBilledChange: 0,
+    totalPaidChange: 0,
+    overdueChange: 0
   })
   const [loading, setLoading] = useState(true)
   const [lastFetch, setLastFetch] = useState(0)

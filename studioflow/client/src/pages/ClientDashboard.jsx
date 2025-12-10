@@ -468,7 +468,7 @@ export default function ClientDashboard() {
                       <div className="text-sm text-muted-foreground flex items-center gap-2">
                         <span className="truncate max-w-[150px]">{invoice.clientName}</span>
                         <span>•</span>
-                        <span>{format(new Date(invoice.createdAt), 'MMM dd, yyyy')}</span>
+                        <span>{invoice.createdAt ? format(new Date(invoice.createdAt), 'MMM dd, yyyy') : 'N/A'}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3">
