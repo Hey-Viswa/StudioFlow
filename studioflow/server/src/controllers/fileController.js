@@ -149,7 +149,23 @@ export const signUpload = async (req, res) => {
 
     // Determine version number
     let version = 1;
-    if (isNewVersion && baseFileId) {
+    let baseFileIdRef = baseFileId;
+
+    // Auto-detect if file with same name exists (Implicit Versioning)
+    if (!isNewVersion && !baseFileId) {
+      const existingFile = await ProjectFile.findOne({
+        projectId,
+        originalFilename: filename,
+        status: { $in: ['active'] },
+        isFinal: { $ne: false } // Find the current head
+      }).sort({ version: -1 });
+
+      if (existingFile) {
+        baseFileIdRef = existingFile.baseFileId || existingFile._id;
+        version = await ProjectFile.getNextVersion(projectId, baseFileIdRef);
+        console.log(`♻️ Auto-detected duplicate filename. Creating Version ${version} of ${baseFileIdRef}`);
+      }
+    } else if (isNewVersion && baseFileId) {
       version = await ProjectFile.getNextVersion(projectId, baseFileId);
     }
 
@@ -172,7 +188,8 @@ export const signUpload = async (req, res) => {
       mimeType: contentType,
       size,
       version,
-      baseFileId: isNewVersion ? baseFileId : null,
+      version,
+      baseFileId: baseFileIdRef || null,
       storageProvider: provider,
       storageKey: key,
       bucket,
