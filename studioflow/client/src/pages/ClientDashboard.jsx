@@ -121,14 +121,14 @@ export default function ClientDashboard() {
   }, [revenueGranularity]) // Empty dependency array - only run once
 
   // Real-time updates
+  const handleRefresh = useCallback(() => {
+    console.log('🔄 Real-time update received, refreshing dashboard...')
+    fetchDashboardData()
+    refetchProjects()
+  }, [fetchDashboardData, refetchProjects])
+
   useEffect(() => {
     if (!socket) return
-
-    const handleRefresh = () => {
-      console.log('🔄 Real-time update received, refreshing dashboard...')
-      fetchDashboardData()
-      refetchProjects()
-    }
 
     // Listen for relevant events
     socket.on('project-created', handleRefresh)
@@ -150,7 +150,7 @@ export default function ClientDashboard() {
       socket.off('file-uploaded', handleRefresh)
       socket.off('file-deleted', handleRefresh)
     }
-  }, [socket, fetchDashboardData, refetchProjects])
+  }, [socket, handleRefresh])
 
   const handleRequestRevision = (projectId) => {
     const project = projects.find(p => p._id === projectId)
