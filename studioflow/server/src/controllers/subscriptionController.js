@@ -163,6 +163,37 @@ export const getCurrentSubscription = async (req, res) => {
         console.log('⏳ Subscription in progress (within grace period) - Waiting for payment confirmation');
         // Do NOT downgrade yet, let the UI show "Processing" or keep current access
       }
+
+      // SELF-HEALING: Check if user is on Free plan but has a valid Paid Invoice active
+      // This recovers users who were accidentally downgraded or if webhook failed
+      if (user.subscription.plan === 'free') {
+        try {
+          // Find most recent PAID invoice that hasn't expired
+          const latestPaidInvoice = await Invoice.findOne({
+            userId: userId,
+            status: 'paid',
+            billingPeriodEnd: { $gt: new Date() }
+          }).sort({ createdAt: -1 });
+
+          if (latestPaidInvoice) {
+            console.log('🔄 Self-Healing: Found valid paid invoice for Free user. Restoring plan...');
+            console.log('   Invoice:', latestPaidInvoice.invoiceNumber);
+            console.log('   Restoring to:', latestPaidInvoice.planId);
+
+            user.subscription.plan = latestPaidInvoice.planId;
+            user.subscription.status = 'active';
+            user.subscription.subscriptionEndDate = latestPaidInvoice.billingPeriodEnd;
+            user.subscription.razorpaySubscriptionId = latestPaidInvoice.subscriptionId;
+
+            // Explicitly save
+            await user.save();
+            console.log('✅ Plan restored successfully.');
+          }
+        } catch (healError) {
+          console.error('⚠️ Self-healing check failed:', healError);
+          // Don't fail the request, just skip healing
+        }
+      }
     }
 
     const currentPlanConfig = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
