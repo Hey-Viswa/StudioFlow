@@ -1,8 +1,8 @@
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { 
-  Calendar, 
-  CreditCard, 
+import {
+  Calendar,
+  CreditCard,
   FileText,
   CheckCircle,
   Clock,
@@ -31,13 +31,13 @@ export default function BillingHistory() {
       console.log('🔄 Fetching billing history...');
       const response = await api.get('/subscriptions/billing-history', { getToken });
       console.log('📥 Billing history response:', response);
-      
+
       // Show warning if payment gateway is not configured
       if (response.warnings && response.warnings.length > 0) {
         console.warn('⚠️ Billing history warnings:', response.warnings);
         response.warnings.forEach(warning => toast.warning(warning, { duration: 5000 }));
       }
-      
+
       setBillingData(response);
     } catch (error) {
       console.error('❌ Failed to fetch billing history:', error);
@@ -54,7 +54,7 @@ export default function BillingHistory() {
       // Use direct fetch since we need to handle the blob/redirect manually or just get the URL
       // The controller returns { url: string }
       const response = await api.get(`/subscriptions/invoices/${invoiceId}/download`, { getToken });
-      
+
       if (response.url) {
         window.open(response.url, '_blank');
         toast.dismiss();
@@ -94,9 +94,9 @@ export default function BillingHistory() {
   const { currentSubscription, nextPayment, paymentHistory, subscriptionCount, totalSpent, successfulPayments, localInvoices } = billingData;
 
   // Show local invoices even when payment history is empty
-  const hasAnyData = currentSubscription || 
-                     (localInvoices && localInvoices.length > 0) || 
-                     (paymentHistory && paymentHistory.length > 0);
+  const hasAnyData = currentSubscription ||
+    (localInvoices && localInvoices.length > 0) ||
+    (paymentHistory && paymentHistory.length > 0);
 
   if (!hasAnyData) {
     return (
@@ -170,8 +170,8 @@ export default function BillingHistory() {
               <p className="text-sm text-muted-foreground mb-1">Renewals Completed</p>
               <p className="text-xl font-bold">{subscriptionCount}</p>
               <p className="text-sm text-muted-foreground">
-                {currentSubscription.remainingCount > 0 
-                  ? `${currentSubscription.remainingCount} remaining` 
+                {currentSubscription.remainingCount > 0
+                  ? `${currentSubscription.remainingCount} remaining`
                   : 'Monthly billing'}
               </p>
             </div>
@@ -263,14 +263,14 @@ export default function BillingHistory() {
         ) : paymentHistory.length > 0 ? (
           <div className="space-y-3">
             {paymentHistory.map((payment) => (
-              <div 
+              <div
                 key={payment.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-colors"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-colors gap-3"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CreditCard className="w-4 h-4 text-muted-foreground" />
-                    <p className="font-medium">{payment.description}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <p className="font-medium truncate">{payment.description}</p>
                     {getStatusBadge(payment.status)}
                     {payment.refunded && (
                       <Badge variant="outline" className="text-xs">
@@ -278,28 +278,26 @@ export default function BillingHistory() {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>{formatDate(payment.createdAt)}</span>
                     <span className="capitalize">{payment.method || 'Card'}</span>
-                    <span className="font-mono text-xs">ID: {payment.id ? payment.id.substring(0, 20) : 'N/A'}...</span>
+                    <span className="font-mono text-xs hidden sm:inline">ID: {payment.id ? payment.id.substring(0, 20) : 'N/A'}...</span>
                   </div>
                 </div>
-                <div className="text-right ml-4">
+                <div className="flex items-center justify-between sm:justify-end sm:ml-4 sm:text-right w-full sm:w-auto mt-2 sm:mt-0">
                   <p className={`text-lg font-semibold ${payment.refunded ? 'text-red-600' : ''}`}>
                     {payment.refunded ? '-' : ''}₹{payment.amount ? payment.amount.toFixed(2) : '0.00'}</p>
+
                   {payment.invoiceId && (
-                    <div className="flex items-center justify-end gap-2 mt-1">
-                      <p className="text-xs text-muted-foreground">
-                        Invoice: {payment.invoiceId.substring(0, 15)}...
-                      </p>
+                    <div className="flex items-center gap-2 ml-4">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-8 w-8"
                         onClick={() => handleDownloadInvoice(payment.invoiceId)}
                         title="Download Invoice"
                       >
-                        <Download className="w-3 h-3" />
+                        <Download className="w-4 h-4" />
                       </Button>
                     </div>
                   )}
@@ -314,7 +312,7 @@ export default function BillingHistory() {
           <div className="space-y-3">
             <h4 className="text-sm font-medium mb-3 text-muted-foreground">Invoice Records</h4>
             {localInvoices.map((invoice) => (
-              <div 
+              <div
                 key={invoice.invoiceNumber}
                 className="flex items-center justify-between p-4 border rounded-lg bg-muted/30"
               >
@@ -357,7 +355,7 @@ export default function BillingHistory() {
               <p className="font-medium">{formatDate(currentSubscription.currentPeriodEnd)}</p>
             </div>
           </div>
-          
+
           {currentSubscription.status === 'active' && (
             <div className="mt-4 p-3 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">

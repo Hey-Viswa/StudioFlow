@@ -609,10 +609,33 @@ export default function ProjectDetail() {
     });
   };
 
-  // Assuming 'loading' is a state variable defined earlier in the component
-  // For example: const [loading, setLoading] = useState(true);
+  // Loading State - Shimmer Effect
   if (loading) {
     return <ShimmerProjectDetail />;
+  }
+
+  // Error State
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+        <AlertTriangle className="w-12 h-12 text-destructive mb-4" />
+        <h3 className="text-lg font-semibold text-foreground">Error Loading Project</h3>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Not Found State
+  if (!project) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+        <FolderOpen className="w-12 h-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold text-foreground">Project Not Found</h3>
+        <p className="text-muted-foreground mb-4">The project you are looking for does not exist or has been deleted.</p>
+        <Button onClick={() => navigate('/dashboard/projects')}>Back to Projects</Button>
+      </div>
+    );
   }
 
   if (error) {

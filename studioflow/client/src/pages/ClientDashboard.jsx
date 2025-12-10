@@ -81,23 +81,23 @@ export default function ClientDashboard() {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-      const [filesRes, invoicesRes, chartsRes] = await Promise.all([
+      const [chartsRes, kpiRes, recentFilesRes, recentInvoicesRes] = await Promise.all([
+        fetch(`${apiUrl}/dashboard/charts?granularity=${revenueGranularity}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${apiUrl}/dashboard/kpi`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
         fetch(`${apiUrl}/dashboard/recent-files`, {
-          credentials: 'include',
-          headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+          headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${apiUrl}/dashboard/recent-invoices`, {
-          credentials: 'include',
-          headers: { 'Authorization': token ? `Bearer ${token}` : '' }
-        }),
-        fetch(`${apiUrl}/dashboard/charts`, {
-          credentials: 'include',
-          headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ])
 
-      if (filesRes.ok) {
-        const filesData = await filesRes.json()
+      if (recentFilesRes.ok) {
+        const filesData = await recentFilesRes.json()
         setRecentFiles(filesData.files || [])
       }
 
@@ -113,12 +113,12 @@ export default function ClientDashboard() {
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     }
-  }, [getToken])
+  }, [getToken, revenueGranularity])
 
   // Only fetch dashboard data once on mount
   useEffect(() => {
     fetchDashboardData()
-  }, []) // Empty dependency array - only run once
+  }, [revenueGranularity]) // Empty dependency array - only run once
 
   // Real-time updates
   useEffect(() => {
@@ -460,21 +460,25 @@ export default function ClientDashboard() {
                 {filteredInvoices.map((invoice) => (
                   <div
                     key={invoice._id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer gap-2"
                     onClick={() => navigate(`/dashboard/invoices?id=${invoice._id}`)}
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 w-full">
                       <div className="font-medium truncate">{invoice.title || `Invoice #${invoice.invoiceNumber}`}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {invoice.clientName} • {format(new Date(invoice.createdAt), 'MMM dd, yyyy')}
+                      <div className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span className="truncate max-w-[150px]">{invoice.clientName}</span>
+                        <span>•</span>
+                        <span>{format(new Date(invoice.createdAt), 'MMM dd, yyyy')}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={invoice.status === 'paid' ? 'default' : 'outline'}>
-                        {invoice.status}
-                      </Badge>
-                      <div className="text-right">
-                        <div className="font-semibold">₹{invoice.total?.toLocaleString()}</div>
+                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3">
+                      <div className="flex items-center gap-3">
+                        <Badge variant={invoice.status === 'paid' ? 'default' : 'outline'}>
+                          {invoice.status}
+                        </Badge>
+                        <div className="text-right">
+                          <div className="font-semibold">₹{invoice.total?.toLocaleString()}</div>
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -533,7 +537,7 @@ export default function ClientDashboard() {
           projectProgressData={chartData.projectProgress}
           revenueGranularity={revenueGranularity}
           onRevenueGranularityChange={setRevenueGranularity}
-          onRefresh={fetchDashboardData}
+          onRefresh={handleRefresh}
           onExport={handleExportCharts}
         />
 

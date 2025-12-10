@@ -171,7 +171,7 @@ const NotificationsPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container max-w-5xl mx-auto p-6 space-y-8">
+      <div className="container max-w-6xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -432,9 +432,9 @@ const NotificationItem = ({ notification, onClick, onMarkRead, onDelete, getIcon
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className={`text-sm font-semibold leading-none ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2">
+          <h4 className={`text-sm font-semibold leading-tight ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
             {notification.title}
           </h4>
           <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">

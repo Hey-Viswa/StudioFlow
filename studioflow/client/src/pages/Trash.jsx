@@ -207,21 +207,23 @@ export default function Trash() {
       </div>
 
       <Tabs value={filter} onValueChange={setFilter} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="all">All ({trashItems.length})</TabsTrigger>
-          <TabsTrigger value="projects">
-            <FolderOpen className="w-4 h-4 mr-2" />
-            Projects ({trashItems.filter(i => i.type === 'project').length})
-          </TabsTrigger>
-          <TabsTrigger value="invoices">
-            <FileText className="w-4 h-4 mr-2" />
-            Invoices ({trashItems.filter(i => i.type === 'invoice').length})
-          </TabsTrigger>
-          <TabsTrigger value="files">
-            <File className="w-4 h-4 mr-2" />
-            Files ({trashItems.filter(i => i.type === 'file').length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-2">
+          <TabsList className="w-full justify-start md:justify-center">
+            <TabsTrigger value="all" className="flex-shrink-0">All ({trashItems.length})</TabsTrigger>
+            <TabsTrigger value="projects" className="flex-shrink-0">
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Projects ({trashItems.filter(i => i.type === 'project').length})
+            </TabsTrigger>
+            <TabsTrigger value="invoices" className="flex-shrink-0">
+              <FileText className="w-4 h-4 mr-2" />
+              Invoices ({trashItems.filter(i => i.type === 'invoice').length})
+            </TabsTrigger>
+            <TabsTrigger value="files" className="flex-shrink-0">
+              <File className="w-4 h-4 mr-2" />
+              Files ({trashItems.filter(i => i.type === 'file').length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
       </Tabs>
 
       {filteredItems.length === 0 ? (
