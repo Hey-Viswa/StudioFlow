@@ -101,8 +101,8 @@ export default function ClientDashboard() {
         setRecentFiles(filesData.files || [])
       }
 
-      if (invoicesRes.ok) {
-        const invoicesData = await invoicesRes.json()
+      if (recentInvoicesRes.ok) {
+        const invoicesData = await recentInvoicesRes.json()
         setRecentInvoices(invoicesData.invoices || [])
       }
 
