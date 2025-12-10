@@ -149,13 +149,19 @@ export const getCurrentSubscription = async (req, res) => {
       console.log('  End date:', user.subscription.subscriptionEndDate);
       console.log('  Auto-renew:', user.subscription.autoRenew);
 
-      // CRITICAL: If status is 'created' or 'pending', user hasn't completed payment
-      // They should be treated as FREE user, not paid subscriber
-      if (['created', 'pending'].includes(user.subscription.status) && user.subscription.plan !== 'free') {
-        console.log('⚠️  Subscription payment not completed - treating as FREE user');
+      // CRITICAL: If status is 'created' or 'pending', check if it's stale (older than 24 hours)
+      // We allow a grace period for the Webhook or VerifyPayment to complete
+      const isStale = user.subscription.updatedAt &&
+        (new Date() - new Date(user.subscription.updatedAt)) > 24 * 60 * 60 * 1000;
+
+      if (['created', 'pending'].includes(user.subscription.status) && user.subscription.plan !== 'free' && isStale) {
+        console.log('⚠️  Subscription payment stale (>24h) - treating as FREE user');
         user.subscription.plan = 'free';
         user.subscription.status = 'active';
         await user.save();
+      } else if (['created', 'pending'].includes(user.subscription.status) && user.subscription.plan !== 'free') {
+        console.log('⏳ Subscription in progress (within grace period) - Waiting for payment confirmation');
+        // Do NOT downgrade yet, let the UI show "Processing" or keep current access
       }
     }
 

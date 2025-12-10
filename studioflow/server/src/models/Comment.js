@@ -36,6 +36,11 @@ const CommentSchema = new mongoose.Schema({
         default: null,
         index: true
     },
+    category: {
+        type: String,
+        enum: ['general', 'important', 'feedback', 'client_note', 'internal'],
+        default: 'general'
+    },
     reactions: {
         type: Map,
         of: [String],
