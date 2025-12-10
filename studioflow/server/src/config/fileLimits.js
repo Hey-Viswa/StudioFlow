@@ -7,7 +7,7 @@ export const FILE_SIZE_LIMITS = {
     maxFileSize: 50 * 1024 * 1024, // 50MB per file
     maxTotalStorage: 1024 * 1024 * 1024, // 1GB total storage
     maxFilesPerProject: 50,
-    allowedFileTypes: ['image/*', 'application/pdf', 'text/*', 'application/json'],
+    allowedFileTypes: ['image/*', 'application/pdf', 'text/*', 'application/json', 'audio/*'],
   },
   pro: {
     maxFileSize: 200 * 1024 * 1024, // 200MB per file
@@ -49,9 +49,9 @@ export function getMaxFilesPerProject(plan = 'free') {
  */
 export function isFileTypeAllowed(mimeType, plan = 'free') {
   const allowedTypes = FILE_SIZE_LIMITS[plan]?.allowedFileTypes || FILE_SIZE_LIMITS.free.allowedFileTypes;
-  
+
   if (allowedTypes.includes('*')) return true;
-  
+
   return allowedTypes.some(pattern => {
     if (pattern.endsWith('/*')) {
       const baseType = pattern.split('/')[0];

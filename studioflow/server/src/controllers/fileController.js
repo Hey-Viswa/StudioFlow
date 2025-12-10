@@ -157,8 +157,11 @@ export const signUpload = async (req, res) => {
         projectId,
         originalFilename: filename,
         status: { $in: ['active'] },
-        isFinal: { $ne: false } // Find the current head
+        status: { $in: ['active', 'uploading'] },
+        // isFinal check removed to catch legacy files. Sort by version handles validity.
       }).sort({ version: -1 });
+
+      console.log(`🔍 Version Check for ${filename}:`, existingFile ? `Found Ver ${existingFile.version} (ID: ${existingFile._id})` : 'No existing file found');
 
       if (existingFile) {
         baseFileIdRef = existingFile.baseFileId || existingFile._id;
@@ -194,6 +197,7 @@ export const signUpload = async (req, res) => {
       storageKey: key,
       bucket,
       status: 'uploading',
+      isFinal: true, // Mark as potential head version
     });
 
     res.status(200).json({
