@@ -22,44 +22,55 @@ const isMessagingAvailable = () => {
   return !!(process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY);
 };
 
-// Helper to send email via Appwrite
+// Helper to send email via Nodemailer (SMTP) or Appwrite
+import nodemailer from 'nodemailer';
+
 const sendEmail = async ({ to, subject, body, isHtml = true }) => {
-  if (!isMessagingAvailable()) {
-    throw new Error('Appwrite Messaging is not configured');
+  // 1. Try SMTP (Nodemailer) first if configured
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT || 587,
+        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"StudioFlow" <no-reply@studioflow.studio>', // sender address
+        to: to, // list of receivers
+        subject: subject, // Subject line
+        text: isHtml ? body.replace(/<[^>]*>?/gm, "") : body, // plain text body
+        html: isHtml ? body : undefined, // html body
+      });
+
+      console.log('📧 Email sent via SMTP:', info.messageId);
+      return true;
+    } catch (smtpError) {
+      console.error('❌ SMTP Email failed:', smtpError);
+      // Fallthrough to Appwrite check or throw
+    }
+  } else {
+    console.warn('⚠️ SMTP credentials missing (SMTP_HOST, SMTP_USER, SMTP_PASS).');
   }
 
-  try {
-    // Note: Appwrite Messaging API for email might differ based on version
-    // This is a placeholder for the actual implementation
-    // You might need to create a message in a topic or use a function
-    // For now, we'll assume there's a provider configured
+  // 2. Appwrite Messaging Fallback (Placeholder)
+  // If you have Appwrite Cloud Functions for email, trigger them here.
 
-    // In many Appwrite setups, you trigger emails via Cloud Functions or specific providers
-    // If using the node-appwrite SDK directly for messaging:
-    /*
-    await messaging.createEmail(
-      ID.unique(),
-      subject,
-      body,
-      [], // topics
-      to, // users/targets
-      isHtml
-    );
-    */
-    console.log('📧 [Mock] Appwrite Email Sent:', { to, subject });
-    return true;
-  } catch (error) {
-    console.error('Appwrite sendEmail error:', error);
-    throw error;
-  }
+  console.log('⚠️ Email service not fully configured. Email was logged but not sent.');
+  console.log(`Debug Email Content -> To: ${to}, Subject: ${subject}`);
+  return false;
 };
 
-// Initialize Messaging (placeholder for future setup if needed)
+// Initialize Messaging
 const initializeMessaging = () => {
-  if (isMessagingAvailable()) {
-    console.log('✅ Appwrite Messaging initialized');
+  if (process.env.SMTP_HOST) {
+    console.log('✅ SMTP Email Service initialized');
   } else {
-    console.log('⚠️ Appwrite Messaging not configured (skipping)');
+    console.log('⚠️ SMTP Email Service not configured');
   }
 };
 

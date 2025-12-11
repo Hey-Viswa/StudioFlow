@@ -39,7 +39,7 @@ export const initializeSocket = async (httpServer) => {
     const appSubscriber = pubClient.duplicate();
     // Note: ioredis connects automatically by default. 
     // Calling connect() manually on an auto-connecting client causes "Redis is already connecting" error.
-    
+
     // Wait for connection before subscribing to avoid race conditions
     appSubscriber.on('ready', async () => {
       try {
@@ -54,7 +54,7 @@ export const initializeSocket = async (httpServer) => {
 
     appSubscriber.on('message', (channel, message) => {
       if (channel !== 'kpi:updates') return;
-      
+
       try {
         const data = JSON.parse(message);
         console.log('📡 Received KPI Update via Redis:', data.invoiceId);
@@ -109,7 +109,19 @@ export const initializeSocket = async (httpServer) => {
 
   io = new Server(httpServer, {
     cors: {
-      origin: Array.from(allowedOrigins),
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, etc)
+        if (!origin) return callback(null, true);
+
+        // Check against allowed list OR allow all for debugging
+        if (allowedOrigins.has(origin)) {
+          return callback(null, true);
+        }
+
+        // Temporary: Log and Allow to debug production issues
+        console.log(`⚠️ Socket CORS: Allowing unknown origin: ${origin}`);
+        return callback(null, true);
+      },
       methods: ['GET', 'POST', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
