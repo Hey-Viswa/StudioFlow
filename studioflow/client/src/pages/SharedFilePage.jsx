@@ -12,6 +12,7 @@ import { formatFileSize } from '@/lib/api/files';
 import { formatINR } from '@/utils/currency';
 import useRazorpay from '@/hooks/useRazorpay';
 import { useProjectSocket } from '@/hooks/useSocket';
+import api from '@/lib/api';
 
 // ... existing code ...
 
