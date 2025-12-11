@@ -13,7 +13,7 @@ const AuditLogSchema = new mongoose.Schema({
     },
     resourceType: {
         type: String,
-        enum: ['subscription', 'invoice', 'payment', 'user', 'system', 'project', 'file', 'entitlement', 'comment'],
+        enum: ['subscription', 'invoice', 'payment', 'user', 'system', 'project', 'file', 'entitlement', 'comment', 'task'],
         required: true
     },
     resourceId: {

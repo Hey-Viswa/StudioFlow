@@ -4,6 +4,7 @@ import { createNotificationWithIdempotency } from '../services/notificationServi
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { logAudit } from '../services/auditService.js';
+import { taskQueue } from '../queues/automationQueue.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
@@ -102,6 +103,7 @@ export const getComments = async (req, res) => {
 };
 
 export const addComment = async (req, res) => {
+  console.log('🔴🔴🔴 COMMENT_V2: addComment called - AUTOMATION ENABLED 🔴🔴🔴');
   try {
     const { id: projectId } = req.params;
     const { text, parentId, attachments, mentions, clientGeneratedId } = req.body;
@@ -221,6 +223,49 @@ export const addComment = async (req, res) => {
       console.error('Error sending comment notifications:', notifError);
     }
 
+    const automationService = (await import('../services/automationService.js')).default;
+
+    // --- AUTOMATION HOOK: Task Creation ---
+    // Enqueue job for async process OR run direct if queue disabled/err
+    const automationPayload = {
+      commentId: newComment._id,
+      projectId,
+      content: text,
+      userId,
+      link: `/dashboard/projects/${projectId}?tab=comments`
+    };
+
+    try {
+      console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
+      let queued = false;
+      if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+        try {
+          taskQueue.add(automationPayload, {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+            removeOnComplete: true
+          });
+          console.log(`🚀 Queued task automation for comment ${newComment._id}`);
+          queued = true;
+        } catch (qErr) {
+          console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+        }
+      }
+
+      if (!queued) {
+        // Direct execution fallback - AWAITING for debugging
+        console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
+        try {
+          await automationService.processTaskAutomation(automationPayload);
+          console.log('SB_DEBUG: Direct automation finished successfully');
+        } catch (directErr) {
+          console.error('❌ SB_DEBUG: Direct automation failed:', directErr);
+        }
+      }
+    } catch (queueError) {
+      console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
+    }
+
     res.status(201).json({ comment: commentObj });
   } catch (error) {
     console.error('❌ Error adding comment:', error);
@@ -233,6 +278,9 @@ export const updateComment = async (req, res) => {
     const { id: projectId, commentId } = req.params;
     const { text } = req.body;
     const userId = req.userId;
+
+    // Debug Queue Status
+    console.log(`DEBUG: ENABLE_REDIS_QUEUE is '${process.env.ENABLE_REDIS_QUEUE}'`);
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Comment text is required' });

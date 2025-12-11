@@ -5,11 +5,21 @@ import Notification from '../models/Notification.js';
 // Get tasks for a project
 export const getProjectTasks = async (req, res) => {
     try {
-        const { projectId } = req.params;
+        const { id: projectId } = req.params;  // Route uses :id, not :projectId
         const tasks = await Task.find({ projectId, deletedAt: null })
             .sort({ createdAt: -1 })
             .populate('assigneeName', 'name') // Simplified populate for now
             .lean();
+
+        console.log(`🔍 [getProjectTasks] ProjectID: ${projectId}`);
+        console.log(`   Found ${tasks.length} tasks.`);
+        if (tasks.length > 0) {
+            console.log(`   Sample Task: ${tasks[0]._id} (Status: ${tasks[0].status})`);
+        } else {
+            // Debug: check if any tasks exist at all for this project ignoring deletedAt
+            const allTasks = await Task.countDocuments({ projectId });
+            console.log(`   Total tasks (including deleted): ${allTasks}`);
+        }
 
         res.json(tasks);
     } catch (error) {

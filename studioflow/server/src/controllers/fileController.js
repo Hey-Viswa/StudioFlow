@@ -17,6 +17,7 @@ import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { verifyEntitlement } from '../utils/entitlement.js';
 import { logAudit } from '../services/auditService.js';
+import { tagQueue } from '../queues/automationQueue.js';
 
 /**
  * Helper: Check if user is a project collaborator
@@ -191,7 +192,6 @@ export const signUpload = async (req, res) => {
       mimeType: contentType,
       size,
       version,
-      version,
       baseFileId: baseFileIdRef || null,
       storageProvider: provider,
       storageKey: key,
@@ -307,8 +307,9 @@ export const confirmUpload = async (req, res) => {
               });
             }
             // Add System Comment
-            // (Requires comment schema awareness, simplified for now: just update status)
+            task.status = 'in-review'; // Move to Review
             await task.save({ session });
+            console.log(`✅ [Auto] Moved task ${task._id} to 'in-review' (Version ${fileRecord.version})`);
           }
         }
       }
@@ -316,6 +317,60 @@ export const confirmUpload = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
+      // --- AUTOMATION HOOK: Auto-Tagging ---
+      // Enqueue job for async processing (non-blocking)
+      // Queue for Auto-Tagging
+      const automationPayload = {
+        fileId: fileRecord._id,
+        projectId,
+        filename: fileRecord.filename,
+        extension: fileRecord.filename.split('.').pop(),
+        userId
+      };
+
+      try {
+        let queued = false;
+        if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+          try {
+            tagQueue.add(automationPayload, {
+              attempts: 3,
+              removeOnComplete: true
+            });
+            queued = true;
+            console.log(`🚀 Queued auto-tagging for ${fileRecord._id}`);
+          } catch (qErr) {
+            console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+          }
+        }
+
+        if (!queued) {
+          const automationService = (await import('../services/automationService.js')).default;
+          console.log('ℹ️ Running tagging automation directly (No Queue)');
+          automationService.processTagAutomation(automationPayload).catch(err => {
+            console.error('❌ Direct tagging failed:', err);
+          });
+        }
+      } catch (err) {
+        console.error('⚠️ Failed to queue auto-tagging:', err);
+      }
+
+
+      // Log success
+      console.log(`✅ File confirmed: ${fileRecord.filename} (ID: ${fileRecord._id})`);
+
+      // Audit LOG
+      await logAudit({
+        userId,
+        action: 'file.upload_complete',
+        resourceType: 'file',
+        resourceId: fileRecord._id,
+        details: {
+          filename: fileRecord.filename,
+          size: fileRecord.size,
+          version: fileRecord.version
+        },
+        req
+      });
       // Trigger Preview Generation for Images
       if (fileRecord.mimeType.startsWith('image/')) {
         previewQueue.add({

@@ -141,26 +141,50 @@ export default async function verifyClerk(req, res, next) {
                 req.user = dbUser;
                 req.userRole = dbUser.role;
             } else {
-                // JIT Provisioning: Create user if not exists
-                console.log('✨ JIT Provisioning: Creating new user for', payload.sub);
+                // JIT Provisioning: Create user if not exists or Link if e-mail exists
+                console.log('✨ JIT Provisioning: Checking for user creation/linking', payload.sub);
+                console.log(`   Email: ${req.userEmail || 'N/A'}, Name: ${req.userName || 'N/A'}`);
 
                 try {
-                    const newUser = await User.create({
-                        clerkUserId: payload.sub,
-                        email: req.userEmail || '',
-                        name: req.userName || 'New User',
-                        role: 'owner', // Default to owner so they can create projects
-                        subscription: {
-                            plan: 'free',
-                            status: 'active'
-                        }
-                    });
+                    // Check if user exists by email first (to avoid duplicate key error)
+                    let existingUserByEmail = null;
+                    if (req.userEmail) {
+                        console.log(`   Checking for existing user by email: ${req.userEmail}`);
+                        existingUserByEmail = await User.findOne({ email: req.userEmail });
+                    }
 
-                    console.log('✅ User created successfully:', newUser._id);
-                    req.user = newUser;
-                    req.userRole = newUser.role;
+                    if (existingUserByEmail) {
+                        console.log(`ℹ️ User found by email (${req.userEmail}). Linking Clerk ID ${payload.sub} to existing user ${existingUserByEmail._id}`);
+                        // Update the existing user with the new Clerk ID
+                        existingUserByEmail.clerkUserId = payload.sub;
+                        // Also ensure name is up to date if missing
+                        if (!existingUserByEmail.name && req.userName) {
+                            existingUserByEmail.name = req.userName;
+                        }
+                        await existingUserByEmail.save();
+                        console.log(`✅ Clerk ID linked successfully to existing user`);
+
+                        req.user = existingUserByEmail;
+                        req.userRole = existingUserByEmail.role;
+                    } else {
+                        // Create new user
+                        const newUser = await User.create({
+                            clerkUserId: payload.sub,
+                            email: req.userEmail || '',
+                            name: req.userName || 'New User',
+                            role: 'owner', // Default to owner so they can create projects
+                            subscription: {
+                                plan: 'free',
+                                status: 'active'
+                            }
+                        });
+
+                        console.log('✅ User created successfully:', newUser._id);
+                        req.user = newUser;
+                        req.userRole = newUser.role;
+                    }
                 } catch (createError) {
-                    console.error('❌ Failed to create user during JIT:', createError);
+                    console.error('❌ Failed to provision user during JIT:', createError);
                     // Fallback to guest if creation fails (shouldn't happen often)
                     req.user = null;
                     req.userRole = 'guest';

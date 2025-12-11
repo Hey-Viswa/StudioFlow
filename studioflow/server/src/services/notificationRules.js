@@ -159,10 +159,6 @@ export const NotificationRulesService = {
                 if (inRange) {
                     console.log(`User ${userId} is in DND mode. Skipping push.`);
                     // We might still want to save to DB (in-app), but skip push. 
-                    // For this function, we'll return true but the caller should handle channel selection.
-                    // Let's return a special object or just true/false? 
-                    // For simplicity, let's assume this checks if they want *any* notification.
-                    // DND usually suppresses push/sound, not the existence of the notification.
                     return true;
                 }
             }
@@ -176,6 +172,30 @@ export const NotificationRulesService = {
     },
 
     /**
+     * Check if a notification should be batched for digest
+     * @param {string} userId 
+     * @param {string} eventType 
+     * @returns {Promise<boolean>}
+     */
+    async shouldDigest(userId, eventType) {
+        try {
+            // Urgent notifications (invoices, mentions) usually bypass digest
+            // But we can check eventType to be sure. 
+            // For now, let's assume 'invoice.*' bypasses digest unless user explicitly says so (feature for later)
+            if (eventType.startsWith('invoice.')) return false;
+
+            const prefs = await NotificationPreference.findOne({ userId });
+            if (!prefs || !prefs.digest) return false;
+
+            // If Frequency is NOT realtime, then we digest
+            return prefs.digest.emailFrequency !== 'realtime';
+        } catch (error) {
+            console.error('Error checking digest preference:', error);
+            return false;
+        }
+    },
+
+    /**
      * Get enabled channels for a user
      */
     async getEnabledChannels(userId, isUrgent = false) {
@@ -183,6 +203,14 @@ export const NotificationRulesService = {
 
         if (!prefs) {
             return { inApp: true, push: true, email: false };
+        }
+
+        // If digest is enabled, and this is NOT urgent, disable email (it will go to digest)
+        // Note: usage of this function assumes immediate sending. 
+        // Logic in notificationService will check shouldDigest() first.
+        let emailEnabled = prefs.channels.email;
+        if (prefs.digest?.emailFrequency !== 'realtime' && !isUrgent) {
+            emailEnabled = false; // Suppress immediate email if digesting
         }
 
         // Check DND for Push
@@ -203,7 +231,7 @@ export const NotificationRulesService = {
         return {
             inApp: prefs.channels.inApp,
             push: pushEnabled,
-            email: prefs.channels.email
+            email: emailEnabled
         };
     }
 };

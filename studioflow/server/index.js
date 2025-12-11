@@ -37,6 +37,8 @@ import { startNotificationWorker } from './src/workers/notificationWorker.js';
 import { startFileWorker } from './src/workers/fileWorker.js';
 import { startPaymentWorker } from './src/workers/paymentWorker.js';
 import { startPreviewWorker } from './src/workers/PreviewWorker.js';
+import { startAutomationWorker } from './src/workers/automationWorker.js';
+import { startNotificationBatchWorker } from './src/workers/notificationBatchWorker.js';
 import cron from 'node-cron';
 import { runInvoiceStatusJobs } from './src/jobs/invoiceStatusUpdater.js';
 import { startVersionCleanupJob } from './src/jobs/VersionCleanupJob.js';
@@ -340,6 +342,12 @@ const startServer = async () => {
         // Start preview worker
         startPreviewWorker();
 
+        // Start automation worker
+        startAutomationWorker();
+
+        // Start batch worker
+        startNotificationBatchWorker();
+
         // Start version cleanup job
         startVersionCleanupJob();
 
@@ -347,6 +355,14 @@ const startServer = async () => {
         cron.schedule('0 2 * * *', async () => {
             console.log('\n⏰ Cron: Running invoice status jobs (02:00 daily)');
             await runInvoiceStatusJobs();
+        });
+
+        // Schedule Notification Batch Processing (Every Hour)
+        cron.schedule('0 * * * *', async () => {
+            console.log('\n⏰ Cron: Triggering Notification Batch Processing');
+            // Add job to queue to be picked up by worker
+            const { notificationBatchQueue } = await import('./src/queues/notificationBatchQueue.js');
+            notificationBatchQueue.add('process-analyzed-batches', {}, { removeOnComplete: true });
         });
 
         // Optional: run once on boot to catch up

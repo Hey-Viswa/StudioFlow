@@ -32,11 +32,42 @@ const NotificationPreferenceSchema = new mongoose.Schema({
         timezone: { type: String, default: 'UTC' },
         bypassForUrgent: { type: Boolean, default: true }
     },
-    mutedProjects: [{
-        type: String // projectIds
+    // Phase 3: Automation & Productivity Additions
+    // Global Mute Settings
+    mutes: {
+        marketing: { type: Boolean, default: false },
+        system: { type: Boolean, default: false }
+    },
+
+    // Digest Configuration
+    digest: {
+        emailFrequency: {
+            type: String,
+            enum: ['realtime', 'daily', 'weekly'],
+            default: 'realtime'
+        },
+        groupingWindowMinutes: {
+            type: Number,
+            default: 15,
+            min: 1,
+            max: 1440 // 24 hours
+        }
+    },
+
+    // Advanced Project Settings (Replaces simple mutedProjects string array over time)
+    projectSettings: [{
+        projectId: {
+            type: String, // standardized on String for IDs if needed, or Schema.Types.ObjectId
+            required: true
+        },
+        muted: { type: Boolean, default: false },
+        mentionsOnly: { type: Boolean, default: false }
     }]
 }, {
     timestamps: true
 });
+
+// Index for getting user prefs quickly
+NotificationPreferenceSchema.index({ userId: 1 });
 
 export default mongoose.model('NotificationPreference', NotificationPreferenceSchema);

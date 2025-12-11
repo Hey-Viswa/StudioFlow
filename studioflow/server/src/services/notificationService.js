@@ -1,4 +1,6 @@
 import Notification from '../models/Notification.js';
+import NotificationBatch from '../models/NotificationBatch.js';
+import NotificationPreference from '../models/NotificationPreference.js';
 import { getIO } from '../config/socket.js';
 import { sendEmail, isMessagingAvailable } from '../config/appwriteMessaging.js';
 import { sendPushNotification as sendFCMPush, isFirebaseAvailable } from '../config/firebase.js';
@@ -551,11 +553,15 @@ export const processNotificationEvent = async (type, data, actorId) => {
         'invoice': 'urgent',
         'file': 'info'
       };
-
       const modelCategory = categoryMapping[data.category] || 'info';
 
-      // 5. Create Notification using Service
-      await createNotification({
+      // 5. Check Digest Logic
+      // Check if we should digest instead of sending immediate email
+      // We still create the in-app notification (Notification model), but suppress the immediate email
+      const shouldDigest = await NotificationRulesService.shouldDigest(userId, type);
+
+      // Create Notification
+      const notification = await createNotification({
         userId,
         type: modelType,
         actorId,
@@ -567,16 +573,85 @@ export const processNotificationEvent = async (type, data, actorId) => {
         metadata: data,
         priority: notificationPriority,
         category: modelCategory,
-        sendEmail: channels.email,
+        // If digesting, Force Email OFF here. The Batch worker will handle email later.
+        sendEmail: shouldDigest ? false : channels.email,
         sendPush: channels.push,
         idempotencyKey: data.idempotencyKey // Pass the key from the job data
       });
+
+      // 6. Add to Digest Batch if needed
+      if (shouldDigest) {
+        await addToDigest(userId, notification);
+        console.log(`📥 Notification batched for digest (User: ${userId})`);
+      }
     }
     console.log(`✅ Successfully processed notification event: ${type}`);
     return true;
   } catch (error) {
     console.error('❌ Error processing notification event:', error);
     return false;
+  }
+};
+
+/**
+ * Add notification to a pending batch
+ */
+export const addToDigest = async (userId, notification) => {
+  try {
+    const prefs = await NotificationPreference.findOne({ userId });
+    const frequency = prefs?.digest?.emailFrequency || 'daily';
+
+    // Calculate processAfter based on frequency
+    // For simplicity: process at next interval (e.g., 9am tomorrow for daily)
+    const now = new Date();
+    const processAfter = new Date(now);
+
+    if (frequency === 'daily') {
+      processAfter.setDate(processAfter.getDate() + 1);
+      processAfter.setHours(9, 0, 0, 0); // 9 AM next day
+    } else if (frequency === 'weekly') {
+      // Next Monday at 9am
+      const day = processAfter.getDay();
+      const diff = processAfter.getDate() - day + (day === 0 ? -6 : 1) + 7;
+      processAfter.setDate(diff);
+      processAfter.setHours(9, 0, 0, 0);
+    } else {
+      // Fallback: 1 hour from now
+      processAfter.setHours(processAfter.getHours() + 1);
+    }
+
+    // Find existing pending batch or create new one
+    let batch = await NotificationBatch.findOne({
+      userId,
+      status: 'pending'
+    });
+
+    if (!batch) {
+      batch = new NotificationBatch({
+        userId,
+        status: 'pending',
+        processAfter,
+        notifications: []
+      });
+    }
+
+    // Add simplified snapshot
+    batch.notifications.push({
+      _id: notification._id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      link: notification.link,
+      createdAt: notification.createdAt,
+      data: notification.data?.metadata
+    });
+
+    await batch.save();
+    return batch;
+
+  } catch (error) {
+    console.error('Failed to add to digest batch:', error);
+    // Don't throw, just fail the batch part
   }
 };
 
