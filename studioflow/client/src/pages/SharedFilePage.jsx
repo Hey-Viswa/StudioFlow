@@ -470,14 +470,6 @@ export default function SharedFilePage() {
                     <p className="text-amber-700">
                       This file is part of a premium deliverable. To download it, you must settle
                       <strong> Invoice #{invoice.number}</strong> ({invoiceDisplayAmount}).
-                      {!invoice && !allowDownload && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-                          <p className="text-blue-900 font-medium mb-1">Invoice required for download</p>
-                          <p className="text-blue-700">
-                            The project owner has not attached an invoice yet. Preview is available; download will unlock once an invoice is issued and paid.
-                          </p>
-                        </div>
-                      )}
                     </p>
                   </div>
                 </div>

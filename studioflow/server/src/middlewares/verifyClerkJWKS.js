@@ -141,11 +141,30 @@ export default async function verifyClerk(req, res, next) {
                 req.user = dbUser;
                 req.userRole = dbUser.role;
             } else {
-                // Optional: Create user if not exists (JIT Provisioning)
-                // For now, we'll just log it.
-                console.log('User not found in MongoDB:', payload.sub);
-                req.user = null;
-                req.userRole = 'guest';
+                // JIT Provisioning: Create user if not exists
+                console.log('✨ JIT Provisioning: Creating new user for', payload.sub);
+
+                try {
+                    const newUser = await User.create({
+                        clerkUserId: payload.sub,
+                        email: req.userEmail || '',
+                        name: req.userName || 'New User',
+                        role: 'owner', // Default to owner so they can create projects
+                        subscription: {
+                            plan: 'free',
+                            status: 'active'
+                        }
+                    });
+
+                    console.log('✅ User created successfully:', newUser._id);
+                    req.user = newUser;
+                    req.userRole = newUser.role;
+                } catch (createError) {
+                    console.error('❌ Failed to create user during JIT:', createError);
+                    // Fallback to guest if creation fails (shouldn't happen often)
+                    req.user = null;
+                    req.userRole = 'guest';
+                }
             }
         } catch (dbError) {
             console.error('Error fetching user from DB:', dbError);

@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { Loader2, Send, Trash2 } from 'lucide-react';
+import { Loader2, Send, Trash2, Paperclip, X, File } from 'lucide-react';
 import { useProjectSocket } from '../hooks/useSocket';
+import { uploadFile, formatFileSize } from '@/lib/api/files';
 
 export default function CommentsTab({ projectId, project }) {
   const { getToken } = useAuth();
@@ -14,6 +15,9 @@ export default function CommentsTab({ projectId, project }) {
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Socket.IO callbacks for real-time updates
   const handleCommentAdded = useCallback((data) => {
@@ -48,7 +52,7 @@ export default function CommentsTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to fetch comments');
-      
+
       const data = await response.json();
       setComments(data.comments || []);
     } catch (error) {
@@ -58,13 +62,95 @@ export default function CommentsTab({ projectId, project }) {
     }
   };
 
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    const newAttachments = [...attachments];
+
+    try {
+      const token = await getToken();
+
+      // Upload each file
+      for (const file of files) {
+        // Add pending attachment
+        const tempId = Date.now() + Math.random();
+        newAttachments.push({
+          id: tempId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'uploading'
+        });
+        setAttachments([...newAttachments]);
+
+        try {
+          const result = await uploadFile(projectId, file, token);
+
+          // Update attachment with result
+          const index = newAttachments.findIndex(a => a.id === tempId);
+          if (index !== -1) {
+            newAttachments[index] = {
+              ...newAttachments[index],
+              status: 'completed',
+              fileId: result.fileId,
+              url: result.downloadUrl || result.previewUrl, // Use what's available
+              key: result.storageKey
+            };
+            setAttachments([...newAttachments]);
+          }
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          toast.error(`Failed to upload ${file.name}`);
+
+          // Remove failed attachment
+          const index = newAttachments.findIndex(a => a.id === tempId);
+          if (index !== -1) {
+            newAttachments.splice(index, 1);
+            setAttachments([...newAttachments]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Upload handling error:', error);
+    } finally {
+      setUploading(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeAttachment = (index) => {
+    const newAttachments = [...attachments];
+    newAttachments.splice(index, 1);
+    setAttachments(newAttachments);
+  };
+
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    
-    if (!newComment.trim()) {
+
+    if (!newComment.trim() && attachments.length === 0) {
       toast.error('Comment cannot be empty');
       return;
     }
+
+    if (uploading) {
+      toast.warning('Please wait for uploads to complete');
+      return;
+    }
+
+    // Prepare attachments payload
+    const finalAttachments = attachments.map(a => ({
+      name: a.name,
+      size: a.size,
+      type: a.type,
+      url: a.url,
+      fileId: a.fileId,
+      key: a.key
+    }));
 
     // Optimistic UI update
     const optimisticComment = {
@@ -74,11 +160,13 @@ export default function CommentsTab({ projectId, project }) {
       userName: user?.fullName || user?.firstName || 'You',
       userEmail: user?.primaryEmailAddress?.emailAddress,
       createdAt: new Date().toISOString(),
+      attachments: finalAttachments,
       isOptimistic: true
     };
 
     setComments(prev => [...prev, optimisticComment]);
     setNewComment('');
+    setAttachments([]);
 
     setSubmitting(true);
     try {
@@ -91,24 +179,28 @@ export default function CommentsTab({ projectId, project }) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ text: optimisticComment.text })
+        body: JSON.stringify({
+          text: optimisticComment.text,
+          attachments: finalAttachments
+        })
       });
 
       if (!response.ok) throw new Error('Failed to create comment');
-      
+
       const data = await response.json();
-      
+
       // Replace optimistic comment with real one
-      setComments(prev => prev.map(c => 
+      setComments(prev => prev.map(c =>
         c._id === optimisticComment._id ? data.comment : c
       ));
-      
+
       toast.success('Comment added!');
     } catch (error) {
       console.error('Create comment error:', error);
       // Remove optimistic comment on error
       setComments(prev => prev.filter(c => c._id !== optimisticComment._id));
       setNewComment(optimisticComment.text); // Restore text
+      setAttachments(finalAttachments); // Restore attachments
       toast.error('Failed to add comment');
     } finally {
       setSubmitting(false);
@@ -135,7 +227,7 @@ export default function CommentsTab({ projectId, project }) {
       });
 
       if (!response.ok) throw new Error('Failed to delete comment');
-      
+
       setComments(comments.filter(c => c._id !== commentId));
       toast.success('Comment deleted!');
     } catch (error) {
@@ -157,9 +249,9 @@ export default function CommentsTab({ projectId, project }) {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
     });
@@ -192,7 +284,7 @@ export default function CommentsTab({ projectId, project }) {
               {getInitials(user?.fullName || user?.firstName || 'U')}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1">
+          <div className="flex-1 space-y-2">
             <Textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
@@ -200,22 +292,67 @@ export default function CommentsTab({ projectId, project }) {
               rows={3}
               className="resize-none"
             />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button type="submit" disabled={submitting || !newComment.trim()}>
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Posting...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                Comment
-              </>
+
+            {/* Attachments List */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((file, index) => (
+                  <div key={file.id || index} className="flex items-center gap-2 bg-muted p-2 rounded-md border text-sm">
+                    {file.status === 'uploading' ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <File className="w-4 h-4 text-primary" />
+                    )}
+                    <span className="max-w-[150px] truncate" title={file.name}>{file.name}</span>
+                    <span className="text-muted-foreground text-xs">({formatFileSize(file.size)})</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
-          </Button>
+
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  multiple
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || submitting}
+                >
+                  <Paperclip className="w-4 h-4 mr-2" />
+                  Attach File
+                </Button>
+              </div>
+
+              <Button type="submit" disabled={submitting || (uploading || (!newComment.trim() && attachments.length === 0))}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Posting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Comment
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </form>
 
@@ -254,7 +391,26 @@ export default function CommentsTab({ projectId, project }) {
                     </Button>
                   )}
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{comment.text}</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{comment.text || comment.content}</p>
+
+                {/* Comment Attachments */}
+                {comment.attachments && comment.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {comment.attachments.map((att, idx) => (
+                      <a
+                        key={idx}
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 bg-muted/50 p-2 rounded border hover:bg-muted transition-colors text-sm"
+                      >
+                        <File className="w-4 h-4 text-primary" />
+                        <span className="truncate max-w-[200px]">{att.name}</span>
+                        {att.size && <span className="text-xs text-muted-foreground">({formatFileSize(att.size)})</span>}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))

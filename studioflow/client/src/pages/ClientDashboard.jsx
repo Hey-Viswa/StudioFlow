@@ -256,6 +256,40 @@ export default function ClientDashboard() {
     }
   }
 
+  const handleDownloadInvoice = async (invoice) => {
+    try {
+      toast.info('Downloading invoice...');
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${apiUrl}/invoices/project/${invoice.invoiceNumber || invoice._id}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download invoice');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${invoice.invoiceNumber || 'invoice'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Invoice downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(error.message || 'Failed to download invoice');
+    }
+  };
+
   const uniqueClients = useMemo(() => {
     const allClients = projects.flatMap(p =>
       p.members?.filter(m => m.role === 'client').map(m => ({ id: m.userId, name: m.name || m.email })) || []
@@ -498,8 +532,7 @@ export default function ClientDashboard() {
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
-                            window.open(`${apiUrl}/api/invoices/project/${invoice.invoiceNumber || invoice._id}/download`, '_blank');
+                            handleDownloadInvoice(invoice);
                           }}
                         >
                           <Download className="h-4 w-4" />

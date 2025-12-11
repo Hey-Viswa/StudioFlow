@@ -146,13 +146,41 @@ export const shareFileWithClient = async (req, res) => {
 
     // If explicit ID not provided or 'auto', try auto-detect
     if (!targetInvoiceId || targetInvoiceId === 'auto') {
-      const invoice = await ProjectInvoice.findOne({
+      // 1. Try finding by Client User ID
+      let invoice = await ProjectInvoice.findOne({
         projectId,
         'client.userId': clientId,
-        status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
+        status: { $in: ['draft', 'sent', 'pending', 'partially_paid', 'overdue'] }
       }).sort({ createdAt: -1 });
 
-      if (invoice) targetInvoiceId = invoice._id;
+      // 2. Fallback: Try finding by Client Email
+      if (!invoice) {
+        try {
+          const memberModel = (await import('../models/ProjectMember.js')).default;
+          const member = await memberModel.findOne({ projectId, userId: clientId });
+
+          if (member && member.email) {
+            console.log('[ShareFile] Auto-detect: Falling back to email lookup', member.email);
+            invoice = await ProjectInvoice.findOne({
+              projectId,
+              'client.email': member.email,
+              status: { $in: ['draft', 'sent', 'pending', 'partially_paid', 'overdue'] }
+            }).sort({ createdAt: -1 });
+          }
+        } catch (err) {
+          console.warn('[ShareFile] Auto-detect email fallback failed:', err.message);
+        }
+      }
+
+      if (invoice) {
+        targetInvoiceId = invoice._id;
+        console.log('[ShareFile] Auto-detected invoice:', invoice.invoiceNumber);
+      } else {
+        console.log('[ShareFile] No active invoice found for gating. Client:', clientId);
+        // Debug: List all invoices for this project to see why we missed it
+        const allInvoices = await ProjectInvoice.find({ projectId }).select('status client.userId').lean();
+        console.log('[ShareFile] Debug - All Project Invoices:', allInvoices.map(i => `${i.status} (Client: ${i.client?.userId})`));
+      }
     }
 
     // Verify invoice exists if explicit
@@ -172,6 +200,14 @@ export const shareFileWithClient = async (req, res) => {
       passwordHash = await bcrypt.hash(password.trim(), 10);
     }
 
+    // SAFETY: If user requested 'auto' (Gating) but we found NOTHING, force allowDownload=false
+    // to prevent accidental free sharing.
+    let finalAllowDownload = allowDownload;
+    if (invoiceId === 'auto' && !invoice) {
+      console.warn('[ShareFile] Safety: Requested auto-gating but no invoice found. Disabling download.');
+      finalAllowDownload = false;
+    }
+
     // Add/Update share entry
     if (!file.sharedWith) file.sharedWith = [];
     const existingIndex = file.sharedWith.findIndex(s => s.userId === clientId);
@@ -179,7 +215,7 @@ export const shareFileWithClient = async (req, res) => {
     const shareData = {
       userId: clientId,
       shareToken,
-      allowDownload,
+      allowDownload: finalAllowDownload,
       expiresAt,
       sharedBy: userId,
       sharedAt: new Date(),
@@ -237,7 +273,7 @@ export const shareFileWithClient = async (req, res) => {
 export const shareFilesWithClient = async (req, res) => {
   try {
     const { id: projectId } = req.params;
-    const { clientId, fileIds, allowDownload = false, expiresInDays = 90 } = req.body; // default 90 days access
+    const { clientId, fileIds, allowDownload = false, expiresInDays = 90, password } = req.body; // default 90 days access
     const userId = req.userId;
 
     if (!clientId || !Array.isArray(fileIds) || fileIds.length === 0) {
@@ -264,6 +300,12 @@ export const shareFilesWithClient = async (req, res) => {
       return res.status(400).json({ error: 'User is not a client on this project' });
     }
 
+    // Hash password if provided
+    let passwordHash = null;
+    if (password && password.trim().length > 0) {
+      passwordHash = await bcrypt.hash(password.trim(), 10);
+    }
+
     // Fetch all requested files
     const files = await ProjectFile.find({ projectId, fileId: { $in: fileIds } });
     const foundIds = new Set(files.map(f => f.fileId));
@@ -275,35 +317,80 @@ export const shareFilesWithClient = async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
     // Find latest unpaid invoice for gating (draft/sent/unpaid/pending)
-    const invoice = await ProjectInvoice.findOne({
-      projectId,
-      'client.userId': clientId,
-      status: { $in: ['draft', 'sent', 'pending', 'unpaid'] }
-    }).sort({ createdAt: -1 });
+    // 1. Try finding by Client User ID
+    const { invoiceId: requestedInvoiceId } = req.body;
+    let invoice = null;
 
-    const effectiveAllowDownload = allowDownload && !!invoice;
+    if (requestedInvoiceId === 'none') {
+      // Explicitly NO gating
+    } else if (requestedInvoiceId && requestedInvoiceId !== 'auto') {
+      // Explicit invoice ID (Bulk works if same client?)
+      invoice = await ProjectInvoice.findOne({ _id: requestedInvoiceId, projectId });
+    } else {
+      // Auto-detect (default)
+      invoice = await ProjectInvoice.findOne({
+        projectId,
+        'client.userId': clientId,
+        status: { $in: ['draft', 'sent', 'pending', 'partially_paid', 'overdue'] }
+      }).sort({ createdAt: -1 });
+
+      // 2. Fallback: Try finding by Client Email
+      if (!invoice) {
+        try {
+          const memberModel = (await import('../models/ProjectMember.js')).default;
+          const member = await memberModel.findOne({ projectId, userId: clientId });
+
+          if (member && member.email) {
+            console.log('[BulkShare] Auto-detect: Falling back to email lookup', member.email);
+            invoice = await ProjectInvoice.findOne({
+              projectId,
+              'client.email': member.email,
+              status: { $in: ['draft', 'sent', 'pending', 'partially_paid', 'overdue'] }
+            }).sort({ createdAt: -1 });
+          }
+        } catch (err) {
+          console.warn('[BulkShare] Auto-detect email fallback failed:', err.message);
+        }
+      }
+    }
+
+    // Fix effectiveAllowDownload Logic:
+    // If invoice found: allowDownload is conditional on invoice status (handled by getSharedFile).
+    // If no invoice found:
+    //   - If user requested 'auto' and failed: DISABLE download (Safety).
+    //   - If user requested 'none': RESPECT allowDownload.
+    let effectiveAllowDownload = allowDownload;
+
+    if ((!requestedInvoiceId || requestedInvoiceId === 'auto') && !invoice) {
+      // Intended gating but failed -> Disable download
+      effectiveAllowDownload = false;
+    }
 
     for (const file of files) {
       const shareToken = generateShareToken();
       if (!file.sharedWith) file.sharedWith = [];
       const existing = file.sharedWith.find(s => s.userId === clientId);
+
+      const shareData = {
+        userId: clientId,
+        shareToken,
+        allowDownload: effectiveAllowDownload,
+        expiresAt,
+        sharedBy: userId,
+        sharedAt: now,
+        invoiceId: invoice?._id,
+        password: passwordHash
+      };
+
       if (existing) {
-        existing.shareToken = shareToken;
-        existing.allowDownload = effectiveAllowDownload;
-        existing.expiresAt = expiresAt;
-        existing.sharedBy = userId;
-        existing.sharedAt = now;
-        existing.invoiceId = invoice?._id;
+        if (password !== undefined) {
+          shareData.password = passwordHash;
+        } else {
+          shareData.password = existing.password;
+        }
+        Object.assign(existing, shareData);
       } else {
-        file.sharedWith.push({
-          userId: clientId,
-          shareToken,
-          allowDownload: effectiveAllowDownload,
-          expiresAt,
-          sharedBy: userId,
-          sharedAt: now,
-          invoiceId: invoice?._id
-        });
+        file.sharedWith.push(shareData);
       }
 
       await file.save();
@@ -382,12 +469,12 @@ export const getSharedFile = async (req, res) => {
       return res.status(404).json({ error: 'Share link not found' });
     }
 
-    console.log('🔍 [Debug] Share Entry:', {
+    console.log('🔍 [Debug] Share Entry Found:', {
+      token: shareToken.substring(0, 10) + '...',
       userId: shareEntry.userId,
-      hasPassword: !!shareEntry.password,
-      passwordHash: shareEntry.password ? shareEntry.password.substring(0, 10) + '...' : 'none',
       invoiceId: shareEntry.invoiceId,
-      allowDownload: shareEntry.allowDownload
+      allowDownload: shareEntry.allowDownload,
+      expiresAt: shareEntry.expiresAt
     });
 
     // Owners/teammates can bypass recipient check for testing/preview
@@ -441,9 +528,6 @@ export const getSharedFile = async (req, res) => {
 
       if (invoice) {
         const payable = Math.max((invoice.total || 0) - (invoice.amountPaid || 0), 0);
-        // Fix: If invoice is 'sent' or 'draft', it is NOT paid.
-        // Locked if status is NOT 'paid'.
-        // Also ensure we don't lock if payable is 0 (fully paid).
         const isNotPaid = invoice.status !== 'paid';
 
         if (isNotPaid) {
@@ -530,6 +614,10 @@ export const getSharedFile = async (req, res) => {
       expiresAt: shareEntry.expiresAt,
       invoice: invoiceDetails,
       isLocked: false,
+      _debug: {
+        shareEntryRaw: shareEntry,
+        token: shareToken
+      }
     });
   } catch (error) {
     console.error('❌ Error accessing shared file:', error);
