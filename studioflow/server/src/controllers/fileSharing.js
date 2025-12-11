@@ -601,6 +601,7 @@ export const getSharedFile = async (req, res) => {
     res.status(200).json({
       file: {
         fileId: file.fileId,
+        projectId: file.projectId, // Added for redirection
         filename: file.filename,
         originalFilename: file.originalFilename,
         mimeType: file.mimeType,
