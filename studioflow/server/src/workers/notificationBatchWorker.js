@@ -32,19 +32,21 @@ notificationBatchQueue.process('process-analyzed-batches', async (job) => {
             const emailContent = generateDigestHtml(batch.notifications);
 
             // Send Email
-            // We need to fetch user email (reusing logic from notificationService ideally, but duplicate for now to avoid circular deps if complex)
-            // Assuming we helper or use Appwrite
-            // For now, let's mock the send or use provided utils if imported
+            // Fetch User for Email
+            const { default: User } = await import('../models/User.js');
+            const user = await User.findById(batch.userId);
 
-            console.log(`📧 Sending Digest Email to User ${batch.userId} with ${batch.notifications.length} items.`);
+            if (user && user.email) {
+                console.log(`📧 Sending Digest Email to ${user.email} with ${batch.notifications.length} items.`);
 
-            if (isMessagingAvailable()) {
-                // Fetch user email - TODO: Refactor into shared User service
-                // const userEmail = ...
-                // await sendEmail(...)
-                console.log('   (Appwrite Email Sending Placeholder)');
+                await sendEmail(
+                    user.email,
+                    `StudioFlow Digest: ${batch.notifications.length} new notifications`,
+                    emailContent
+                );
+                console.log('✅ Digest Email sent successfully.');
             } else {
-                console.log('   (Mock Email Sent)');
+                console.warn(`⚠️ User or email not found for batch ${batch._id}. Skipping email.`);
             }
 
             // Mark complete
