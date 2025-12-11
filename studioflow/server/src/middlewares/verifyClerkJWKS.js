@@ -184,10 +184,34 @@ export default async function verifyClerk(req, res, next) {
                         req.userRole = newUser.role;
                     }
                 } catch (createError) {
-                    console.error('❌ Failed to provision user during JIT:', createError);
-                    // Fallback to guest if creation fails (shouldn't happen often)
-                    req.user = null;
-                    req.userRole = 'guest';
+                    // Handle Race Condition: Duplicate Key (E11000)
+                    // If between findOne() and create(), another request created the user (or if findOne missed it for some reason)
+                    if (createError.code === 11000 && createError.keyPattern?.email) {
+                        console.warn(`⚠️ Race condition detected: Email ${req.userEmail} already exists. Attempting to link...`);
+                        try {
+                            const raceUser = await User.findOne({ email: req.userEmail });
+                            if (raceUser) {
+                                raceUser.clerkUserId = payload.sub;
+                                if (!raceUser.name && req.userName) raceUser.name = req.userName;
+                                await raceUser.save();
+                                console.log(`✅ Recovered from duplicate error: Linked Clerk ID to ${raceUser._id}`);
+                                req.user = raceUser;
+                                req.userRole = raceUser.role;
+                                // Exit early since we handled it
+                            } else {
+                                // Weird edge case: duplicate key error but can't find it??
+                                throw createError;
+                            }
+                        } catch (linkError) {
+                            console.error('❌ Failed to link user after duplicate detection:', linkError);
+                            req.user = null;
+                            req.userRole = 'guest';
+                        }
+                    } else {
+                        console.error('❌ Failed to provision user during JIT:', createError);
+                        req.user = null;
+                        req.userRole = 'guest';
+                    }
                 }
             }
         } catch (dbError) {
