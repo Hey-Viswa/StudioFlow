@@ -12,6 +12,24 @@ import { ThemeProvider } from './components/theme-provider';
 // Initialize Sentry FIRST (before React renders)
 initSentry();
 
+// Global handler for stale chunk errors (Post-Deployment Cache Fix)
+window.addEventListener('error', (event) => {
+  // Check for common chunk loading errors
+  const isChunkError = /Loading chunk [\d]+ failed/.test(event.message) ||
+    /Failed to fetch dynamically imported module/.test(event.message) ||
+    /Importing a module script failed/.test(event.message);
+
+  if (isChunkError) {
+    console.warn('⚠️ Stale chunk detected (Audit: Deployment Update). retrying...');
+    // Prevent infinite reload loops if server is actually down
+    const lastReload = sessionStorage.getItem('chunk_reload');
+    if (!lastReload || Date.now() - parseInt(lastReload) > 10000) {
+      sessionStorage.setItem('chunk_reload', Date.now().toString());
+      window.location.reload();
+    }
+  }
+});
+
 // Production Clerk Configuration
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
