@@ -416,7 +416,9 @@ export default function TasksTab({ projectId, project, userRole: propUserRole })
                       )}
                     </h4>
                     {task.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {task.description.replace(/(?:\*\*Source:\*\*|Source Comment:) \[View Comment\]\(.*?\)/g, '').trim()}
+                      </p>
                     )}
                   </div>
 
@@ -454,6 +456,18 @@ export default function TasksTab({ projectId, project, userRole: propUserRole })
 
                   {/* Status Control */}
                   <div className="flex items-center gap-2">
+                    {/* Priority Badge */}
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] uppercase tracking-wider font-semibold border-0",
+                      task.priority === 'urgent' && "bg-red-500/10 text-red-600",
+                      task.priority === 'high' && "bg-orange-500/10 text-orange-600",
+                      task.priority === 'medium' && "bg-blue-500/10 text-blue-600",
+                      task.priority === 'low' && "bg-slate-500/10 text-slate-600",
+                      !task.priority && "bg-slate-100 text-slate-500" // Default
+                    )}>
+                      {task.priority || 'medium'}
+                    </Badge>
+
                     {!isClient ? (
                       <Select
                         value={task.status}

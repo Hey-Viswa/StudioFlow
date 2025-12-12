@@ -5,23 +5,29 @@ import Notification from '../models/Notification.js';
 // Get tasks for a project
 export const getProjectTasks = async (req, res) => {
     try {
-        const { id: projectId } = req.params;  // Route uses :id, not :projectId
+        const { id: projectId } = req.params;
         const tasks = await Task.find({ projectId, deletedAt: null })
             .sort({ createdAt: -1 })
-            .populate('assigneeName', 'name') // Simplified populate for now
+            .populate('assigneeName', 'name')
             .lean();
 
         console.log(`🔍 [getProjectTasks] ProjectID: ${projectId}`);
         console.log(`   Found ${tasks.length} tasks.`);
-        if (tasks.length > 0) {
-            console.log(`   Sample Task: ${tasks[0]._id} (Status: ${tasks[0].status})`);
-        } else {
-            // Debug: check if any tasks exist at all for this project ignoring deletedAt
-            const allTasks = await Task.countDocuments({ projectId });
-            console.log(`   Total tasks (including deleted): ${allTasks}`);
+
+        // Calculate stats
+        const stats = {
+            total: tasks.length,
+            completed: tasks.filter(t => t.status === 'completed').length,
+            inProgress: tasks.filter(t => t.status === 'in-progress').length,
+            pending: tasks.filter(t => t.status === 'pending' || t.status === 'todo').length,
+            progress: 0 // You might want to calculate this or fetch from project
+        };
+
+        if (stats.total > 0) {
+            stats.progress = Math.round((stats.completed / stats.total) * 100);
         }
 
-        res.json(tasks);
+        res.json({ tasks, stats });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

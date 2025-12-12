@@ -2,9 +2,9 @@ import mongoose from 'mongoose';
 
 const NotificationBatchSchema = new mongoose.Schema({
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        type: String,
+        required: true,
+        index: true
     },
     status: {
         type: String,
@@ -17,8 +17,8 @@ const NotificationBatchSchema = new mongoose.Schema({
     },
     // We store a simplified snapshot of the notifications to be sent
     notifications: [{
-        _id: mongoose.Schema.Types.ObjectId, // Original Notification ID
-        type: String, // e.g., 'comment.created'
+        _id: mongoose.Schema.Types.ObjectId,
+        type: { type: String }, // Explicit definition to avoid Mongoose confusion
         title: String,
         message: String,
         link: String,

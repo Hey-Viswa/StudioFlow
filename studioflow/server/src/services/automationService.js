@@ -1,6 +1,7 @@
 import AutomationRule from '../models/AutomationRule.js';
 import ProjectFile from '../models/ProjectFile.js';
 import { logAudit } from '../services/auditService.js';
+import { getIO } from '../config/socket.js';
 
 class AutomationService {
 
@@ -87,28 +88,80 @@ class AutomationService {
     async processTaskAutomation(payload) {
         const { commentId, projectId, content, userId, link } = payload;
         console.log(`🤖 AutomationService: Processing task automation for comment in ${projectId}`);
-        console.log(`SB_DEBUG: Payload received:`, JSON.stringify(payload));
+        // console.log(`SB_DEBUG: Payload received:`, JSON.stringify(payload));
 
         try {
             // 1. Parse Content for Keywords
-            // Simple logic for Phase 3.4 Beta: #bug, #todo
-            const keywords = ['#bug', '#todo'];
-            const lowerContent = content.toLowerCase();
-            const foundKeyword = keywords.find(k => lowerContent.includes(k));
+            const standardKeywords = ['#bug', '#todo'];
+            const priorityMap = {
+                '#critical': 'urgent',
+                '#urgent': 'urgent',
+                '#high': 'high',
+                '#medium': 'medium',
+                '#low': 'low'
+            };
+            const priorityKeywords = Object.keys(priorityMap);
+            const allKeywords = [...standardKeywords, ...priorityKeywords];
 
-            console.log(`SB_DEBUG: Searching keywords in "${content}". Found: ${foundKeyword}`);
+            const lowerContent = content.toLowerCase();
+            const foundKeyword = allKeywords.find(k => lowerContent.includes(k));
 
             if (!foundKeyword) {
-                console.log('SB_DEBUG: No keyword found. Aborting.');
+                // Not an automated task command
                 return;
             }
 
             console.log(`✨ Found automation keyword "${foundKeyword}" in comment: ${commentId}`);
 
             // 2. Prepare Task Data
-            const taskTitle = content.split('\n')[0].replace(foundKeyword, '').trim().substring(0, 80) || 'New Auto-Task';
-            const taskDescription = `${content}\n\nSource Comment: [View Comment](${link})`;
-            const label = foundKeyword.replace('#', '');
+            // Check if triggers contain a priority
+            // Strategy: We want to extract ALL known keywords to clean them from title
+            // And use the "highest" priority found or the specific tag found.
+
+            let priority = 'medium'; // default
+            let label = 'automated';
+
+            // Check specific priority tags first
+            let foundPriorityTag = priorityKeywords.find(k => lowerContent.includes(k));
+            if (foundPriorityTag) {
+                priority = priorityMap[foundPriorityTag];
+            } else if (foundKeyword === '#bug') {
+                priority = 'high';
+            }
+
+            if (standardKeywords.includes(foundKeyword)) {
+                label = foundKeyword.replace('#', '');
+            }
+
+            // Clean content: Remove ALL detected keywords to leave just the description
+            let cleanContent = content;
+            // We loop through allKeywords and remove any that are present to be safe
+            // This handles cases like "#bug #high fix this" -> "fix this"
+            allKeywords.forEach(k => {
+                const regex = new RegExp(k, 'ig');
+                cleanContent = cleanContent.replace(regex, '');
+            });
+
+            cleanContent = cleanContent.trim();
+            // Remove extra spaces that might have been left
+            cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
+
+            // Determine Title
+            let taskTitle = '';
+            if (cleanContent) {
+                // Use first sentence or 80 chars
+                taskTitle = cleanContent.split('\n')[0].substring(0, 80);
+            } else {
+                taskTitle = standardKeywords.includes(foundKeyword)
+                    ? (foundKeyword === '#bug' ? 'Bug Investigation' : 'New Task')
+                    : 'New Priority Task';
+            }
+
+            // Determine Description (No Source Link)
+            let taskDescription = cleanContent;
+            if (!taskDescription) {
+                taskDescription = `Auto-generated task from ${foundKeyword} comment.`;
+            }
 
             // Dynamic Import Task model
             const Task = (await import('../models/Task.js')).default;
@@ -118,15 +171,26 @@ class AutomationService {
                 projectId,
                 title: taskTitle,
                 description: taskDescription,
-                assignedBy: 'system', // or userId if we want to attribute to the commenter
+                assignedBy: 'system',
                 status: 'pending',
                 tags: [label, 'automated'],
-                priority: label === 'bug' ? 'high' : 'medium'
+                priority: priority
             });
 
             console.log(`✅ AutomationService: Auto-created task ${newTask._id} from comment`);
 
-            // 4. Trigger Notification (Task Created)
+            // 4. emit Real-time Update
+            try {
+                const io = getIO();
+                // Emit to legacy project room (project-ID) as expected by TasksTab
+                io.to(`project-${projectId}`).emit('task:added', { task: newTask });
+                console.log(`📡 Emitted task:added to project-${projectId}`);
+            } catch (ioError) {
+                console.warn('⚠️ AutomationService: Failed to emit socket event:', ioError.message);
+                // Non-critical, continue
+            }
+
+            // 5. Trigger Notification (Task Created)
             try {
                 const { triggerNotification } = await import('../services/notificationService.js');
                 await triggerNotification(
@@ -145,7 +209,7 @@ class AutomationService {
                 console.error('⚠️ AutomationService: Failed to send auto-task notification:', notifError);
             }
 
-            // 5. Audit Log
+            // 6. Audit Log
             await logAudit({
                 userId: userId || 'system',
                 action: 'automation.task_created',
