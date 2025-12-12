@@ -59,6 +59,10 @@ export class EntitlementService {
         return PLANS[planId] || PLANS.free;
     }
 
+    static get FEATURES() {
+        return FEATURES;
+    }
+
     /**
      * Check if a user has access to a specific feature
      * @param {object} user - User object with subscription details

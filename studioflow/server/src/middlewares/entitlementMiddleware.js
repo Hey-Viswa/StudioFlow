@@ -62,22 +62,37 @@ export const checkResourceLimit = (resourceType) => {
                 });
             } else if (resourceType === 'member') {
                 // For members, we need to check the project context
-                // Usually this middleware is used on a route like POST /api/projects/:id/invite
                 const projectId = req.params.id || req.body.projectId;
 
                 if (!projectId) {
-                    // If no project context, we can't check member limit per project
-                    // But maybe we check total members across all projects? 
-                    // EntitlementService usually defines max members PER PROJECT.
-                    // Let's assume per project for now.
                     return res.status(400).json({ error: 'Project ID required for member limit check' });
                 }
 
-                // Count active members in this project (excluding owner)
+                // Check intent (Role being invited)
+                // Use req.body.role, default to 'client' if not specified (matching controller logic)
+                const inviteRole = req.body.role || 'client';
+
+                if (inviteRole === 'client') {
+                    // Check Client Collaboration Feature
+                    const hasClientAccess = EntitlementService.checkAccess(user, EntitlementService.FEATURES.CLIENT_COLLABORATION);
+
+                    if (!hasClientAccess) {
+                        return res.status(403).json({
+                            error: 'Client collaboration is a Pro feature. Upgrade to invite clients.',
+                            code: 'UPGRADE_REQUIRED',
+                            feature: 'clientCollaboration'
+                        });
+                    }
+                    // Clients don't count towards seat limits in this model
+                    return next();
+                }
+
+                // If inviting Team Member, check seat limits
+                // Count active "seat-consuming" members (excluding owner AND clients)
                 currentCount = await ProjectMember.countDocuments({
                     projectId,
                     status: 'active',
-                    role: { $ne: 'owner' }
+                    role: { $nin: ['owner', 'client'] }
                 });
             }
 
