@@ -28,9 +28,9 @@ export default function BillingHistory() {
   const fetchBillingHistory = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching billing history...');
+      // console.log('🔄 Fetching billing history...');
       const response = await api.get('/subscriptions/billing-history', { getToken });
-      console.log('📥 Billing history response:', response);
+      // console.log('📥 Billing history response:', response);
 
       // Show warning if payment gateway is not configured
       if (response.warnings && response.warnings.length > 0) {
