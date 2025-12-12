@@ -12,7 +12,9 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 
 export default function ProjectStats({ project, taskStats, invoiceStats }) {
     // Calculate stats if not provided (fallback)
-    const completion = project.progress || 0;
+    const completion = taskStats?.total > 0
+        ? Math.round((taskStats.completed / taskStats.total) * 100)
+        : (project.progress || 0);
 
     const stats = [
         {

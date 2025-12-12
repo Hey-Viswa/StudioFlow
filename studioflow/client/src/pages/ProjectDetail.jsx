@@ -669,9 +669,15 @@ export default function ProjectDetail() {
     pending: 0
   };
 
+<<<<<<< HEAD
   const invoiceStats = {
     pendingCount: project?.stats?.invoices?.pending || 0,
     overdueCount: project?.stats?.invoices?.overdue || 0
+=======
+  const invoiceStats = project?.invoiceStats || {
+    pendingCount: 0,
+    overdueCount: 0
+>>>>>>> production
   };
 
   return (
