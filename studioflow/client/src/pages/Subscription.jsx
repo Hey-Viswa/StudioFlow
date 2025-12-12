@@ -220,7 +220,7 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log(`🔄 Creating ${planId} subscription...`);
+      // console.log(`🔄 Creating ${planId} subscription...`);
       const response = await fetch(`${apiUrl}/subscriptions/create`, {
         method: 'POST',
         headers: {
@@ -231,7 +231,7 @@ export default function Subscription() {
       });
 
       const data = await response.json();
-      console.log('📥 Create subscription response:', data);
+      // console.log('📥 Create subscription response:', data);
 
       if (!response.ok) {
         console.error('❌ Subscription creation failed:', data);
@@ -329,7 +329,7 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log(`🔄 Changing plan from ${currentPlan} to ${planId}...`);
+      // console.log(`🔄 Changing plan from ${currentPlan} to ${planId}...`);
       const response = await fetch(`${apiUrl}/subscriptions/change-plan`, {
         method: 'POST',
         headers: {
@@ -340,7 +340,7 @@ export default function Subscription() {
       });
 
       const data = await response.json();
-      console.log('📥 Change plan response:', data);
+      // console.log('📥 Change plan response:', data);
 
       if (!response.ok) {
         console.error('❌ Plan change failed:', data);

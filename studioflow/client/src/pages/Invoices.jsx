@@ -261,7 +261,7 @@ export default function Invoices() {
                             variant="ghost"
                             className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
                             onClick={() => {
-                              console.log('Send invoice:', invoice.id);
+                              // console.log('Send invoice:', invoice.id);
                             }}
                           >
                             <Send className="w-4 h-4" />

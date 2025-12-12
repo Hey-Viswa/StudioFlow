@@ -59,13 +59,13 @@ export default function DashboardHome() {
 
     // Listen for project created events
     socket.on('project-created', (data) => {
-      console.log('🔔 Real-time: Project created', data);
+      // console.log('🔔 Real-time: Project created', data);
       fetchProjects(); // Refresh project list
     });
 
     // Listen for project updated events
     socket.on('project-updated', (data) => {
-      console.log('🔔 Real-time: Project updated', data);
+      // console.log('🔔 Real-time: Project updated', data);
       // Update specific project in state
       setProjects(prevProjects =>
         prevProjects.map(p =>
@@ -78,7 +78,7 @@ export default function DashboardHome() {
 
     // Listen for project deleted events
     socket.on('project-deleted', (data) => {
-      console.log('🔔 Real-time: Project deleted', data);
+      // console.log('🔔 Real-time: Project deleted', data);
       setProjects(prevProjects =>
         prevProjects.filter(p => p._id !== data.projectId)
       );

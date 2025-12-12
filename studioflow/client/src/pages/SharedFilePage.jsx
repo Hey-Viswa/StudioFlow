@@ -38,7 +38,7 @@ export default function SharedFilePage() {
     onFileUpdated: (updatedFile) => {
       // If the currently viewed file is updated (e.g. unlocked), refresh data
       if (updatedFile.fileId === fileData?.file?.fileId) {
-        console.log('🔄 File updated via socket, refreshing...');
+        // console.log('🔄 File updated via socket, refreshing...');
         fetchSharedFile();
       }
     },

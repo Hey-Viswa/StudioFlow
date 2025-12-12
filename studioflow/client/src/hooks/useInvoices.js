@@ -41,7 +41,7 @@ export const useInvoices = () => {
 
       const response = await invoicesApi.getInvoices(queryParams);
 
-      console.log('Fetched invoices response:', response);
+      // console.log('Fetched invoices response:', response);
 
       setInvoices(response.invoices || []);
       setPagination(response.pagination || {
@@ -84,7 +84,7 @@ export const useInvoices = () => {
         throw new Error('Project is required for invoice');
       }
 
-      console.log('Creating invoice with payload:', payload);
+      // console.log('Creating invoice with payload:', payload);
 
       const response = await invoicesApi.createInvoice(payload);
 

@@ -122,7 +122,7 @@ export default function ClientDashboard() {
 
   // Real-time updates
   const handleRefresh = useCallback(() => {
-    console.log('🔄 Real-time update received, refreshing dashboard...')
+    // console.log('🔄 Real-time update received, refreshing dashboard...')
     fetchDashboardData()
     refetchProjects()
   }, [fetchDashboardData, refetchProjects])

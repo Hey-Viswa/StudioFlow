@@ -56,7 +56,7 @@ export default function Trash() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      console.log('Fetching trash from:', `${apiUrl}/trash/all`);
+      // console.log('Fetching trash from:', `${apiUrl}/trash/all`);
 
       const response = await fetch(`${apiUrl}/trash/all`, {
         credentials: 'include',
@@ -66,7 +66,7 @@ export default function Trash() {
         }
       });
 
-      console.log('Trash response status:', response.status);
+      // console.log('Trash response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -75,8 +75,8 @@ export default function Trash() {
       }
 
       const data = await response.json();
-      console.log('Trash data received:', data);
-      console.log('Files in trash:', data.items?.filter(i => i.type === 'file'));
+      // console.log('Trash data received:', data);
+      // console.log('Files in trash:', data.items?.filter(i => i.type === 'file'));
       setTrashItems(data.items || []);
     } catch (error) {
       console.error('Error fetching trash:', error);
@@ -92,7 +92,7 @@ export default function Trash() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log('🔄 Restoring item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
+      // console.log('🔄 Restoring item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
 
       let endpoint;
       if (item.type === 'invoice') {
@@ -119,7 +119,7 @@ export default function Trash() {
         throw new Error(errorData.error || `Failed to restore ${item.type}`);
       }
 
-      console.log('✅ Item restored successfully');
+      // console.log('✅ Item restored successfully');
 
       const itemName = item.type === 'invoice' ? 'Invoice' : item.type === 'file' ? 'File' : 'Project';
       toast.success(`${itemName} restored successfully`);
@@ -138,7 +138,7 @@ export default function Trash() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      console.log('🗑️ Permanently deleting item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
+      // console.log('🗑️ Permanently deleting item:', { type: item.type, id: item._id, projectId: item.projectId, fileId: item.fileId });
 
       let endpoint;
       if (item.type === 'invoice') {

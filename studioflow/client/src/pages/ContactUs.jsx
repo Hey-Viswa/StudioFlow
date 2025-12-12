@@ -37,7 +37,7 @@ export default function ContactUs() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.name || !formData.email || !formData.subject || !formData.message) {
       toast.error('Please fill in all fields');
@@ -68,11 +68,11 @@ export default function ContactUs() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send message');
       }
-      
-      console.log('Contact form submitted successfully');
+
+      // console.log('Contact form submitted successfully');
       setSubmitted(true);
       toast.success(data.message || 'Message sent successfully!');
-      
+
       // Reset form after 3 seconds
       setTimeout(() => {
         setFormData({ name: '', email: '', subject: '', message: '' });
@@ -91,9 +91,9 @@ export default function ContactUs() {
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate('/')}
             className="mr-4"
           >
@@ -202,9 +202,9 @@ export default function ContactUs() {
                       </p>
                     </div>
 
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
+                    <Button
+                      type="submit"
+                      className="w-full"
                       disabled={loading}
                     >
                       {loading ? (
@@ -311,7 +311,7 @@ export default function ContactUs() {
 
             <Alert>
               <AlertDescription>
-                <strong>Business Hours:</strong> Monday - Friday, 9:00 AM - 6:00 PM IST. 
+                <strong>Business Hours:</strong> Monday - Friday, 9:00 AM - 6:00 PM IST.
                 We aim to respond to all inquiries within 24-48 hours during business days.
               </AlertDescription>
             </Alert>

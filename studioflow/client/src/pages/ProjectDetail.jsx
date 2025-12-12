@@ -208,45 +208,45 @@ export default function ProjectDetail() {
   // Setup Socket.IO for real-time updates
   useProjectSocket(projectId, {
     onProjectUpdated: (data) => {
-      console.log('📡 Project updated via socket:', data);
+      // console.log('📡 Project updated via socket:', data);
       toast.info('Project updated by another user');
       // Small delay to ensure DB propagation
       setTimeout(() => fetchProject(), 500);
     },
     onMemberJoined: (data) => {
-      console.log('📡 New member joined:', data);
+      // console.log('📡 New member joined:', data);
       toast.success(`${data.member.name || 'Someone'} joined the project`);
       fetchProject();
     },
     onCommentAdded: (data) => {
-      console.log('📡 New comment added:', data);
+      // console.log('📡 New comment added:', data);
       // CommentsTab will handle this
     },
     onTaskAdded: (data) => {
-      console.log('📡 New task added:', data);
+      // console.log('📡 New task added:', data);
       // TasksTab will handle this
     },
     onTaskUpdated: (data) => {
-      console.log('📡 Task updated:', data);
+      // console.log('📡 Task updated:', data);
       fetchProject(); // Refresh to get updated progress
     },
     onTaskDeleted: (data) => {
-      console.log('📡 Task deleted:', data);
+      // console.log('📡 Task deleted:', data);
       fetchProject(); // Refresh KPIs/progress after removals
     },
     onOwnershipRequest: (data) => {
-      console.log('📡 Ownership request created:', data);
+      // console.log('📡 Ownership request created:', data);
       toast.info('Ownership transfer requested');
       setOwnershipEventTick((v) => v + 1);
     },
     onOwnershipAccepted: (data) => {
-      console.log('📡 Ownership transfer accepted:', data);
+      // console.log('📡 Ownership transfer accepted:', data);
       toast.success('Ownership transfer accepted');
       setOwnershipEventTick((v) => v + 1);
       fetchProject();
     },
     onOwnershipCancelled: (data) => {
-      console.log('📡 Ownership transfer cancelled:', data);
+      // console.log('📡 Ownership transfer cancelled:', data);
       toast.message('Ownership transfer request cancelled');
       setOwnershipEventTick((v) => v + 1);
     }
@@ -545,7 +545,7 @@ export default function ProjectDetail() {
   const updateProjectProgress = async () => {
     setUpdatingProgress(true);
     try {
-      console.log('📊 Updating progress:', { projectId, progressValue });
+      // console.log('📊 Updating progress:', { projectId, progressValue });
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const url = `${apiUrl}/projects/${projectId}`;

@@ -45,7 +45,7 @@ export default function Dashboard() {
           api.get('/dashboard/kpi', { getToken })
         ]);
 
-        console.log('📊 Dashboard Data:', { projects: projectsRes, kpi: kpiRes });
+        // console.log('📊 Dashboard Data:', { projects: projectsRes, kpi: kpiRes });
 
         setProjects(projectsRes.projects || []);
         setKpiStats(kpiRes || { role: 'viewer', revenue: 0, spent: 0, invoiceCount: 0 });
@@ -73,7 +73,7 @@ export default function Dashboard() {
     if (!socket) return;
 
     const handleKpiRefresh = (data) => {
-      console.log('💰 Real-Time KPI Update:', data);
+      // console.log('💰 Real-Time KPI Update:', data);
       setKpiStats(prev => {
         if (data.type === 'revenue') {
           return { ...prev, revenue: prev.revenue + data.amount };

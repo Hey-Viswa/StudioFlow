@@ -80,7 +80,7 @@ export default function InvoicesPage() {
   const handleCreateInvoice = async (projectId, invoiceData) => {
     try {
       const result = await createInvoice({ ...invoiceData, projectId });
-      console.log('Invoice created, result:', result);
+      // console.log('Invoice created, result:', result);
       toast.success('Invoice created successfully');
       setShowNewInvoiceModal(false);
       // The createInvoice already calls fetchInvoices, so list will refresh automatically
@@ -118,7 +118,7 @@ export default function InvoicesPage() {
       await sendInvoice(selectedInvoice._id, emailData);
       toast.success('Invoice sent successfully');
     } catch (error) {
-      console.error('Failed to send invoice:', error);
+      // console.error('Failed to send invoice:', error);
       throw error;
     }
   };
@@ -171,7 +171,7 @@ export default function InvoicesPage() {
       // Don't show toast here - modal handles it
       return result;
     } catch (error) {
-      console.error('Failed to resend invoice:', error);
+      // console.error('Failed to resend invoice:', error);
       throw error;
     }
   };

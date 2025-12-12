@@ -196,7 +196,7 @@ export const useNotifications = () => {
     const playNotificationSound = () => {
       try {
         const audio = new Audio('/notification.mp3');
-        audio.play().catch(e => console.log('Audio play failed:', e));
+        audio.play().catch(e => { /* console.log('Audio play failed:', e) */ });
       } catch (e) {
         console.error('Error playing sound:', e);
       }
@@ -204,14 +204,14 @@ export const useNotifications = () => {
 
     const handleNewNotification = (data) => {
       const notification = data.notification || data;
-      console.log('🔔 New notification received:', notification);
+      // console.log('🔔 New notification received:', notification);
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
       playNotificationSound();
     };
 
     const handleNotificationRead = ({ notificationId }) => {
-      console.log('👁️ Notification marked as read:', notificationId);
+      // console.log('👁️ Notification marked as read:', notificationId);
       setNotifications((prev) =>
         prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n))
       );
@@ -219,13 +219,13 @@ export const useNotifications = () => {
     };
 
     const handleAllNotificationsRead = () => {
-      console.log('👁️ All notifications marked as read');
+      // console.log('👁️ All notifications marked as read');
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     };
 
     const handleNotificationDeleted = ({ notificationId }) => {
-      console.log('🗑️ Notification deleted:', notificationId);
+      // console.log('🗑️ Notification deleted:', notificationId);
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
     };
 
