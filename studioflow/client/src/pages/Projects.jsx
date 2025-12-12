@@ -98,14 +98,14 @@ export default function Projects() {
       }
 
       const projectsData = await projectsResponse.json();
-      console.log('📊 Projects data received:', projectsData);
+      // console.log('📊 Projects data received:', projectsData);
       setProjects(projectsData.projects || []);
       setMyProjects(projectsData.myProjects || []);
       setSharedProjects(projectsData.sharedProjects || []);
 
       if (subscriptionResponse.ok) {
         const subscriptionData = await subscriptionResponse.json();
-        console.log('💳 Subscription data:', subscriptionData);
+        // console.log('💳 Subscription data:', subscriptionData);
         setSubscription(subscriptionData);
       }
     } catch (err) {
@@ -121,7 +121,7 @@ export default function Projects() {
     if (!socket) return;
 
     const handleProjectCreated = () => {
-      console.log('📡 New project created');
+      // console.log('📡 New project created');
       toast.info('New project available');
       fetchProjects();
     };
