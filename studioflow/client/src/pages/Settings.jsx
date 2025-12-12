@@ -46,6 +46,14 @@ import {
 } from "../components/ui/alert-dialog";
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select"
+
 export default function Settings() {
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -57,17 +65,71 @@ export default function Settings() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [subscription, setSubscription] = useState(null);
   const [activeSection, setActiveSection] = useState('account');
+  const [projects, setProjects] = useState([]);
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
+    digestFrequency: 'daily',
     projectUpdates: true,
-    marketingEmails: false
+    marketingEmails: false,
+    mutedProjects: []
   });
 
   const { permission, requestPermission } = usePushToken();
 
   useEffect(() => {
-    fetchSubscription();
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchSubscription(), fetchPreferences(), fetchProjects()]);
+      setLoading(false);
+    };
+    loadData();
   }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/projects`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []); // handle paginated response structure if needed
+      }
+    } catch (err) {
+      console.error('Failed to fetch projects', err);
+    }
+  };
+
+  const fetchPreferences = async () => {
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/notifications/preferences`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+
+        // Map backend to UI
+        const mutedIds = data.projectSettings
+          ? data.projectSettings.filter(p => p.muted).map(p => p.projectId)
+          : (data.mutedProjects || []);
+
+        setPreferences({
+          emailNotifications: data.channels?.email ?? false,
+          digestFrequency: data.digest?.emailFrequency || 'realtime',
+          projectUpdates: data.triggers?.project_updates ?? true,
+          marketingEmails: data.mutes?.marketing === false,
+          mutedProjects: mutedIds
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch prefs', error);
+    }
+  };
 
   const fetchSubscription = async () => {
     try {
@@ -85,8 +147,6 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -270,10 +330,46 @@ export default function Settings() {
   const savePreferences = async () => {
     setSaving(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+      const payload = {
+        channels: {
+          email: preferences.emailNotifications,
+          push: true,
+          inApp: true
+        },
+        digest: {
+          emailFrequency: preferences.digestFrequency,
+          enabled: preferences.emailNotifications
+        },
+        projectSettings: preferences.mutedProjects.map(pid => ({
+          projectId: pid,
+          muted: true
+        })),
+        triggers: {
+          project_updates: preferences.projectUpdates,
+        },
+        mutes: {
+          marketing: !preferences.marketingEmails
+        }
+      };
+
+      const response = await fetch(`${apiUrl}/notifications/preferences`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error('Failed to save');
+
       toast.success('Preferences saved successfully');
     } catch (error) {
       toast.error('Failed to save preferences');
+      console.error(error);
     } finally {
       setSaving(false);
     }
@@ -504,6 +600,32 @@ export default function Settings() {
                         />
                       </div>
 
+                      {/* Digest Frequency - Only show if Email is enabled */}
+                      {preferences.emailNotifications && (
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50 ml-6 border-l-2 border-l-primary/20">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-primary" />
+                              <Label className="text-base">Email Frequency</Label>
+                            </div>
+                            <p className="text-sm text-muted-foreground pl-6">How often would you like to receive emails?</p>
+                          </div>
+                          <Select
+                            value={preferences.digestFrequency}
+                            onValueChange={(value) => handlePreferenceChange('digestFrequency', value)}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="realtime">Real-time (Immediate)</SelectItem>
+                              <SelectItem value="daily">Daily Digest</SelectItem>
+                              <SelectItem value="weekly">Weekly Digest</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
@@ -518,7 +640,6 @@ export default function Settings() {
                             if (checked) {
                               requestPermission();
                             } else {
-                              // Start: We can't revoke permission programmatically, but we can instruct user
                               toast.info('To disable notifications, please change your browser settings.');
                             }
                           }}
@@ -552,6 +673,38 @@ export default function Settings() {
                           onCheckedChange={(checked) => handlePreferenceChange('marketingEmails', checked)}
                         />
                       </div>
+
+                      {/* Project Specific Mutes */}
+                      {projects.length > 0 && (
+                        <div className="space-y-4 pt-4">
+                          <Label className="text-lg font-semibold">Project Notifications</Label>
+                          <p className="text-sm text-muted-foreground">Mute notifications for specific projects.</p>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {projects.map(project => {
+                              const isMuted = preferences.mutedProjects.includes(project._id);
+                              return (
+                                <div key={project._id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/30">
+                                  <span className="font-medium truncate max-w-[200px]" title={project.title}>{project.title}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">{isMuted ? 'Muted' : 'Active'}</span>
+                                    <Switch
+                                      checked={!isMuted} // Switch ON means Notifications Active (Not Muted)
+                                      onCheckedChange={(checked) => {
+                                        // If Check=TRUE -> Active -> Remove from Muted
+                                        // If Check=FALSE -> Muted -> Add to Muted
+                                        const newMuted = checked
+                                          ? preferences.mutedProjects.filter(id => id !== project._id)
+                                          : [...preferences.mutedProjects, project._id];
+                                        handlePreferenceChange('mutedProjects', newMuted);
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="pt-4 flex justify-end">
                         <Button

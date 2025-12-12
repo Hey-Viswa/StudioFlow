@@ -111,7 +111,8 @@ export default function TasksTab({ projectId, project, userRole: propUserRole })
       if (!response.ok) throw new Error('Failed to fetch tasks');
 
       const data = await response.json();
-      setTasks(data.tasks || []);
+      const taskList = Array.isArray(data) ? data : (data.tasks || []);
+      setTasks(taskList);
 
       // Update task statistics
       if (data.stats) {
@@ -149,7 +150,8 @@ export default function TasksTab({ projectId, project, userRole: propUserRole })
       if (!response.ok) throw new Error('Failed to create task');
 
       const data = await response.json();
-      setTasks([...tasks, data.task]);
+      const createdTask = data.task || data;
+      setTasks([...tasks, createdTask]);
 
       // Update project progress if returned
       if (data.progress !== undefined && project) {

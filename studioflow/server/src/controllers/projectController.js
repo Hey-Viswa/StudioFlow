@@ -530,8 +530,46 @@ export const getProjectById = async (req, res) => {
 
     const totalComments = await Comment.countDocuments({ projectId: id });
 
+    // Fetch tasks count for Project Stats
+    const Task = (await import('../models/Task.js')).default;
+    const taskStats = await Task.aggregate([
+      { $match: { projectId: new mongoose.Types.ObjectId(id), deletedAt: null } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $in: ['$status', ['pending', 'in-progress']] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    // Fetch invoice statistics
+    const invoiceStats = await ProjectInvoice.aggregate([
+      { $match: { projectId: new mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          paid: { $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          overdue: { $sum: { $cond: [{ $eq: ['$status', 'overdue'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    const stats = taskStats[0] || { total: 0, completed: 0, pending: 0 };
+    const invStats = invoiceStats[0] || { total: 0, paid: 0, pending: 0, overdue: 0 };
+
     res.json({
-      project: projectResponse,
+      project: {
+        ...projectResponse,
+        stats: {
+          ...projectResponse.stats,
+          tasks: stats,
+          invoices: invStats
+        }
+      },
       inviteLink,
       comments: {
         data: comments,

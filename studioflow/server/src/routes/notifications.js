@@ -6,7 +6,9 @@ import {
   markAllNotificationsAsRead,
   deleteNotification,
   deleteAllNotifications,
-  registerDeviceToken
+  registerDeviceToken,
+  getPreferences,
+  updatePreferences
 } from '../controllers/notificationController.js';
 import verifyClerk from '../middlewares/verifyClerkJWKS.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
@@ -39,6 +41,12 @@ router.delete('/', deleteAllNotifications);
 
 // POST /api/notifications/register-token - Register FCM token
 router.post('/register-token', registerDeviceToken);
+
+// GET /api/notifications/preferences - Get user preferences
+router.get('/preferences', getPreferences);
+
+// PATCH /api/notifications/preferences - Update user preferences
+router.patch('/preferences', updatePreferences);
 
 // POST /api/notifications/test - Trigger a test notification (Debug)
 

@@ -27,7 +27,7 @@ const AutomationRuleSchema = new mongoose.Schema({
     },
     triggerType: {
         type: String,
-        enum: ['file.created', 'comment.created', 'invoice.updated'],
+        enum: ['file.created', 'comment.created', 'invoice.updated', 'file.version_created'],
         required: true
     },
     conditions: [{

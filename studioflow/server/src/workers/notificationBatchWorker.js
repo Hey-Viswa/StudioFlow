@@ -62,32 +62,154 @@ notificationBatchQueue.process('process-analyzed-batches', async (job) => {
     }
 });
 
-const generateDigestHtml = (notifications) => {
-    const listItems = notifications.map(n => `
-        <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-            <div style="font-weight: bold; color: #333;">${n.title}</div>
-            <div style="color: #666; font-size: 14px;">${n.message}</div>
-            ${n.link ? `<a href="${process.env.FRONTEND_URL || 'http://localhost:3002'}${n.link}" style="color: #4F46E5; font-size: 12px; text-decoration: none;">View</a>` : ''}
-        </div>
-    `).join('');
+export const generateDigestHtml = (notifications) => {
+    // Group notifications by resource info (heuristic: same link or same resource ID if available)
+    const groups = {};
+
+    notifications.forEach(n => {
+        const key = n.link ? n.link.split('?')[0] : 'General';
+        if (!groups[key]) {
+            groups[key] = {
+                title: n.data?.resourceName || n.title || 'Update',
+                resourceType: n.data?.resourceType || 'General',
+                items: [],
+                link: n.link
+            };
+        }
+        groups[key].items.push(n);
+    });
+
+    const groupHtml = Object.values(groups).map(group => {
+        const itemsHtml = group.items.map(n => `
+            <div style="
+                padding: 12px 0;
+                border-bottom: 1px solid #f0f0f0;
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+            ">
+               <div style="flex: 1;">
+                 <div style="color: #374151; font-size: 14px; line-height: 1.5;">${n.message}</div>
+                 <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
+                   ${new Date(n.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} • ${n.title}
+                 </div>
+               </div>
+            </div>
+        `).join('');
+
+        // Card styling
+        return `
+            <div style="
+                margin-bottom: 24px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            ">
+                <div style="
+                    background: #f9fafb;
+                    padding: 16px;
+                    border-bottom: 1px solid #e5e7eb;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                ">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #111827;">
+                       <a href="${process.env.FRONTEND_URL || 'http://localhost:3002'}${group.link}" style="text-decoration: none; color: inherit;">
+                          ${group.title}
+                       </a>
+                    </h3>
+                    <span style="
+                        background: #eff6ff;
+                        color: #4f46e5;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 4px 8px;
+                        border-radius: 9999px;
+                        text-transform: uppercase;
+                    ">
+                        ${group.items.length} Updates
+                    </span>
+                </div>
+                
+                <div style="padding: 0 16px;">
+                    ${itemsHtml}
+                </div>
+
+                 <div style="padding: 16px; background: #fdfdfd; text-align: center; border-top: 1px solid #f3f4f6;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3002'}${group.link}" style="
+                        display: inline-block;
+                        color: #4f46e5;
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-decoration: none;
+                    ">
+                        View Details &rarr;
+                    </a>
+                </div>
+            </div>
+        `;
+    }).join('');
 
     return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Your StudioFlow Digest</h2>
-            <p>Here's a summary of what happened while you were away.</p>
-            <div style="margin-top: 20px;">
-                ${listItems}
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <h1 style="color: #111827; font-size: 24px; font-weight: 700; margin: 0 0 8px 0;">Your Daily Briefing</h1>
+                    <p style="color: #6b7280; font-size: 16px; margin: 0;">You have ${notifications.length} new updates to review.</p>
+                </div>
+                
+                ${groupHtml}
+
+                <div style="text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #9ca3af; font-size: 12px; margin-bottom: 12px;">
+                        You're receiving this digest because you've enabled notifications for StudioFlow.
+                    </p>
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3002'}/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">
+                        Manage Notification Preferences
+                    </a>
+                </div>
             </div>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">
-                You are receiving this because you enabled Daily/Weekly digests.
-            </p>
-        </div>
+        </body>
+        </html>
     `;
 };
 
 // Start function (to be called from index.js if we want a dedicated worker process for this)
-export const startNotificationBatchWorker = () => {
+export const startNotificationBatchWorker = async () => {
     console.log('📦 Notification Batch Worker initialized.');
+
+    if (process.env.ENABLE_REDIS_QUEUE !== 'true') {
+        console.log('ℹ️ Redis Queue disabled. Skipping batch scheduler.');
+        return;
+    }
+
+    try {
+        // Remove existing repeatable jobs to avoid duplicates/stale configs
+        const jobs = await notificationBatchQueue.getRepeatableJobs();
+        for (const job of jobs) {
+            if (job.name === 'process-analyzed-batches') {
+                await notificationBatchQueue.removeRepeatableByKey(job.key);
+            }
+        }
+
+        // Add repeatable job: Check for batches every 15 minutes
+        await notificationBatchQueue.add('process-analyzed-batches', {}, {
+            repeat: { cron: '*/15 * * * *' },
+            removeOnComplete: true,
+            removeOnFail: true
+        });
+        console.log('⏰ Scheduled batch processing job (Every 15 mins).');
+    } catch (err) {
+        console.error('❌ Failed to schedule batch processing:', err);
+    }
 };
 
 export default startNotificationBatchWorker;

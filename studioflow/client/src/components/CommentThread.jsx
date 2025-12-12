@@ -790,6 +790,18 @@ const CommentThread = React.forwardRef(({
         </span>
       </div>
 
+      <div className="px-1 mb-4">
+        <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-lg p-2.5 flex gap-2.5 items-start">
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-1 rounded-full shrink-0 mt-0.5">
+            <CheckCircle className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <span className="font-semibold text-blue-700 dark:text-blue-400 block mb-0.5">Pro Tip: Auto-create Tasks</span>
+            Use <span className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 py-0.5 rounded text-blue-700 dark:text-blue-300">#todo</span> or <span className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 py-0.5 rounded text-blue-700 dark:text-blue-300">#bug</span> in your comment to automatically create a task.
+          </div>
+        </div>
+      </div>
+
       <div className="relative flex-1 min-h-0">
         <div
           ref={scrollRef}

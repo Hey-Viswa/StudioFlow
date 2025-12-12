@@ -119,19 +119,47 @@ export const NotificationRulesService = {
             let prefs = await NotificationPreference.findOne({ userId });
 
             if (!prefs) {
+                // Phase 3: "Client Default Mute"
+                // If user is a Client, they shouldn't get non-critical notifications by default.
+                const isClient = context.role === 'client';
+
                 // Default preferences
                 prefs = {
                     channels: { push: true, inApp: true, email: false },
-                    triggers: { comments: 'all', tasks: 'assigned_only' },
+                    triggers: {
+                        comments: isClient ? 'mentions_only' : 'all',
+                        tasks: 'assigned_only',
+                        files: !isClient, // Clients don't get file notifs by default
+                        project_updates: !isClient
+                    },
                     dnd: { enabled: false },
                     mutedProjects: []
                 };
+
+                if (isClient) {
+                    console.log(`🔇 Defaulting Client ${userId} to restricted notifications.`);
+                }
             }
 
             // 2. Check if project is muted
-            if (context.projectId && prefs.mutedProjects?.includes(context.projectId)) {
-                // Mentions usually bypass mute, but let's be strict for now unless it's urgent
-                if (!context.isUrgent && !context.isMention) return false;
+            // Phase 3: Check enhanced project settings
+            if (context.projectId) {
+                const projectSetting = prefs.projectSettings?.find(s => String(s.projectId) === String(context.projectId));
+
+                if (projectSetting) {
+                    // Check Muted
+                    if (projectSetting.muted) {
+                        // Mentions and Urgent items bypass mute
+                        if (!context.isUrgent && !context.isMention) return false;
+                    }
+                    // Check Mentions Only
+                    if (projectSetting.mentionsOnly) {
+                        if (!context.isMention && !context.isUrgent) return false;
+                    }
+                } else if (prefs.mutedProjects?.includes(context.projectId)) {
+                    // Legacy Fallback
+                    if (!context.isUrgent && !context.isMention) return false;
+                }
             }
 
             // 3. Check specific triggers

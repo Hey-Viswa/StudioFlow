@@ -30,7 +30,7 @@ export const getProjectTasks = async (req, res) => {
 // Create a new task
 export const createTask = async (req, res) => {
     try {
-        const { projectId } = req.params;
+        const { id: projectId } = req.params;
         const { title, description, assigneeId, dueDate, priority, tags } = req.body;
         const userId = req.userId; // Fixed: Use req.userId directly from middleware
 

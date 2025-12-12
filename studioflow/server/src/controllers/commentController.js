@@ -5,6 +5,7 @@ import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { logAudit } from '../services/auditService.js';
 import { taskQueue } from '../queues/automationQueue.js';
+import featureFlags from '../config/featureFlags.js';
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
@@ -227,43 +228,46 @@ export const addComment = async (req, res) => {
 
     // --- AUTOMATION HOOK: Task Creation ---
     // Enqueue job for async process OR run direct if queue disabled/err
-    const automationPayload = {
-      commentId: newComment._id,
-      projectId,
-      content: text,
-      userId,
-      link: `/dashboard/projects/${projectId}?tab=comments`
-    };
+    // Gated by Feature Flag
+    if (featureFlags.isEnabled('phase3.taskAutomations')) {
+      const automationPayload = {
+        commentId: newComment._id,
+        projectId,
+        content: text,
+        userId,
+        link: `/dashboard/projects/${projectId}?tab=comments`
+      };
 
-    try {
-      console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
-      let queued = false;
-      if (process.env.ENABLE_REDIS_QUEUE === 'true') {
-        try {
-          taskQueue.add(automationPayload, {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2000 },
-            removeOnComplete: true
-          });
-          console.log(`🚀 Queued task automation for comment ${newComment._id}`);
-          queued = true;
-        } catch (qErr) {
-          console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+      try {
+        console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
+        let queued = false;
+        if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+          try {
+            taskQueue.add(automationPayload, {
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 2000 },
+              removeOnComplete: true
+            });
+            console.log(`🚀 Queued task automation for comment ${newComment._id}`);
+            queued = true;
+          } catch (qErr) {
+            console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+          }
         }
-      }
 
-      if (!queued) {
-        // Direct execution fallback - AWAITING for debugging
-        console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
-        try {
-          await automationService.processTaskAutomation(automationPayload);
-          console.log('SB_DEBUG: Direct automation finished successfully');
-        } catch (directErr) {
-          console.error('❌ SB_DEBUG: Direct automation failed:', directErr);
+        if (!queued) {
+          // Direct execution fallback - AWAITING for debugging
+          console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
+          try {
+            await automationService.processTaskAutomation(automationPayload);
+            console.log('SB_DEBUG: Direct automation finished successfully');
+          } catch (directErr) {
+            console.error('❌ SB_DEBUG: Direct automation failed:', directErr);
+          }
         }
+      } catch (queueError) {
+        console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
       }
-    } catch (queueError) {
-      console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
     }
 
     res.status(201).json({ comment: commentObj });

@@ -8,6 +8,7 @@ import { emailQueue } from '../config/queue.js';
 import crypto from 'crypto';
 import { NotificationRulesService } from './notificationRules.js';
 import { notificationQueue } from '../queues/notificationQueue.js';
+import featureFlags from '../config/featureFlags.js';
 
 // In-memory cache for idempotency (use Redis in production)
 const idempotencyCache = new Map();
@@ -106,7 +107,14 @@ export const createNotification = async ({
     });
 
     // Step 2: Check if user is online
-    const io = getIO();
+    let io = null;
+    try {
+      io = getIO();
+    } catch (e) {
+      // Socket not initialized (e.g. script/worker context)
+      // Treat as offline
+    }
+
     let isUserOnline = false;
 
     if (io) {
@@ -508,7 +516,8 @@ export const processNotificationEvent = async (type, data, actorId) => {
         isMention: Array.isArray(data.mentions) && data.mentions.some(m =>
           (typeof m === 'string' ? m === userId : m.userId === userId)
         ),
-        isUrgent: data.priority === 'high'
+        isUrgent: data.priority === 'high',
+        role: recipient.role
       };
 
       // 3. Check Preferences
@@ -558,7 +567,10 @@ export const processNotificationEvent = async (type, data, actorId) => {
       // 5. Check Digest Logic
       // Check if we should digest instead of sending immediate email
       // We still create the in-app notification (Notification model), but suppress the immediate email
-      const shouldDigest = await NotificationRulesService.shouldDigest(userId, type);
+      let shouldDigest = false;
+      if (featureFlags.phase3.smartNotifications) {
+        shouldDigest = await NotificationRulesService.shouldDigest(userId, type);
+      }
 
       // Create Notification
       const notification = await createNotification({
@@ -616,8 +628,9 @@ export const addToDigest = async (userId, notification) => {
       processAfter.setDate(diff);
       processAfter.setHours(9, 0, 0, 0);
     } else {
-      // Fallback: 1 hour from now
-      processAfter.setHours(processAfter.getHours() + 1);
+      // Use grouping window (default 15 mins) if set, or fallback to 15 mins
+      const windowMinutes = prefs.digest?.groupingWindowMinutes || 15;
+      processAfter.setMinutes(processAfter.getMinutes() + windowMinutes);
     }
 
     // Find existing pending batch or create new one
@@ -637,7 +650,7 @@ export const addToDigest = async (userId, notification) => {
 
     // Add simplified snapshot
     batch.notifications.push({
-      _id: notification._id,
+      notificationId: notification._id,
       type: notification.type,
       title: notification.title,
       message: notification.message,

@@ -1,5 +1,6 @@
 import { tagQueue, taskQueue } from '../queues/automationQueue.js';
 import automationService from '../services/automationService.js';
+import { startTagProcessor } from './tagProcessor.js';
 
 // Start Automation Workers
 export const startAutomationWorker = () => {
@@ -10,15 +11,8 @@ export const startAutomationWorker = () => {
 
     console.log('🤖 Automation Worker starting...');
 
-    // Process Auto-Tagging Jobs
-    tagQueue.process(async (job) => {
-        try {
-            await automationService.processTagAutomation(job.data);
-        } catch (error) {
-            console.error(`❌ Auto-tagging failed for job ${job.id}:`, error);
-            throw error;
-        }
-    });
+    // Start isolated Tag Processor
+    startTagProcessor();
 
     // Process Task Automation Jobs
     taskQueue.process(async (job) => {

@@ -388,6 +388,14 @@ const NotificationsPage = () => {
                       <Settings className="w-4 h-4 mr-2" />
                       Notification Preferences
                     </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-muted-foreground hover:text-foreground"
+                      onClick={markAllAsRead}
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Mark all as read
+                    </Button>
                   </div>
                 </div>
               </CardContent>

@@ -18,6 +18,7 @@ import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { verifyEntitlement } from '../utils/entitlement.js';
 import { logAudit } from '../services/auditService.js';
 import { tagQueue } from '../queues/automationQueue.js';
+import featureFlags from '../config/featureFlags.js';
 
 /**
  * Helper: Check if user is a project collaborator
@@ -317,41 +318,59 @@ export const confirmUpload = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
+      // --- AUTOMATION HOOK: Version Upload ---
+      if (featureFlags.isEnabled('phase3.taskAutomations')) {
+        const automationService = (await import('../services/automationService.js')).default;
+        // Run async (fire and forget)
+        automationService.processVersionAutomation({
+          fileId: fileRecord._id,
+          projectId,
+          version: fileRecord.version,
+          baseFileId: fileRecord.baseFileId,
+          userId
+        }).catch(err => console.error('❌ Version automation failed:', err));
+      }
+
       // --- AUTOMATION HOOK: Auto-Tagging ---
-      // Enqueue job for async processing (non-blocking)
-      // Queue for Auto-Tagging
-      const automationPayload = {
-        fileId: fileRecord._id,
-        projectId,
-        filename: fileRecord.filename,
-        extension: fileRecord.filename.split('.').pop(),
-        userId
-      };
+      // Enqueue job for async processing (non-blocking) within Feature Flag
+      if (featureFlags.isEnabled('phase3.autotagging')) {
+        const automationPayload = {
+          fileId: fileRecord._id,
+          projectId,
+          filename: fileRecord.filename,
+          key: fileRecord.storageKey,
+          extension: fileRecord.filename.split('.').pop(),
+          uploadedBy: userId
+        };
 
-      try {
-        let queued = false;
-        if (process.env.ENABLE_REDIS_QUEUE === 'true') {
-          try {
-            tagQueue.add(automationPayload, {
-              attempts: 3,
-              removeOnComplete: true
-            });
-            queued = true;
-            console.log(`🚀 Queued auto-tagging for ${fileRecord._id}`);
-          } catch (qErr) {
-            console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+        try {
+          let queued = false;
+          if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+            try {
+              // Job Name: process-file-tags
+              // Job ID: fileId (Idempotency)
+              await tagQueue.add('process-file-tags', automationPayload, {
+                jobId: fileRecord._id.toString(),
+                attempts: 3,
+                removeOnComplete: true
+              });
+              queued = true;
+              console.log(`🚀 Queued auto-tagging for ${fileRecord._id}`);
+            } catch (qErr) {
+              console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+            }
           }
-        }
 
-        if (!queued) {
-          const automationService = (await import('../services/automationService.js')).default;
-          console.log('ℹ️ Running tagging automation directly (No Queue)');
-          automationService.processTagAutomation(automationPayload).catch(err => {
-            console.error('❌ Direct tagging failed:', err);
-          });
+          if (!queued) {
+            const automationService = (await import('../services/automationService.js')).default;
+            console.log('ℹ️ Running tagging automation directly (No Queue)');
+            automationService.processTagAutomation(automationPayload).catch(err => {
+              console.error('❌ Direct tagging failed:', err);
+            });
+          }
+        } catch (err) {
+          console.error('⚠️ Failed to queue auto-tagging:', err);
         }
-      } catch (err) {
-        console.error('⚠️ Failed to queue auto-tagging:', err);
       }
 
 

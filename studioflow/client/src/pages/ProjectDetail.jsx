@@ -663,15 +663,15 @@ export default function ProjectDetail() {
   const isOwner = project?.ownerId === userId || project?.userRole === 'owner';
   const userRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
 
-  const taskStats = project ? {
-    total: project.tasks?.length || 0,
-    completed: project.tasks?.filter(t => t.status === 'completed').length || 0,
-    pending: project.tasks?.filter(t => t.status === 'pending' || t.status === 'in-progress').length || 0
-  } : null;
+  const taskStats = project?.stats?.tasks || {
+    total: 0,
+    completed: 0,
+    pending: 0
+  };
 
   const invoiceStats = {
-    pendingCount: 0,
-    overdueCount: 0
+    pendingCount: project?.stats?.invoices?.pending || 0,
+    overdueCount: project?.stats?.invoices?.overdue || 0
   };
 
   return (

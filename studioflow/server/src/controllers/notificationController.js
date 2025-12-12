@@ -1,4 +1,5 @@
 import * as notificationService from '../services/notificationService.js';
+import NotificationPreference from '../models/NotificationPreference.js';
 
 /**
  * Get notifications for authenticated user
@@ -175,5 +176,59 @@ export const registerDeviceToken = async (req, res) => {
   } catch (error) {
     console.error('Register device token error:', error);
     res.status(500).json({ error: 'Failed to register device token' });
+  }
+};
+
+/**
+ * Get notification preferences
+ * GET /api/notifications/preferences
+ */
+export const getPreferences = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    let dbPrefs = await NotificationPreference.findOne({ userId });
+
+    // Return default structure if not found (frontend expects this)
+    if (!dbPrefs) {
+      return res.json({
+        userId,
+        channels: { push: true, email: false, inApp: true },
+        triggers: { comments: 'all', tasks: 'assigned_only', files: true, project_updates: true },
+        dnd: { enabled: false, startTime: '22:00', endTime: '08:00', timezone: 'UTC', bypassForUrgent: true },
+        mutes: { marketing: false, system: false },
+        digest: { emailFrequency: 'realtime', groupingWindowMinutes: 15 },
+        projectSettings: []
+      });
+    }
+
+    res.json(dbPrefs);
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    res.status(500).json({ error: 'Failed to fetch notification preferences' });
+  }
+};
+
+/**
+ * Update notification preferences
+ * PATCH /api/notifications/preferences
+ */
+export const updatePreferences = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const updates = req.body;
+
+    // Simple validation could go here if needed
+
+    const prefs = await NotificationPreference.findOneAndUpdate(
+      { userId },
+      { $set: updates },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json(prefs);
+  } catch (error) {
+    console.error('Update preferences error:', error);
+    res.status(500).json({ error: 'Failed to update notification preferences' });
   }
 };

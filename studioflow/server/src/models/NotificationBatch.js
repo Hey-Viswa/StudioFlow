@@ -1,5 +1,15 @@
 import mongoose from 'mongoose';
 
+const NotificationSnapshotSchema = new mongoose.Schema({
+    notificationId: mongoose.Schema.Types.ObjectId,
+    type: String,
+    title: String,
+    message: String,
+    link: String,
+    createdAt: Date,
+    data: mongoose.Schema.Types.Mixed
+}, { _id: false });
+
 const NotificationBatchSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -16,15 +26,7 @@ const NotificationBatchSchema = new mongoose.Schema({
         required: true
     },
     // We store a simplified snapshot of the notifications to be sent
-    notifications: [{
-        _id: mongoose.Schema.Types.ObjectId, // Original Notification ID
-        type: String, // e.g., 'comment.created'
-        title: String,
-        message: String,
-        link: String,
-        createdAt: Date,
-        data: mongoose.Schema.Types.Mixed
-    }],
+    notifications: [NotificationSnapshotSchema],
     retryCount: {
         type: Number,
         default: 0
