@@ -22,7 +22,7 @@ const PLANS = {
         [FEATURES.MAX_MEMBERS]: 1,
         [FEATURES.BASIC_INVOICING]: true,
         [FEATURES.BRANDED_INVOICES]: false,
-        [FEATURES.CLIENT_COLLABORATION]: false,
+        [FEATURES.CLIENT_COLLABORATION]: true,
         [FEATURES.PRIORITY_SUPPORT]: false
     },
     pro: {
