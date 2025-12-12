@@ -1,55 +1,13 @@
-import { useEffect, useState, useRef } from 'react';
-import { io } from 'socket.io-client';
+import { useRef, useEffect } from 'react';
+import { useSocketContext } from '../context/SocketContext';
 
 export function useSocket() {
-  const [socket, setSocket] = useState(null);
-  const socketRef = useRef(null);
-
-  useEffect(() => {
-    // Socket.IO connects to base URL, not /api endpoint
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const socketUrl = apiUrl.replace('/api', ''); // Remove /api suffix for Socket.IO
-
-    if (socketRef.current) return;
-
-    console.log('🔌 Connecting to Socket.IO:', socketUrl);
-
-    // Initialize socket connection
-    const newSocket = io(socketUrl, {
-      // Force WebSocket to avoid Azure App Service polling/sticky session issues
-      transports: ['websocket'],
-      withCredentials: true,
-      timeout: 20000,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      path: '/socket.io/'
-    });
-
-    newSocket.on('connect', () => {
-      console.log('✅ Socket connected:', newSocket.id);
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('❌ Socket disconnected');
-    });
-
-    newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
-
-    socketRef.current = newSocket;
-    setSocket(newSocket);
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
-
-  return socket;
+  const context = useSocketContext();
+  if (!context) {
+    console.warn('useSocket must be used within a SocketProvider');
+    return null;
+  }
+  return context.socket;
 }
 
 export function useProjectSocket(projectId, callbacks = {}) {

@@ -46,7 +46,7 @@ export const usePushNotifications = () => {
             toast(payload.notification.title, {
                 description: payload.notification.body,
             });
-            console.log('🔔 Foreground push notification received:', payload);
+            // console.log('🔔 Foreground push notification received');
         });
 
         return () => {

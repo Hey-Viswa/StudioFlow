@@ -48,12 +48,13 @@ function ProtectedRoute({ children }) {
 }
 
 import { UploadProvider } from './context/UploadContext';
+import { SocketProvider } from './context/SocketContext';
 import { usePushToken } from './hooks/usePushToken';
 import { onMessageListener } from './lib/firebase';
 import { useEffect } from 'react';
 
 function App() {
-  console.log('App mounting...');
+  // console.log('App mounting...');
 
   // Initialize push notifications
   const { requestPermission } = usePushToken();
@@ -75,67 +76,68 @@ function App() {
     <ErrorBoundary>
       <ThemeColorProvider defaultThemeColor="green" storageKey="vite-ui-theme-color">
         <UploadProvider>
-          <Router>
-            <NetworkStatusListener />
-            <Toaster position="top-right" richColors closeButton />
-            <CookieConsent />
-            <Suspense fallback={<div className="p-6 text-center text-muted-foreground">Loading...</div>}>
-              <Routes>
-                {/* ... routes ... */}
-                <Route path="/" element={<Landing />} />
-                <Route path="/invite" element={<AcceptInvite />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                <Route path="/terms-conditions" element={<TermsConditions />} />
-                <Route path="/cancellation-refund" element={<CancellationRefund />} />
-                <Route path="/shipping-delivery" element={<ShippingDelivery />} />
+          <SocketProvider>
+            <Router>
+              <NetworkStatusListener />
+              <Toaster position="top-right" richColors closeButton />
+              <CookieConsent />
+              <Suspense fallback={<div className="p-6 text-center text-muted-foreground">Loading...</div>}>
+                <Routes>
+                  {/* ... routes ... */}
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/invite" element={<AcceptInvite />} />
+                  <Route path="/pricing" element={<Pricing />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/terms-conditions" element={<TermsConditions />} />
+                  <Route path="/cancellation-refund" element={<CancellationRefund />} />
+                  <Route path="/shipping-delivery" element={<ShippingDelivery />} />
 
-                {/* SEO Pages */}
-                <Route path="/features" element={<Features />} />
-                <Route path="/features/client-portal" element={<ClientPortal />} />
-                <Route path="/features/invoicing" element={<Invoicing />} />
-                <Route path="/compare" element={<Compare />} />
+                  {/* SEO Pages */}
+                  <Route path="/features" element={<Features />} />
+                  <Route path="/features/client-portal" element={<ClientPortal />} />
+                  <Route path="/features/invoicing" element={<Invoicing />} />
+                  <Route path="/compare" element={<Compare />} />
 
-                <Route path="/contact" element={<ContactUs />} />
-                <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
-                <Route path="/network-error" element={<NetworkError />} />
+                  <Route path="/contact" element={<ContactUs />} />
+                  <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
+                  <Route path="/network-error" element={<NetworkError />} />
 
-                {/* Shared Files - Protected Route */}
-                <Route
-                  path="/shared/files/:shareToken"
-                  element={
-                    <ProtectedRoute>
-                      <SharedFilePage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Shared Files - Protected Route */}
+                  <Route
+                    path="/shared/files/:shareToken"
+                    element={
+                      <ProtectedRoute>
+                        <SharedFilePage />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Dashboard with nested routes */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<ClientDashboard />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="projects" element={<Projects />} />
-                  <Route path="projects/new" element={<CreateProject />} />
-                  <Route path="projects/:projectId" element={<ProjectDetail />} />
-                  <Route path="projects/:projectId/files" element={<ProjectFilesPage />} />
-                  <Route path="invoices" element={<InvoicesPage />} />
-                  <Route path="invoices/new" element={<CreateInvoicePage />} />
-                  <Route path="subscription" element={<Subscription />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="trash" element={<Trash />} />
-                </Route>
+                  {/* Dashboard with nested routes */}
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route index element={<ClientDashboard />} />
+                    <Route path="notifications" element={<NotificationsPage />} />
+                    <Route path="projects" element={<Projects />} />
+                    <Route path="projects/new" element={<CreateProject />} />
+                    <Route path="projects/:projectId" element={<ProjectDetail />} />
+                    <Route path="projects/:projectId/files" element={<ProjectFilesPage />} />
+                    <Route path="invoices" element={<InvoicesPage />} />
+                    <Route path="invoices/new" element={<CreateInvoicePage />} />
+                    <Route path="subscription" element={<Subscription />} />
+                    <Route path="settings" element={<Settings />} />
+                    <Route path="trash" element={<Trash />} />
+                  </Route>
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </Router>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </Router>
         </UploadProvider>
       </ThemeColorProvider>
     </ErrorBoundary>

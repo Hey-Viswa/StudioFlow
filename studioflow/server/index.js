@@ -233,8 +233,7 @@ app.get('/api/test-auth', async (req, res) => {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
         res.json({
             message: 'Token received',
-            tokenLength: token.length,
-            payload: payload
+            tokenLength: token.length
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -317,11 +316,12 @@ const startServer = async () => {
         initializeFirebase();
 
         // Check Razorpay environment variables
+        // Check Razorpay environment variables
         console.log('\n=== Razorpay Configuration Check ===');
-        console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? `${process.env.RAZORPAY_KEY_ID.substring(0, 15)}...` : '❌ MISSING');
+        console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? 'Set ✓' : '❌ MISSING');
         console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET ? 'Set ✓' : '❌ MISSING');
-        console.log('RAZORPAY_PRO_PLAN_ID:', process.env.RAZORPAY_PRO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPS7s2l9ku5N)');
-        console.log('RAZORPAY_STUDIO_PLAN_ID:', process.env.RAZORPAY_STUDIO_PLAN_ID || '❌ MISSING (using fallback: plan_RcTPuLbBYG9E8N)');
+        console.log('RAZORPAY_PRO_PLAN_ID:', process.env.RAZORPAY_PRO_PLAN_ID ? 'Set ✓' : '❌ MISSING');
+        console.log('RAZORPAY_STUDIO_PLAN_ID:', process.env.RAZORPAY_STUDIO_PLAN_ID ? 'Set ✓' : '❌ MISSING');
         console.log('===================================\n');
 
         // Start subscription checker for automatic downgrades

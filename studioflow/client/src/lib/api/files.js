@@ -342,7 +342,7 @@ export function validateFile(file, maxSize = 500 * 1024 * 1024, accept = null) {
  * Share file with client
  */
 export async function shareFileWithClient(projectId, fileId, clientId, options, token) {
-  console.log('[ShareFile] Request:', { projectId, fileId, clientId, options });
+  // console.log('[ShareFile] Request:', { projectId, fileId, clientId, options });
 
   const response = await fetch(`${API_BASE}/projects/${projectId}/files/${fileId}/share`, {
     method: 'POST',
@@ -356,8 +356,8 @@ export async function shareFileWithClient(projectId, fileId, clientId, options, 
     }),
   });
 
-  console.log('[ShareFile] Response status:', response.status);
-  console.log('[ShareFile] Response headers:', Object.fromEntries(response.headers.entries()));
+  // console.log('[ShareFile] Response status:', response.status);
+  // console.log('[ShareFile] Response headers:', Object.fromEntries(response.headers.entries()));
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type');

@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
-import { io } from 'socket.io-client';
+import { useSocket } from './useSocket';
 
 // Remove /api from VITE_API_URL since it already includes it
 const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-
-let socket = null;
 
 export const useNotifications = () => {
   const { getToken } = useAuth();
@@ -184,32 +182,15 @@ export const useNotifications = () => {
   );
 
   // Initialize socket and listeners
+  const socket = useSocket();
+
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !socket) return;
 
-    // Initialize socket if needed
-    if (!socket) {
-      console.log('🔌 Initializing socket connection...');
-      socket = io(API_BASE_URL, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-      });
+    // Authenticate handled by provider, but we can re-verify or just listen
+    // socket.emit('authenticate', user.id); // Provider handles this
 
-      socket.on('connect', () => {
-        console.log('✅ Socket connected:', socket.id);
-        socket.emit('authenticate', user.id);
-      });
-
-      socket.on('authenticated', (data) => {
-        console.log('✅ Socket authenticated:', data);
-      });
-
-      socket.on('disconnect', () => {
-        console.log('🔌 Socket disconnected');
-      });
-    }
+    // Define handlers
 
     // Define handlers
     const playNotificationSound = () => {
@@ -256,7 +237,7 @@ export const useNotifications = () => {
 
     // Cleanup listeners on unmount or user change
     return () => {
-      console.log('🧹 Cleaning up socket listeners');
+      // console.log('🧹 Cleaning up socket listeners');
       if (socket) {
         socket.off('notification:new', handleNewNotification);
         socket.off('notification:read', handleNotificationRead);
@@ -264,7 +245,7 @@ export const useNotifications = () => {
         socket.off('notification:deleted', handleNotificationDeleted);
       }
     };
-  }, [user?.id]);
+  }, [user?.id, socket]);
 
   // Initial fetch
   useEffect(() => {

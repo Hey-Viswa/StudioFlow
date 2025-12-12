@@ -38,8 +38,7 @@ if (!PUBLISHABLE_KEY) {
   console.error('Please add VITE_CLERK_PUBLISHABLE_KEY to studioflow/client/.env.local');
   console.error('Environment variables:', import.meta.env);
 } else {
-  console.log('✅ Clerk Publishable Key loaded:', PUBLISHABLE_KEY.substring(0, 20) + '...');
-  console.log('🔍 Key type:', PUBLISHABLE_KEY.startsWith('pk_live_') ? 'PRODUCTION' : 'DEVELOPMENT');
+  // console.log('✅ Clerk Publishable Key loaded');
 }
 
 const MissingKey = () => (

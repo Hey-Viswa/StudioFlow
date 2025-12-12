@@ -60,7 +60,7 @@ export default function CreateProject() {
 
   const validateDate = (dateString) => {
     if (!dateString) return { valid: true }; // Date is optional
-    
+
     // Date format validation: YYYY-MM-DD
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateString)) {
@@ -71,7 +71,7 @@ export default function CreateProject() {
     const date = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) {
       return { valid: false, message: 'Invalid date' };
@@ -87,7 +87,7 @@ export default function CreateProject() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Validate character limits
     if (name === 'title' && value.length > 50) {
       toast.error('Title must be 50 characters or less');
@@ -97,7 +97,7 @@ export default function CreateProject() {
       toast.error('Brief must be 100 characters or less');
       return;
     }
-    
+
     // Validate date
     if (name === 'dueDate' && value) {
       const validation = validateDate(value);
@@ -106,7 +106,7 @@ export default function CreateProject() {
         return;
       }
     }
-    
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -124,7 +124,7 @@ export default function CreateProject() {
         throw new Error('Not authenticated - please sign in again');
       }
 
-      console.log('Token obtained, length:', token.length);
+      // console.log('Token obtained, length:', token.length);
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/projects`, {
@@ -139,7 +139,7 @@ export default function CreateProject() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to create project' }));
-        
+
         // Check if it's a limit exceeded error
         if (response.status === 403 && errorData.limit) {
           setLimitExceeded(true);
@@ -151,12 +151,12 @@ export default function CreateProject() {
           });
           throw new Error(errorData.message || errorData.error || 'Project limit reached');
         }
-        
+
         throw new Error(errorData.error || 'Failed to create project');
       }
 
       const data = await response.json();
-      
+
       // Navigate to the new project's detail page
       navigate(`/dashboard/projects/${data.project._id}`);
     } catch (err) {
@@ -249,8 +249,8 @@ export default function CreateProject() {
                     disabled={loading}
                     className="w-full pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0"
                   />
-                  <CalendarIcon 
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10" 
+                  <CalendarIcon
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white cursor-pointer z-10"
                     onClick={() => document.getElementById('dueDate').showPicker()}
                   />
                 </div>

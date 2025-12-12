@@ -367,7 +367,7 @@ export function useComments(projectId) {
 
   // Real-time socket handlers
   const handleCommentAdded = useCallback((data) => {
-    console.log('🔔 Real-time comment received:', data)
+    // console.log('🔔 Real-time comment received:', data)
 
     setComments(prev => {
       // Check if comment already exists to prevent duplicates
