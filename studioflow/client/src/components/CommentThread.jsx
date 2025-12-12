@@ -363,7 +363,7 @@ const CommentComposer = React.forwardRef(({
 
       <div className={cn("text-[11px] text-muted-foreground", isInline ? "pt-1" : "px-1")}
       >
-        Press Ctrl+Enter to send • Type @ to mention
+        Press Ctrl+Enter to send • Type @ to mention • Use <span className="text-primary font-medium">#high #bug #todo</span> to automate tasks
       </div>
     </div>
   )
