@@ -25,6 +25,16 @@ StudioFlow is a modular platform for building and scaling creative automation wo
 ### Automation Hint in Comment Composer
 - Added a user‑facing hint near the comment input area that lists supported automation hashtags, encouraging discoverability.
 
+### KPI & Dashboard Analytics
+- **Dynamic Project Stats**: The backend utilizes MongoDB Aggregation pipelines to calculate `ProjectInvoice` stats (pending, overdue) and `Task` completion rates on-the-fly, ensuring accurate real-time data.
+- **Real-time Trends**: Dashboard trends for "Active" and "Completed" projects are calculated by comparing current counts against 30-day historical data derived from `createdAt` and `updatedAt` timestamps.
+- **Usage Limits**: The "Free Plan" usage card independently validates project counts against the user's subscription tier logic in `projectController.js`.
+
+### Smart Notifications 2.0
+- **Intelligent Grouping**: The `notificationBatchWorker.js` groups multiple notifications for the same task or context into a single batch to reduce email noise.
+- **Daily Digests**: A scheduled background job aggregates 24 hours of activity into a single summary email for users with the 'Daily' frequency setting.
+- **Client Defaults**: New client accounts are automatically initialized with cleaner notification defaults (Muted: File Uploads, Project Updates) via `notificationRules.js`.
+
 ### Bug Fixes & Improvements
 - Fixed `NotificationBatch` CastError by changing `userId` to `String`.
 - Corrected task fetching API to return `{ tasks, stats }`.
