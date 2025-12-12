@@ -138,6 +138,7 @@ function App() {
                 </Routes>
               </Suspense>
             </Router>
+          </SocketProvider>
         </UploadProvider>
       </ThemeColorProvider>
     </ErrorBoundary>
