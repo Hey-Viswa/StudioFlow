@@ -740,11 +740,11 @@ const CommentThread = React.forwardRef(({
   React.useEffect(() => {
     const logRects = () => {
       if (panelRef.current && scrollRef.current && composerRef.current) {
-        console.log('Layout Debug:', {
-          panelRect: panelRef.current.getBoundingClientRect(),
-          listRect: scrollRef.current.getBoundingClientRect(),
-          composerRect: composerRef.current.getBoundingClientRect()
-        })
+        // console.log('Layout Debug:', {
+        //   panelRect: panelRef.current.getBoundingClientRect(),
+        //   listRect: scrollRef.current.getBoundingClientRect(),
+        //   composerRect: composerRef.current.getBoundingClientRect()
+        // })
       }
     }
 
@@ -760,20 +760,20 @@ const CommentThread = React.forwardRef(({
     const { scrollHeight, clientHeight, scrollTop } = scrollEl
     const previousWasAtBottom = wasAtBottomRef.current
 
-    console.log('On append comment:', {
-      previousScrollHeight: scrollHeight,
-      clientHeight,
-      scrollTop,
-      wasAtBottom: previousWasAtBottom,
-      newCommentCount: comments.length
-    })
+    // console.log('On append comment:', {
+    //   previousScrollHeight: scrollHeight,
+    //   clientHeight,
+    //   scrollTop,
+    //   wasAtBottom: previousWasAtBottom,
+    //   newCommentCount: comments.length
+    // })
 
     if (previousWasAtBottom) {
-      console.log('Auto-scrolling to bottom')
+      // console.log('Auto-scrolling to bottom')
       const timer = setTimeout(scrollToBottom, 50)
       return () => clearTimeout(timer)
     } else {
-      console.log('Not auto-scrolling (user not at bottom)')
+      // console.log('Not auto-scrolling (user not at bottom)')
       setShowNewIndicator(true)
     }
   }, [comments.length])
