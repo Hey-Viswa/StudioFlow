@@ -669,7 +669,7 @@ export default function ProjectDetail() {
     pending: project.tasks?.filter(t => t.status === 'pending' || t.status === 'in-progress').length || 0
   } : null;
 
-  const invoiceStats = {
+  const invoiceStats = project?.invoiceStats || {
     pendingCount: 0,
     overdueCount: 0
   };

@@ -185,24 +185,15 @@ export default function DashboardHome() {
   };
 
   // Calculate stats
-  const totalProjects = projects.length;
-  const activeProjects = projects.filter(p => p.status === 'active').length;
-  const completedProjects = projects.filter(p => p.status === 'completed').length;
-  const onHoldProjects = projects.filter(p => p.status === 'on-hold').length;
+  // Calculate stats from usage API if available, else fallback to local filtering
+  const totalProjects = usage?.stats?.total ?? projects.length;
+  const activeProjects = usage?.stats?.active ?? projects.filter(p => p.status === 'active').length;
+  const completedProjects = usage?.stats?.completed ?? projects.filter(p => p.status === 'completed').length;
+  const onHoldProjects = usage?.stats?.onHold ?? projects.filter(p => p.status === 'on-hold').length;
 
-  // Calculate trends (mock data - you can implement real logic later)
-  const getTrend = (current, previous) => {
-    if (previous === 0) return { value: 0, direction: 'neutral' };
-    const change = ((current - previous) / previous) * 100;
-    return {
-      value: Math.abs(change).toFixed(1),
-      direction: change > 0 ? 'up' : change < 0 ? 'down' : 'neutral'
-    };
-  };
-
-  // Mock previous data for trends
-  const activeProjectsTrend = getTrend(activeProjects, Math.max(1, activeProjects - 2));
-  const completedProjectsTrend = getTrend(completedProjects, Math.max(1, completedProjects - 1));
+  // Real Trends from API
+  const activeProjectsTrend = usage?.trends?.active || { value: 0, direction: 'neutral' };
+  const completedProjectsTrend = usage?.trends?.completed || { value: 0, direction: 'neutral' };
 
   return (
     <TooltipProvider>
@@ -265,9 +256,9 @@ export default function DashboardHome() {
                       <div>
                         <p className="font-semibold text-white">Free Plan - Project Limit</p>
                         <p className="text-sm text-slate-300">
-                          You're using <strong className="text-amber-400">{usage.currentProjects} of {usage.limit}</strong> projects
-                          {usage.remaining > 0 ? (
-                            <span className="ml-1">({usage.remaining} remaining)</span>
+                          You're using <strong className="text-amber-400">{usage.count} of {usage.limit}</strong> projects
+                          {usage.limit - usage.count > 0 ? (
+                            <span className="ml-1">({usage.limit - usage.count} remaining)</span>
                           ) : (
                             <span className="ml-1 text-red-400">(Limit reached!)</span>
                           )}
@@ -291,13 +282,13 @@ export default function DashboardHome() {
                   {/* Progress Bar */}
                   <div className="mt-3 w-full bg-slate-800 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all ${usage.currentProjects >= usage.limit
-                          ? 'bg-red-500'
-                          : usage.currentProjects / usage.limit > 0.7
-                            ? 'bg-amber-500'
-                            : 'bg-emerald-500'
+                      className={`h-2 rounded-full transition-all ${usage.count >= usage.limit
+                        ? 'bg-red-500'
+                        : usage.count / usage.limit > 0.7
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
                         }`}
-                      style={{ width: `${(usage.currentProjects / usage.limit) * 100}%` }}
+                      style={{ width: `${(usage.count / usage.limit) * 100}%` }}
                     />
                   </div>
                 </div>

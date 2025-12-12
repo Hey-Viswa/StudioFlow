@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import Trash from '../models/Trash.js';
 import User from '../models/User.js';
+import Task from '../models/Task.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
@@ -508,14 +509,38 @@ export const getProjectById = async (req, res) => {
 
     let userRole = isOwner ? 'owner' : membership?.role;
 
-    // Attach members to project object
-    // CRITICAL FIX: project is already a plain object due to .lean(), so we CANNOT call .toObject()
-    const projectResponse = { ...project }; // Create a shallow copy to be safe
-    projectResponse.members = validMembers;
-    projectResponse.owner = ownerDetails;
-    projectResponse.isOwner = isOwner;
-    projectResponse.userRole = userRole;
-    projectResponse.isShared = !isOwner;
+    // (Moved projectResponse construction below)
+
+    // Fetch tasks for the project
+    const tasks = await Task.find({ projectId: id }).sort({ createdAt: -1 }).lean();
+
+    // Calculate Invoice Stats
+    const invoiceStats = await ProjectInvoice.aggregate([
+      { $match: { projectId: new mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: null,
+          totalCount: { $sum: 1 },
+          pendingCount: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['sent', 'pending']] }, 1, 0]
+            }
+          },
+          overdueCount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'overdue'] }, 1, 0]
+            }
+          },
+          paidCount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'paid'] }, 1, 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    const stats = invoiceStats[0] || { totalCount: 0, pendingCount: 0, overdueCount: 0, paidCount: 0 };
 
     // Fetch comments (paginated)
     const page = parseInt(req.query.page) || 1;
@@ -529,6 +554,16 @@ export const getProjectById = async (req, res) => {
       .lean();
 
     const totalComments = await Comment.countDocuments({ projectId: id });
+
+    // Attach to response
+    const projectResponse = { ...project };
+    projectResponse.members = validMembers;
+    projectResponse.owner = ownerDetails;
+    projectResponse.isOwner = isOwner;
+    projectResponse.userRole = userRole;
+    projectResponse.isShared = !isOwner;
+    projectResponse.tasks = tasks; // Attach tasks for KPI calculation
+    projectResponse.invoiceStats = stats; // Attach Invoice KPI stats
 
     res.json({
       project: projectResponse,
@@ -552,18 +587,83 @@ export const getProjectById = async (req, res) => {
 // @desc    Get project usage stats
 // @route   GET /api/projects/usage
 // @access  Protected
+// @desc    Get project usage stats & dashboard trends
+// @route   GET /api/projects/usage
+// @access  Protected
 export const getProjectUsage = async (req, res) => {
   try {
     const userId = req.userId;
-    const count = await Project.countDocuments({ ownerId: userId, deletedAt: null });
+    const now = new Date();
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setDate(now.getDate() - 30);
+    const twoMonthsAgo = new Date();
+    twoMonthsAgo.setDate(now.getDate() - 60);
 
-    // Get limit based on plan
+    // 1. Basic Usage Limits
+    const count = await Project.countDocuments({ ownerId: userId, deletedAt: null });
     const user = await User.findOne({ clerkUserId: userId });
     const plan = user?.subscription?.plan || 'free';
     const limits = { free: 5, pro: 50, studio: 100 };
     const limit = limits[plan] || 5;
 
-    res.json({ count, limit, plan });
+    // 2. Real-time Status Counts
+    const activeProjects = await Project.countDocuments({ ownerId: userId, status: 'active', deletedAt: null });
+    const completedProjects = await Project.countDocuments({ ownerId: userId, status: 'completed', deletedAt: null });
+    const onHoldProjects = await Project.countDocuments({ ownerId: userId, status: 'on-hold', deletedAt: null });
+
+    // 3. Trend Calculations
+
+    // Completed Trend: Completed This Month vs Last Month
+    const completedThisMonth = await Project.countDocuments({
+      ownerId: userId,
+      status: 'completed',
+      deletedAt: null,
+      updatedAt: { $gte: oneMonthAgo }
+    });
+    const completedLastMonth = await Project.countDocuments({
+      ownerId: userId,
+      status: 'completed',
+      deletedAt: null,
+      updatedAt: { $gte: twoMonthsAgo, $lt: oneMonthAgo }
+    });
+
+    // Active Trend: Active Now vs Active ~30 days ago
+    // Proxy: ActiveLastMonth = ActiveNow - CreatedThisMonth + CompletedThisMonth
+    const createdThisMonth = await Project.countDocuments({
+      ownerId: userId,
+      deletedAt: null,
+      createdAt: { $gte: oneMonthAgo }
+    });
+
+    // Approximate active count 30 days ago (ignoring on-hold/archived switches for simplicity)
+    const activeLastMonth = Math.max(0, activeProjects - createdThisMonth + completedThisMonth);
+
+    const calculateTrend = (current, previous) => {
+      if (previous === 0) return { value: current > 0 ? 100 : 0, direction: current > 0 ? 'up' : 'neutral' };
+      const change = ((current - previous) / previous) * 100;
+      return {
+        value: Math.abs(change).toFixed(1),
+        direction: change > 0 ? 'up' : change < 0 ? 'down' : 'neutral'
+      };
+    };
+
+    const trends = {
+      active: calculateTrend(activeProjects, activeLastMonth),
+      completed: calculateTrend(completedThisMonth, completedLastMonth)
+    };
+
+    res.json({
+      count,
+      limit,
+      plan,
+      stats: {
+        total: count,
+        active: activeProjects,
+        completed: completedProjects,
+        onHold: onHoldProjects
+      },
+      trends
+    });
   } catch (error) {
     console.error('Get usage error:', error);
     res.status(500).json({ error: 'Failed to fetch usage' });

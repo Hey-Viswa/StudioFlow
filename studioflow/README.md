@@ -8,6 +8,16 @@ StudioFlow is a modular platform for building and scaling creative automation wo
 - **server/** – Express API with Mongoose models, service layer, BullMQ job queues
 - **infra/** – Deployment and DevOps assets (Docker, nginx, IaC) *(stubbed for now)*
 
+## Features
+
+- Auto-Task creation from comment hashtags (#bug, #todo, #high, #critical, etc.)
+- Priority parsing and color‑coded badges in task list
+- Real‑time task updates via Socket.IO (`task:added` event)
+- Automation hint in comment composer
+- Bug fixes: NotificationBatch CastError, task fetching, merge conflict resolutions
+- Updated UI for task descriptions (source link removal)
+- Comprehensive documentation updates
+
 Each area is self-contained with its own `package.json`, tooling, and scripts, making it easier to scale teams and deployments independently.
 
 ## Getting Started
