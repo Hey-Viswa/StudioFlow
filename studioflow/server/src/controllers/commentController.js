@@ -239,322 +239,321 @@ export const addComment = async (req, res) => {
       };
 
       try {
-        try {
-          // console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
-          let queued = false;
+        // console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
+        let queued = false;
 
-          // TEMPORARY FIX: Force direct execution to ensure reliability in production until Redis worker is verified
-          // if (process.env.ENABLE_REDIS_QUEUE === 'true') {
-          //   try {
-          //     taskQueue.add(automationPayload, {
-          //       attempts: 3,
-          //       backoff: { type: 'exponential', delay: 2000 },
-          //       removeOnComplete: true
-          //     });
-          //     // console.log(`🚀 Queued task automation for comment ${newComment._id}`);
-          //     queued = true;
-          //   } catch (qErr) {
-          //     console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
-          //   }
-          // }
+        // TEMPORARY FIX: Force direct execution to ensure reliability in production until Redis worker is verified
+        // if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+        //   try {
+        //     taskQueue.add(automationPayload, {
+        //       attempts: 3,
+        //       backoff: { type: 'exponential', delay: 2000 },
+        //       removeOnComplete: true
+        //     });
+        //     // console.log(`🚀 Queued task automation for comment ${newComment._id}`);
+        //     queued = true;
+        //   } catch (qErr) {
+        //     console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+        //   }
+        // }
 
-          if (!queued) {
-            // Direct execution fallback
-            // console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
-            try {
-              await automationService.processTaskAutomation(automationPayload);
-              // console.log('SB_DEBUG: Direct automation finished successfully');
-            } catch (directErr) {
-              console.error('❌ Automation error:', directErr);
-            }
+        if (!queued) {
+          // Direct execution fallback
+          // console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
+          try {
+            await automationService.processTaskAutomation(automationPayload);
+            // console.log('SB_DEBUG: Direct automation finished successfully');
+          } catch (directErr) {
+            console.error('❌ Automation error:', directErr);
           }
-        } catch (queueError) {
-          console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
         }
+      } catch (queueError) {
+        console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
       }
+    }
 
     res.status(201).json({ comment: commentObj });
-    } catch (error) {
-      console.error('❌ Error adding comment:', error);
-      res.status(500).json({ error: 'Failed to add comment' });
+  } catch (error) {
+    console.error('❌ Error adding comment:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+};
+
+export const updateComment = async (req, res) => {
+  try {
+    const { id: projectId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.userId;
+
+    // Debug Queue Status
+    console.log(`DEBUG: ENABLE_REDIS_QUEUE is '${process.env.ENABLE_REDIS_QUEUE}'`);
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Comment text is required' });
     }
-  };
 
-  export const updateComment = async (req, res) => {
-    try {
-      const { id: projectId, commentId } = req.params;
-      const { text } = req.body;
-      const userId = req.userId;
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
-      // Debug Queue Status
-      console.log(`DEBUG: ENABLE_REDIS_QUEUE is '${process.env.ENABLE_REDIS_QUEUE}'`);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
 
-      if (!text || !text.trim()) {
-        return res.status(400).json({ error: 'Comment text is required' });
-      }
+    // RBAC: Check permission
+    if (comment.userId !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
+    }
 
-      const comment = await Comment.findOne({ _id: commentId, projectId });
+    comment.content = text.trim();
+    comment.edited = true;
+    comment.editedAt = new Date();
 
-      if (!comment) {
-        return res.status(404).json({ error: 'Comment not found' });
-      }
+    await comment.save();
 
-      // RBAC: Check permission
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.update',
+      resourceType: 'comment',
+      resourceId: comment._id,
+      details: {
+        projectId
+      },
+      req
+    });
+
+    const commentObj = {
+      ...comment.toObject(),
+      reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
+    };
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated to project:${projectId}`);
+    }
+
+    res.status(200).json({ comment: commentObj });
+  } catch (error) {
+    console.error('❌ Error updating comment:', error);
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
+};
+
+export const deleteComment = async (req, res) => {
+  try {
+    const { id: projectId, commentId } = req.params;
+    const userId = req.userId;
+
+    const comment = await Comment.findOne({ _id: commentId, projectId });
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // RBAC Check
+    const { role } = await getProjectRole(projectId, userId);
+    if (!role) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // 1. Check if user has generic DELETE_COMMENT permission (e.g. Owner)
+    const canDeleteAny = checkPermission(role, PERMISSIONS.COMMENT_DELETE);
+
+    // 2. Check if user has DELETE_OWN_COMMENT permission
+    const canDeleteOwn = checkPermission(role, PERMISSIONS.COMMENT_DELETE_OWN);
+
+    if (canDeleteAny) {
+      // Allowed to delete any comment
+    } else if (canDeleteOwn) {
+      // Allowed only if it's their own comment
       if (comment.userId !== userId) {
-        return res.status(403).json({ error: 'You can only edit your own comments' });
+        return res.status(403).json({ error: 'You can only delete your own comments' });
       }
-
-      comment.content = text.trim();
-      comment.edited = true;
-      comment.editedAt = new Date();
-
-      await comment.save();
-
-      // Log audit event
-      await logAudit({
-        userId,
-        action: 'comment.update',
-        resourceType: 'comment',
-        resourceId: comment._id,
-        details: {
-          projectId
-        },
-        req
-      });
-
-      const commentObj = {
-        ...comment.toObject(),
-        reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
-      };
-
-      // Emit real-time update
-      const io = req.app.get('io');
-      if (io) {
-        const payload = { projectId, comment: commentObj };
-        io.to(`project:${projectId}`).emit('comment:updated', payload);
-        io.to(`project-${projectId}`).emit('comment:updated', payload);
-        console.log(`📡 Socket.IO: Emitted comment:updated to project:${projectId}`);
-      }
-
-      res.status(200).json({ comment: commentObj });
-    } catch (error) {
-      console.error('❌ Error updating comment:', error);
-      res.status(500).json({ error: 'Failed to update comment' });
+    } else {
+      return res.status(403).json({ error: 'You do not have permission to delete comments' });
     }
-  };
 
-  export const deleteComment = async (req, res) => {
-    try {
-      const { id: projectId, commentId } = req.params;
-      const userId = req.userId;
+    // Delete comment and replies
+    await Comment.deleteMany({
+      $or: [
+        { _id: commentId },
+        { parentId: commentId }
+      ]
+    });
 
-      const comment = await Comment.findOne({ _id: commentId, projectId });
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.delete',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId
+      },
+      req
+    });
 
-      if (!comment) {
-        return res.status(404).json({ error: 'Comment not found' });
-      }
+    // Update project stats
+    await Project.updateOne({ _id: projectId }, { $inc: { 'stats.commentCount': -1 } });
 
-      // RBAC Check
-      const { role } = await getProjectRole(projectId, userId);
-      if (!role) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-
-      // 1. Check if user has generic DELETE_COMMENT permission (e.g. Owner)
-      const canDeleteAny = checkPermission(role, PERMISSIONS.COMMENT_DELETE);
-
-      // 2. Check if user has DELETE_OWN_COMMENT permission
-      const canDeleteOwn = checkPermission(role, PERMISSIONS.COMMENT_DELETE_OWN);
-
-      if (canDeleteAny) {
-        // Allowed to delete any comment
-      } else if (canDeleteOwn) {
-        // Allowed only if it's their own comment
-        if (comment.userId !== userId) {
-          return res.status(403).json({ error: 'You can only delete your own comments' });
-        }
-      } else {
-        return res.status(403).json({ error: 'You do not have permission to delete comments' });
-      }
-
-      // Delete comment and replies
-      await Comment.deleteMany({
-        $or: [
-          { _id: commentId },
-          { parentId: commentId }
-        ]
-      });
-
-      // Log audit event
-      await logAudit({
-        userId,
-        action: 'comment.delete',
-        resourceType: 'comment',
-        resourceId: commentId,
-        details: {
-          projectId
-        },
-        req
-      });
-
-      // Update project stats
-      await Project.updateOne({ _id: projectId }, { $inc: { 'stats.commentCount': -1 } });
-
-      // Emit real-time update
-      const io = req.app.get('io');
-      if (io) {
-        const payload = { projectId, commentId };
-        io.to(`project:${projectId}`).emit('comment:deleted', payload);
-        io.to(`project-${projectId}`).emit('comment:deleted', payload);
-        console.log(`📡 Socket.IO: Emitted comment:deleted to project:${projectId}`);
-      }
-
-      res.status(200).json({ success: true });
-    } catch (error) {
-      console.error('❌ Error deleting comment:', error);
-      res.status(500).json({ error: 'Failed to delete comment' });
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { projectId, commentId };
+      io.to(`project:${projectId}`).emit('comment:deleted', payload);
+      io.to(`project-${projectId}`).emit('comment:deleted', payload);
+      console.log(`📡 Socket.IO: Emitted comment:deleted to project:${projectId}`);
     }
-  };
 
-  export const reactToComment = async (req, res) => {
-    try {
-      const { id: projectId, commentId } = req.params;
-      const { emoji } = req.body;
-      const userId = req.userId;
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting comment:', error);
+    res.status(500).json({ error: 'Failed to delete comment' });
+  }
+};
 
-      if (!emoji) {
-        return res.status(400).json({ error: 'Emoji is required' });
-      }
+export const reactToComment = async (req, res) => {
+  try {
+    const { id: projectId, commentId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.userId;
 
-      // Validate that commentId is a valid ObjectId before querying
-      // Prevents CastError when users interact with optimistic updates (temp IDs)
-      const mongoose = (await import('mongoose')).default;
-      if (!mongoose.Types.ObjectId.isValid(commentId)) {
-        return res.status(400).json({ error: 'Invalid comment ID' });
-      }
+    if (!emoji) {
+      return res.status(400).json({ error: 'Emoji is required' });
+    }
 
-      const comment = await Comment.findOne({ _id: commentId, projectId });
+    // Validate that commentId is a valid ObjectId before querying
+    // Prevents CastError when users interact with optimistic updates (temp IDs)
+    const mongoose = (await import('mongoose')).default;
+    if (!mongoose.Types.ObjectId.isValid(commentId)) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
 
-      if (!comment) {
-        return res.status(404).json({ error: 'Comment not found' });
-      }
+    const comment = await Comment.findOne({ _id: commentId, projectId });
 
-      // Initialize reactions if needed
-      if (!comment.reactions) {
-        comment.reactions = new Map();
-      }
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
 
-      // Get current users for this emoji
-      const users = comment.reactions.get(emoji) || [];
-      const userIndex = users.indexOf(userId);
+    // Initialize reactions if needed
+    if (!comment.reactions) {
+      comment.reactions = new Map();
+    }
 
-      if (userIndex > -1) {
-        // Remove reaction
-        users.splice(userIndex, 1);
-        if (users.length === 0) {
-          comment.reactions.delete(emoji);
-        } else {
-          comment.reactions.set(emoji, users);
-        }
+    // Get current users for this emoji
+    const users = comment.reactions.get(emoji) || [];
+    const userIndex = users.indexOf(userId);
+
+    if (userIndex > -1) {
+      // Remove reaction
+      users.splice(userIndex, 1);
+      if (users.length === 0) {
+        comment.reactions.delete(emoji);
       } else {
-        // Add reaction
-        users.push(userId);
         comment.reactions.set(emoji, users);
       }
-
-      await comment.save();
-
-      const commentObj = {
-        ...comment.toObject(),
-        reactions: Object.fromEntries(comment.reactions)
-      };
-
-      // Emit real-time update
-      const io = req.app.get('io');
-      if (io) {
-        const payload = { projectId, comment: commentObj };
-        io.to(`project:${projectId}`).emit('comment:updated', payload);
-        io.to(`project-${projectId}`).emit('comment:updated', payload);
-        console.log(`📡 Socket.IO: Emitted comment:updated (reaction) to project:${projectId}`);
-      }
-
-      // Log audit event
-      await logAudit({
-        userId,
-        action: 'comment.react',
-        resourceType: 'comment',
-        resourceId: commentId,
-        details: {
-          projectId,
-          emoji,
-          action: userIndex > -1 ? 'removed' : 'added'
-        },
-        req
-      });
-
-      res.status(200).json({ reactions: commentObj.reactions });
-    } catch (error) {
-      console.error('❌ Error reacting to comment:', error);
-      res.status(500).json({ error: 'Failed to react to comment' });
+    } else {
+      // Add reaction
+      users.push(userId);
+      comment.reactions.set(emoji, users);
     }
-  };
 
-  export const resolveComment = async (req, res) => {
-    try {
-      const { id: projectId, commentId } = req.params;
-      const userId = req.userId;
+    await comment.save();
 
-      const project = await Project.findById(projectId).select('ownerId');
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
+    const commentObj = {
+      ...comment.toObject(),
+      reactions: Object.fromEntries(comment.reactions)
+    };
 
-      // Only project owner can resolve
-      if (project.ownerId !== userId) {
-        return res.status(403).json({ error: 'Only project owner can resolve comments' });
-      }
-
-      const comment = await Comment.findOne({ _id: commentId, projectId });
-
-      if (!comment) {
-        return res.status(404).json({ error: 'Comment not found' });
-      }
-
-      comment.isResolved = true;
-      comment.resolvedBy = userId;
-      comment.resolvedAt = new Date();
-
-      await comment.save();
-
-      // Log audit event
-      await logAudit({
-        userId,
-        action: 'comment.resolve',
-        resourceType: 'comment',
-        resourceId: commentId,
-        details: {
-          projectId
-        },
-        req
-      });
-
-      const commentObj = {
-        ...comment.toObject(),
-        reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
-      };
-
-      // Emit real-time update
-      const io = req.app.get('io');
-      if (io) {
-        const payload = { projectId, comment: commentObj };
-        io.to(`project:${projectId}`).emit('comment:updated', payload);
-        io.to(`project-${projectId}`).emit('comment:updated', payload);
-        console.log(`📡 Socket.IO: Emitted comment:updated (resolve) to project:${projectId}`);
-      }
-
-      res.status(200).json({ comment: commentObj });
-    } catch (error) {
-      console.error('❌ Error resolving comment:', error);
-      res.status(500).json({ error: 'Failed to resolve comment' });
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated (reaction) to project:${projectId}`);
     }
-  };
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.react',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId,
+        emoji,
+        action: userIndex > -1 ? 'removed' : 'added'
+      },
+      req
+    });
+
+    res.status(200).json({ reactions: commentObj.reactions });
+  } catch (error) {
+    console.error('❌ Error reacting to comment:', error);
+    res.status(500).json({ error: 'Failed to react to comment' });
+  }
+};
+
+export const resolveComment = async (req, res) => {
+  try {
+    const { id: projectId, commentId } = req.params;
+    const userId = req.userId;
+
+    const project = await Project.findById(projectId).select('ownerId');
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Only project owner can resolve
+    if (project.ownerId !== userId) {
+      return res.status(403).json({ error: 'Only project owner can resolve comments' });
+    }
+
+    const comment = await Comment.findOne({ _id: commentId, projectId });
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    comment.isResolved = true;
+    comment.resolvedBy = userId;
+    comment.resolvedAt = new Date();
+
+    await comment.save();
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.resolve',
+      resourceType: 'comment',
+      resourceId: commentId,
+      details: {
+        projectId
+      },
+      req
+    });
+
+    const commentObj = {
+      ...comment.toObject(),
+      reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
+    };
+
+    // Emit real-time update
+    const io = req.app.get('io');
+    if (io) {
+      const payload = { projectId, comment: commentObj };
+      io.to(`project:${projectId}`).emit('comment:updated', payload);
+      io.to(`project-${projectId}`).emit('comment:updated', payload);
+      console.log(`📡 Socket.IO: Emitted comment:updated (resolve) to project:${projectId}`);
+    }
+
+    res.status(200).json({ comment: commentObj });
+  } catch (error) {
+    console.error('❌ Error resolving comment:', error);
+    res.status(500).json({ error: 'Failed to resolve comment' });
+  }
+};
