@@ -25,7 +25,7 @@ if (isFirebaseConfigured) {
         console.error('❌ Firebase initialization failed:', error);
     }
 } else {
-    console.warn('⚠️ Firebase configuration missing. Push notifications will be disabled.');
+    // console.warn('⚠️ Firebase configuration missing. Push notifications will be disabled.');
 }
 
 export const requestForToken = async () => {

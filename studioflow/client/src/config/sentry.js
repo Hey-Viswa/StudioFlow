@@ -96,7 +96,7 @@ export function initSentry() {
 
     console.log('✅ Sentry initialized (Budget mode: 5% sampling)');
   } else {
-    console.log('⚠️  Sentry disabled (not in production or no DSN)');
+    // console.log('⚠️  Sentry disabled (not in production or no DSN)');
   }
 }
 
