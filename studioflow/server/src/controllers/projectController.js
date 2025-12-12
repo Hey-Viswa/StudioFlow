@@ -511,36 +511,7 @@ export const getProjectById = async (req, res) => {
 
     // (Moved projectResponse construction below)
 
-    // Fetch tasks for the project
-    const tasks = await Task.find({ projectId: id }).sort({ createdAt: -1 }).lean();
 
-    // Calculate Invoice Stats
-    const invoiceStats = await ProjectInvoice.aggregate([
-      { $match: { projectId: new mongoose.Types.ObjectId(id) } },
-      {
-        $group: {
-          _id: null,
-          totalCount: { $sum: 1 },
-          pendingCount: {
-            $sum: {
-              $cond: [{ $in: ['$status', ['sent', 'pending']] }, 1, 0]
-            }
-          },
-          overdueCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'overdue'] }, 1, 0]
-            }
-          },
-          paidCount: {
-            $sum: {
-              $cond: [{ $eq: ['$status', 'paid'] }, 1, 0]
-            }
-          }
-        }
-      }
-    ]);
-
-    const stats = invoiceStats[0] || { totalCount: 0, pendingCount: 0, overdueCount: 0, paidCount: 0 };
 
     // Fetch comments (paginated)
     const page = parseInt(req.query.page) || 1;
