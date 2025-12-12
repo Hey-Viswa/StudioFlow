@@ -277,7 +277,9 @@ export default function ProjectDetail() {
       const data = await response.json();
       setInviteLink(data.inviteLink);
       setCopied(false);
-      toast.success(`${inviteRole === 'client' ? 'Client' : 'Team'} invite link generated!`);
+      // Use the passed role argument, fallback to state if needed
+      const roleName = (role || inviteRole) === 'client' ? 'Client' : 'Team';
+      toast.success(`${roleName} invite link generated!`);
     } catch (err) {
       console.error('Generate invite error:', err);
       toast.error('Failed to generate invite link');

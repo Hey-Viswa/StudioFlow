@@ -698,10 +698,22 @@ export const generateInvite = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Only owner can generate invites
-    if (String(project.ownerId) !== String(userId)) {
-      console.log('❌ Not owner:', { userId, ownerId: project.ownerId });
-      return res.status(403).json({ error: 'Only project owner can generate invites' });
+    // Check permissions: Creator OR Member with 'owner' role
+    let hasPermission = String(project.ownerId) === String(userId);
+
+    if (!hasPermission) {
+      const member = await ProjectMember.findOne({
+        projectId: id,
+        userId: userId,
+        role: 'owner',
+        status: 'active'
+      });
+      if (member) hasPermission = true;
+    }
+
+    if (!hasPermission) {
+      console.log('❌ Permission denied:', { userId, ownerId: project.ownerId });
+      return res.status(403).json({ error: 'Only project owners can generate invites' });
     }
 
     // Check JWT_SECRET
