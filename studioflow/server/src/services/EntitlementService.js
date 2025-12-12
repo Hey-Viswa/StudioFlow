@@ -6,6 +6,7 @@
 const FEATURES = {
     MAX_PROJECTS: 'maxProjects',
     MAX_MEMBERS: 'maxMembers',
+    MAX_CLIENTS: 'maxClients',
     BASIC_INVOICING: 'basicInvoicing',
     BRANDED_INVOICES: 'brandedInvoices',
     CLIENT_COLLABORATION: 'clientCollaboration',
@@ -20,6 +21,7 @@ const PLANS = {
     free: {
         [FEATURES.MAX_PROJECTS]: 5,
         [FEATURES.MAX_MEMBERS]: 1,
+        [FEATURES.MAX_CLIENTS]: 2,
         [FEATURES.BASIC_INVOICING]: true,
         [FEATURES.BRANDED_INVOICES]: false,
         [FEATURES.CLIENT_COLLABORATION]: true,
@@ -28,6 +30,7 @@ const PLANS = {
     pro: {
         [FEATURES.MAX_PROJECTS]: 50,
         [FEATURES.MAX_MEMBERS]: 5,
+        [FEATURES.MAX_CLIENTS]: -1, // Unlimited
         [FEATURES.BASIC_INVOICING]: true,
         [FEATURES.BRANDED_INVOICES]: true,
         [FEATURES.CLIENT_COLLABORATION]: true,
@@ -38,6 +41,7 @@ const PLANS = {
     studio: {
         [FEATURES.MAX_PROJECTS]: 100,
         [FEATURES.MAX_MEMBERS]: -1, // Unlimited
+        [FEATURES.MAX_CLIENTS]: -1, // Unlimited
         [FEATURES.BASIC_INVOICING]: true,
         [FEATURES.BRANDED_INVOICES]: true,
         [FEATURES.CLIENT_COLLABORATION]: true,
@@ -105,6 +109,8 @@ export class EntitlementService {
             limit = this.checkAccess(user, FEATURES.MAX_PROJECTS);
         } else if (resourceType === 'member') {
             limit = this.checkAccess(user, FEATURES.MAX_MEMBERS);
+        } else if (resourceType === 'client') {
+            limit = this.checkAccess(user, FEATURES.MAX_CLIENTS);
         }
 
         if (limit === -1) return true; // Unlimited

@@ -60,149 +60,165 @@ export const checkResourceLimit = (resourceType) => {
                     deletedAt: null,
                     status: { $ne: 'archived' }
                 });
-                if (resourceType === 'member') {
-                    // For members, we need to check the project context
-                    const projectId = req.params.id || req.body.projectId;
-
-                    if (!projectId) {
-                        return res.status(400).json({ error: 'Project ID required for member limit check' });
-                    }
-
-                    // Check intent (Role being invited)
-                    // Use req.body.role, default to 'client' if not specified (matching controller logic)
-                    const inviteRole = req.body.role || 'client';
-
-                    console.log(`🔍 DEBUG_INVITE: User: ${user.email}, Plan: ${user.subscription?.plan}, Status: ${user.subscription?.status}, InviteRole: ${inviteRole}`);
-
-                    if (inviteRole === 'client') {
-                        // Check Client Collaboration Feature
-                        const hasClientAccess = EntitlementService.checkAccess(user, EntitlementService.FEATURES.CLIENT_COLLABORATION);
-                        console.log(`🔍 DEBUG_INVITE: Client Access Check: ${hasClientAccess}`);
-
-                        if (!hasClientAccess) {
-                            return res.status(403).json({
-                                error: 'Client collaboration is a Pro feature. Upgrade to invite clients.',
-                                code: 'UPGRADE_REQUIRED',
-                                feature: 'clientCollaboration'
-                            });
-                        }
-                        // Clients don't count towards seat limits in this model
-                        return next();
-                    }
-
-                    // If inviting Team Member, check seat limits
-                    // Count active "seat-consuming" members (excluding owner AND clients)
-                    currentCount = await ProjectMember.countDocuments({
-                        projectId,
-                        status: 'active',
-                        role: { $nin: ['owner', 'client'] }
-                    });
-                }
-
-                const canCreate = EntitlementService.canCreate(user, resourceType, currentCount);
-
-                if (!canCreate) {
-                    return res.status(403).json({
-                        error: `You have reached the maximum number of ${resourceType}s allowed on your plan`,
-                        code: 'LIMIT_REACHED',
-                        resourceType,
-                        currentCount
-                    });
-                }
-
-                next();
-            } catch (error) {
-                console.error('Resource limit check error:', error);
-                res.status(500).json({ error: 'Failed to check resource limit' });
-            }
-        };
-    };
-
-    /**
-     * Middleware to check if user has a specific entitlement for a project
-     * @param {string} scope - Entitlement scope (e.g., 'project_download')
-     */
-    /**
-     * Middleware to check if user has a specific entitlement for a project
-     * @param {string} scope - Entitlement scope (e.g., 'project_download')
-     */
-    export const checkProjectEntitlement = (scope) => {
-        return async (req, res, next) => {
-            try {
-                const userId = req.userId;
+            } else if (resourceType === 'member') {
+                // For members, we need to check the project context
                 const projectId = req.params.id || req.body.projectId;
 
                 if (!projectId) {
-                    return res.status(400).json({ error: 'Project ID required' });
+                    return res.status(400).json({ error: 'Project ID required for member limit check' });
                 }
 
-                // 1. Get Project and User Role
-                const project = await Project.findById(projectId).select('ownerId');
-                if (!project) {
-                    return res.status(404).json({ error: 'Project not found' });
-                }
+                // Check intent (Role being invited)
+                // Use req.body.role, default to 'client' if not specified (matching controller logic)
+                const inviteRole = req.body.role || 'client';
 
-                // Owner always has access
-                if (String(project.ownerId) === String(userId)) {
+                if (inviteRole === 'client') {
+                    // Check Client Collaboration Feature
+                    const hasClientAccess = EntitlementService.checkAccess(user, EntitlementService.FEATURES.CLIENT_COLLABORATION);
+
+                    if (!hasClientAccess) {
+                        return res.status(403).json({
+                            error: 'Client collaboration is a Pro feature. Upgrade to invite clients.',
+                            code: 'UPGRADE_REQUIRED',
+                            feature: 'clientCollaboration'
+                        });
+                    }
+
+                    // Check Client Seat Limits
+                    // Count active clients
+                    const currentClientCount = await ProjectMember.countDocuments({
+                        projectId,
+                        status: 'active',
+                        role: 'client'
+                    });
+
+                    const canAddClient = EntitlementService.canCreate(user, 'client', currentClientCount);
+
+                    if (!canAddClient) {
+                        return res.status(403).json({
+                            error: `You have reached the maximum number of clients (2) allowed on the Free plan. Upgrade to Pro for unlimited clients.`,
+                            code: 'LIMIT_REACHED',
+                            resourceType: 'client',
+                            currentCount: currentClientCount
+                        });
+                    }
+
                     return next();
                 }
 
-                // Check Project Membership
-                const membership = await ProjectMember.findOne({
+                // If inviting Team Member, check seat limits
+                // Count active "seat-consuming" members (excluding owner AND clients)
+                currentCount = await ProjectMember.countDocuments({
                     projectId,
+                    status: 'active',
+                    role: { $nin: ['owner', 'client'] }
+                });
+            }
+
+            const canCreate = EntitlementService.canCreate(user, resourceType, currentCount);
+
+            if (!canCreate) {
+                return res.status(403).json({
+                    error: `You have reached the maximum number of ${resourceType}s allowed on your plan`,
+                    code: 'LIMIT_REACHED',
+                    resourceType,
+                    currentCount
+                });
+            }
+
+            next();
+        } catch (error) {
+            console.error('Resource limit check error:', error);
+            res.status(500).json({ error: 'Failed to check resource limit' });
+        }
+    };
+};
+
+/**
+ * Middleware to check if user has a specific entitlement for a project
+ * @param {string} scope - Entitlement scope (e.g., 'project_download')
+ */
+/**
+ * Middleware to check if user has a specific entitlement for a project
+ * @param {string} scope - Entitlement scope (e.g., 'project_download')
+ */
+export const checkProjectEntitlement = (scope) => {
+    return async (req, res, next) => {
+        try {
+            const userId = req.userId;
+            const projectId = req.params.id || req.body.projectId;
+
+            if (!projectId) {
+                return res.status(400).json({ error: 'Project ID required' });
+            }
+
+            // 1. Get Project and User Role
+            const project = await Project.findById(projectId).select('ownerId');
+            if (!project) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+
+            // Owner always has access
+            if (String(project.ownerId) === String(userId)) {
+                return next();
+            }
+
+            // Check Project Membership
+            const membership = await ProjectMember.findOne({
+                projectId,
+                userId,
+                status: 'active'
+            });
+
+            if (!membership) {
+                return res.status(403).json({ error: 'Access denied. You are not a member of this project.' });
+            }
+
+            // 2. Role-based Entitlement Check
+            // Team Members (COLLABORATOR) generally have access to files
+            // Clients (CLIENT) require explicit Entitlement (payment)
+            if (membership.role === 'client') {
+                // If at least one file has been explicitly shared with this client, allow access
+                const hasSharedFile = await ProjectFile.findOne({
+                    projectId,
+                    'sharedWith.userId': userId
+                }).select('_id').lean();
+
+                if (hasSharedFile) {
+                    return next();
+                }
+
+                const entitlement = await Entitlement.findOne({
                     userId,
-                    status: 'active'
+                    projectId,
+                    scope,
+                    revokedAt: null
                 });
 
-                if (!membership) {
-                    return res.status(403).json({ error: 'Access denied. You are not a member of this project.' });
+                if (entitlement) {
+                    // Check expiry if applicable
+                    if (entitlement.expiresAt && new Date() > new Date(entitlement.expiresAt)) {
+                        return res.status(403).json({
+                            error: 'Access expired. Please renew your access.',
+                            code: 'ENTITLEMENT_EXPIRED'
+                        });
+                    }
+                    return next();
                 }
 
-                // 2. Role-based Entitlement Check
-                // Team Members (COLLABORATOR) generally have access to files
-                // Clients (CLIENT) require explicit Entitlement (payment)
-                if (membership.role === 'client') {
-                    // If at least one file has been explicitly shared with this client, allow access
-                    const hasSharedFile = await ProjectFile.findOne({
-                        projectId,
-                        'sharedWith.userId': userId
-                    }).select('_id').lean();
-
-                    if (hasSharedFile) {
-                        return next();
-                    }
-
-                    const entitlement = await Entitlement.findOne({
-                        userId,
-                        projectId,
-                        scope,
-                        revokedAt: null
-                    });
-
-                    if (entitlement) {
-                        // Check expiry if applicable
-                        if (entitlement.expiresAt && new Date() > new Date(entitlement.expiresAt)) {
-                            return res.status(403).json({
-                                error: 'Access expired. Please renew your access.',
-                                code: 'ENTITLEMENT_EXPIRED'
-                            });
-                        }
-                        return next();
-                    }
-
-                    return res.status(403).json({
-                        error: 'Payment Required. You must pay the invoice to access these files.',
-                        code: 'ENTITLEMENT_REQUIRED',
-                        scope
-                    });
-                }
-
-                // Collaborators/Admins (Non-Clients) are allowed
-                return next();
-
-            } catch (error) {
-                console.error('Project entitlement check error:', error);
-                res.status(500).json({ error: 'Failed to check project entitlement' });
+                return res.status(403).json({
+                    error: 'Payment Required. You must pay the invoice to access these files.',
+                    code: 'ENTITLEMENT_REQUIRED',
+                    scope
+                });
             }
-        };
+
+            // Collaborators/Admins (Non-Clients) are allowed
+            return next();
+
+        } catch (error) {
+            console.error('Project entitlement check error:', error);
+            res.status(500).json({ error: 'Failed to check project entitlement' });
+        }
     };
+};
