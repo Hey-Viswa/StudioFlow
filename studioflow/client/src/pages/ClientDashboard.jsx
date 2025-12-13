@@ -332,37 +332,73 @@ export default function ClientDashboard() {
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            title="Total Billed"
-            value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
-            description="Total amount invoiced"
-            icon={IndianRupee}
-            trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
-            trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
-          />
-          <KpiCard
-            title="Paid"
-            value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
-            description="Successfully collected"
-            icon={CheckCircle2}
-            trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
-            trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
-          />
-          <KpiCard
-            title="Outstanding"
-            value={`₹${metrics.outstanding?.toLocaleString() || 0}`}
-            description="Awaiting payment"
-            icon={Clock}
-          />
-          <KpiCard
-            title="Overdue"
-            value={`₹${metrics.overdue?.toLocaleString() || 0}`}
-            description="Past due date"
-            icon={AlertCircle}
-            trend={metrics.overdueChange >= 0 ? "up" : "down"}
-            trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
-            reverseColor={true}
-          />
+          {(!metrics.totalBilled && metrics.clientMetrics?.totalSpent > 0) ? (
+            // --- CLIENT VIEW ---
+            <>
+              <KpiCard
+                title="Total Spent"
+                value={`₹${metrics.clientMetrics.totalSpent?.toLocaleString() || 0}`}
+                description="Total amount invoiced to you"
+                icon={IndianRupee}
+                trend="neutral"
+              />
+              <KpiCard
+                title="Paid"
+                value={`₹${metrics.clientMetrics.totalPaid?.toLocaleString() || 0}`}
+                description="Successfully paid"
+                icon={CheckCircle2}
+                trend="neutral"
+              />
+              <KpiCard
+                title="Pending Payment"
+                value={`₹${metrics.clientMetrics.totalPending?.toLocaleString() || 0}`}
+                description="Invoices to pay"
+                icon={Clock}
+              />
+              {/* Hide Overdue for pure clients or show placeholder? Keeping 3 cards is fine or show invoice count */}
+              <KpiCard
+                title="Invoices"
+                value={metrics.clientMetrics.invoiceCount || 0}
+                description="Total interactions"
+                icon={FileText}
+              />
+            </>
+          ) : (
+            // --- OWNER VIEW (Default) ---
+            <>
+              <KpiCard
+                title="Total Billed"
+                value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
+                description="Total amount invoiced"
+                icon={IndianRupee}
+                trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
+                trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
+              />
+              <KpiCard
+                title="Paid"
+                value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
+                description="Successfully collected"
+                icon={CheckCircle2}
+                trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
+                trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
+              />
+              <KpiCard
+                title="Outstanding"
+                value={`₹${metrics.outstanding?.toLocaleString() || 0}`}
+                description="Awaiting payment"
+                icon={Clock}
+              />
+              <KpiCard
+                title="Overdue"
+                value={`₹${metrics.overdue?.toLocaleString() || 0}`}
+                description="Past due date"
+                icon={AlertCircle}
+                trend={metrics.overdueChange >= 0 ? "up" : "down"}
+                trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
+                reverseColor={true}
+              />
+            </>
+          )}
         </div>
 
         {/* Search and Filters */}

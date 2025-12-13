@@ -58,53 +58,86 @@ export const getDashboardMetrics = async (req, res) => {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    // Calculate Totals (All Time)
-    const totalBilled = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const totalPaid = invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
+    // --- CONTEXT SEPARATION START ---
 
-    // Outstanding: Pending invoices (sent but not yet paid)
-    const outstanding = invoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0);
+    // 1. Identify Contexts
+    const ownedProjectIds = projects.filter(p => p.ownerId === userId).map(p => p._id);
+    const memberProjectIds = memberships.map(m => m.projectId.toString());
+    // In strict Client view, we should look for projects where member role is 'client' or just use memberships as 'non-owner' context
+    // Ideally, we rely on Invoice filters for accuracy (payerUserId)
 
-    // Overdue: Status is 'overdue' OR (pending AND due date passed)
-    const overdue = invoices.filter(inv => {
+    // 2. Fetch Invoices separately or Filter in memory?
+    // Memory filtering is safer to minimalize DB calls if volume is low, but separate queries are cleaner.
+    // Given we already fetch all invoices for these projects, let's filter in memory for efficiency unless volume is huge.
+
+    // Split Invoices by Context
+    // Owner Context: Invoices belonging to projects I OWN.
+    const ownerInvoices = invoices.filter(inv => ownedProjectIds.find(id => id.toString() === inv.projectId.toString()));
+
+    // Client Context: Invoices where I am the Client/Payer.
+    // We check: client.userId OR payerUserId OR (projectId is in memberships AND not owner)
+    // Strict Check: payerUserId or client.userId matches me.
+    const clientInvoices = invoices.filter(inv => {
+      return (inv.client && inv.client.userId === userId) ||
+        (inv.payerUserId === userId);
+    });
+
+    // --- OWNER METRICS (REVENUE) ---
+    // Calculated ONLY from ownerInvoices
+    const totalBilled = ownerInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+    const totalPaid = ownerInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
+    const outstanding = ownerInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+    // Overdue (Owner Context)
+    const overdue = ownerInvoices.filter(inv => {
       const isOverdueStatus = inv.status === 'overdue';
       const isPendingAndLate = inv.status === 'pending' && inv.dueDate && new Date(inv.dueDate) < new Date();
       return isOverdueStatus || isPendingAndLate;
     }).reduce((sum, inv) => sum + (inv.total || 0), 0);
 
-    // Calculate Trends (This Month vs Last Month)
+    // Trends (Owner Context) using ownerInvoices...
     // 1. Billed Trend
-    const billedThisMonth = invoices
+    const billedThisMonth = ownerInvoices
       .filter(inv => new Date(inv.createdAt) >= startOfCurrentMonth)
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const billedLastMonth = invoices
+    const billedLastMonth = ownerInvoices
       .filter(inv => new Date(inv.createdAt) >= startOfLastMonth && new Date(inv.createdAt) <= endOfLastMonth)
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
     const totalBilledChange = calculateChange(billedThisMonth, billedLastMonth);
 
     // 2. Paid Trend
-    const paidThisMonth = invoices
+    const paidThisMonth = ownerInvoices
       .filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfCurrentMonth)
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const paidLastMonth = invoices
+    const paidLastMonth = ownerInvoices
       .filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfLastMonth && new Date(inv.paidAt || inv.updatedAt) <= endOfLastMonth)
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
     const totalPaidChange = calculateChange(paidThisMonth, paidLastMonth);
 
-    // 3. Overdue Trend (New overdue invoices this month vs last month)
-    const overdueThisMonth = invoices
+    // 3. Overdue Trend
+    const overdueThisMonth = ownerInvoices
       .filter(inv => {
         const dueDate = new Date(inv.dueDate);
         return dueDate >= startOfCurrentMonth && dueDate < now && inv.status !== 'paid';
       })
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const overdueLastMonth = invoices
+    const overdueLastMonth = ownerInvoices
       .filter(inv => {
         const dueDate = new Date(inv.dueDate);
         return dueDate >= startOfLastMonth && dueDate <= endOfLastMonth && inv.status !== 'paid';
       })
       .reduce((sum, inv) => sum + (inv.total || 0), 0);
     const overdueChange = calculateChange(overdueThisMonth, overdueLastMonth);
+
+    // --- CLIENT METRICS (SPENDING) ---
+    // Calculated ONLY from clientInvoices
+    const clientMetrics = {
+      totalSpent: clientInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+      totalPaid: clientInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0),
+      totalPending: clientInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0),
+      invoiceCount: clientInvoices.length
+    };
+    // --- CONTEXT SEPARATION END ---
 
     res.status(200).json({
       metrics: {
@@ -118,6 +151,8 @@ export const getDashboardMetrics = async (req, res) => {
         outstanding,
         overdue,
         overdueChange,
+        clientMetrics,
+        roleContext: totalBilled > 0 && clientMetrics.totalSpent > 0 ? 'mixed' : (totalBilled > 0 ? 'owner' : 'client'),
         unreadNotifications: unreadNotificationsCount,
         storageUsed: user?.stats?.storageUsed || 0,
         recentActivity: user?.recentActivity || []
