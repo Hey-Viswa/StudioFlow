@@ -557,6 +557,13 @@ export const getProjectById = async (req, res) => {
 
     const stats = invoiceStats[0] || { totalCount: 0, pendingCount: 0, overdueCount: 0, paidCount: 0 };
 
+    // Calculate Task Stats (Real-time)
+    const taskStats = {
+      total: tasks.length,
+      completed: tasks.filter(t => t.status === 'completed').length,
+      pending: tasks.filter(t => !['completed', 'approved'].includes(t.status)).length
+    };
+
     // Attach to response
     const projectResponse = { ...project };
     projectResponse.members = validMembers;
@@ -564,7 +571,14 @@ export const getProjectById = async (req, res) => {
     projectResponse.isOwner = isOwner;
     projectResponse.userRole = userRole;
     projectResponse.isShared = !isOwner;
-    projectResponse.tasks = tasks; // Attach tasks for KPI calculation
+    projectResponse.tasks = tasks; // Attach tasks list
+
+    // Ensure stats object exists and populate tasks
+    projectResponse.stats = {
+      ...project.stats,
+      tasks: taskStats
+    };
+
     projectResponse.invoiceStats = stats; // Attach Invoice KPI stats
 
     res.json({
