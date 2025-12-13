@@ -62,7 +62,8 @@ export const getDashboardMetrics = async (req, res) => {
 
     // 1. Identify Contexts
     const ownedProjectIds = projects.filter(p => p.ownerId === userId).map(p => p._id);
-    const memberProjectIds = memberships.map(m => m.projectId.toString());
+    // memberProjectIds already defined above
+    // const memberProjectIds = memberships.map(m => m.projectId.toString());
     // In strict Client view, we should look for projects where member role is 'client' or just use memberships as 'non-owner' context
     // Ideally, we rely on Invoice filters for accuracy (payerUserId)
 
