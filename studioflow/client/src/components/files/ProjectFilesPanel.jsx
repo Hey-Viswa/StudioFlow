@@ -287,7 +287,7 @@ export function ProjectFilesPanel({ projectId, project }) {
     setProcessingPayment(invoiceId);
     try {
       // 1. Create Order
-      const orderResponse = await api.post(`/invoices/project/${invoiceId}/pay`, {});
+      const orderResponse = await api.post(`/invoices/project/${invoiceId}/pay`, {}, { getToken });
 
       // 2. Open Razorpay
       const options = {
@@ -304,7 +304,7 @@ export function ProjectFilesPanel({ projectId, project }) {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature
-            });
+            }, { getToken });
 
             toast.success('Payment successful! File unlocked.');
             // Refresh files to update status
@@ -352,7 +352,7 @@ export function ProjectFilesPanel({ projectId, project }) {
       await api.post(`/projects/${projectId}/files/${file.fileId}/approval`, {
         status,
         comment
-      });
+      }, { getToken });
 
       toast.success(status === 'approved' ? 'File Approved' : 'Changes Requested');
       fetchFiles();
