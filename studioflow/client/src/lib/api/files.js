@@ -103,7 +103,7 @@ export async function uploadFile(projectId, file, token, options = {}) {
       projectId,
       {
         filename: file.name,
-        contentType: file.type,
+        contentType: file.type || 'application/octet-stream',
         size: file.size,
         isNewVersion,
         baseFileId,

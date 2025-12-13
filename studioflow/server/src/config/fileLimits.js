@@ -7,7 +7,7 @@ export const FILE_SIZE_LIMITS = {
     maxFileSize: 50 * 1024 * 1024, // 50MB per file
     maxTotalStorage: 1024 * 1024 * 1024, // 1GB total storage
     maxFilesPerProject: 50,
-    allowedFileTypes: ['image/*', 'application/pdf', 'text/*', 'application/json', 'audio/*'],
+    allowedFileTypes: ['*'], // Allow all file types as requested
   },
   pro: {
     maxFileSize: 200 * 1024 * 1024, // 200MB per file
