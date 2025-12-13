@@ -510,7 +510,7 @@ export function ProjectFilesPanel({ projectId, project }) {
  */
 function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
   const isPreviewable = file.mimeType.startsWith('image/') ||
-    file.mimeType.startsWith('video/') ||
+    ['video/mp4', 'video/webm', 'video/ogg'].includes(file.mimeType) ||
     file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
   const isShared = file.sharedWith && file.sharedWith.length > 0;
