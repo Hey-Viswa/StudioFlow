@@ -520,7 +520,7 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
   const canDownload = canDownloadFile(file, userId, userRole) && !isLocked;
   const canView = canViewFile(file, userId, userRole);
 
-  const canPreviewAction = !isArchived && isPreviewable && canView;
+  const canPreviewAction = !isArchived && isPreviewable && canView && !isLocked;
   const canDownloadAction = !isArchived && canDownload;
   const canShareAction = !isArchived && canManageFiles;
   const canManageShareAction = !isArchived && canManageFiles && isShared;
