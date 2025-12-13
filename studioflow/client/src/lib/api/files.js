@@ -93,12 +93,18 @@ export async function confirmUpload(projectId, confirmData, token) {
 /**
  * Complete upload flow: sign → upload → confirm
  */
-export async function uploadFile(projectId, file, token, options = {}) {
+export async function uploadFile(projectId, file, tokenOrGetToken, options = {}) {
   const { onProgress, onStateChange, isNewVersion, baseFileId, description, tags, signal } = options;
+
+  // Helper to get token
+  const resolveToken = async () => {
+    return typeof tokenOrGetToken === 'function' ? await tokenOrGetToken() : tokenOrGetToken;
+  };
 
   try {
     // Step 1: Request signed upload URL
     onStateChange?.('signing');
+    const token = await resolveToken();
     const signResponse = await requestSignedUpload(
       projectId,
       {
@@ -127,8 +133,9 @@ export async function uploadFile(projectId, file, token, options = {}) {
       throw new Error('Upload cancelled');
     }
 
-    // Step 3: Confirm with server
+    // Step 3: Confirm with server (Refresh token first!)
     onStateChange?.('confirming');
+    const confirmToken = await resolveToken();
     const confirmResponse = await confirmUpload(
       projectId,
       {
@@ -137,7 +144,7 @@ export async function uploadFile(projectId, file, token, options = {}) {
         description,
         tags,
       },
-      token
+      confirmToken
     );
 
     onStateChange?.('completed');

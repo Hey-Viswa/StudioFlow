@@ -75,6 +75,21 @@ export const clearUserCache = (userId) => {
 };
 
 /**
+ * Clear cache for a specific project (across all users)
+ */
+export const clearProjectCache = (projectId) => {
+    let cleared = 0;
+    const searchString = `/projects/${projectId}`;
+    for (const key of cache.keys()) {
+        if (key.includes(searchString)) {
+            cache.delete(key);
+            cleared++;
+        }
+    }
+    console.log(`🧹 Cleared ${cleared} cache entries for project: ${projectId}`);
+};
+
+/**
  * Clear all cache
  */
 export const clearAllCache = () => {
@@ -97,14 +112,14 @@ export const getCacheStats = () => {
 setInterval(() => {
     const now = Date.now();
     let cleaned = 0;
-    
+
     for (const [key, value] of cache.entries()) {
         if (now - value.timestamp > DEFAULT_TTL) {
             cache.delete(key);
             cleaned++;
         }
     }
-    
+
     if (cleaned > 0) {
         console.log(`🧹 Auto-cleaned ${cleaned} expired cache entries`);
     }

@@ -32,7 +32,7 @@ export const UploadProvider = ({ children }) => {
         setUploads((prev) => [...prev, newUpload]);
 
         try {
-            const token = await getToken();
+            // Pass getToken function directly so it can be called again internally for refresh
             const controller = new AbortController();
             abortControllersRef.current[uploadId] = controller;
 
@@ -40,7 +40,7 @@ export const UploadProvider = ({ children }) => {
                 prev.map((u) => (u.id === uploadId ? { ...u, state: 'uploading' } : u))
             );
 
-            await uploadFile(projectId, file, token, {
+            await uploadFile(projectId, file, getToken, {
                 signal: controller.signal,
                 onProgress: (percent) => {
                     setUploads((prev) =>
@@ -99,14 +99,12 @@ export const UploadProvider = ({ children }) => {
         }, 2000);
     }, []);
 
-    const retryUpload = useCallback((uploadId) => {
+    const retryUpload = useCallback((uploadIdOrObj) => {
+        // Handle both string ID and event/object
+        const uploadId = typeof uploadIdOrObj === 'object' ? uploadIdOrObj.id : uploadIdOrObj;
+
         const upload = uploads.find(u => u.id === uploadId);
         if (upload) {
-            // Remove old entry and restart (simplified retry)
-            // Ideally we keep ID or restart logic. 
-            // For now, re-triggering startUpload is safer but changes ID.
-            // Let's modify startUpload to accept existing ID? No, reusing ID is complex if cleaned up.
-            // Actually, logic is identical to startUpload.
             const { file, projectId } = upload;
             setUploads((prev) => prev.filter((u) => u.id !== uploadId));
             startUpload(file, projectId);

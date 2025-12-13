@@ -6,6 +6,7 @@ import Notification from '../models/Notification.js';
 import { logAudit } from '../services/auditService.js';
 import { ROLES } from '../utils/permissions.js';
 import { emitToProject } from '../config/socket.js';
+import { clearProjectCache } from '../middlewares/cache.js';
 
 /**
  * Request ownership transfer
@@ -250,6 +251,9 @@ export const acceptTransfer = async (req, res) => {
             req
         });
 
+        // Clear project cache to ensure all users see new owner immediately
+        clearProjectCache(projectId);
+
         // Notify old owner
         const notification = await Notification.create({
             recipientId: request.currentOwnerId,
@@ -414,6 +418,9 @@ export const forceTransfer = async (req, res) => {
             req
         });
 
+        // Clear project cache
+        clearProjectCache(projectId);
+
         // Notify new owner
         await Notification.create({
             recipientId: newOwnerId,
@@ -520,6 +527,9 @@ export const cancelRequest = async (req, res) => {
             details: { requestId: request._id },
             req
         });
+
+        // Clear project cache
+        clearProjectCache(projectId);
 
         // Emit cancellation so clients clear pending state
         const io = req.app.get('io');
