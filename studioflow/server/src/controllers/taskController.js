@@ -83,6 +83,19 @@ export const updateTask = async (req, res) => {
             await task.save();
         }
 
+        // Trigger Project progress update
+        const project = await Project.findById(task.projectId);
+        if (project) {
+            await project.updateStatusBasedOnProgress();
+            await project.save();
+
+            // Return task with new project progress
+            // We return a plain object to append the progress
+            const taskObj = task.toObject();
+            taskObj.progress = project.progress;
+            return res.json(taskObj);
+        }
+
         res.json(task);
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -207,6 +220,16 @@ export const deleteTask = async (req, res) => {
     try {
         const { taskId } = req.params;
         const task = await Task.findByIdAndUpdate(taskId, { deletedAt: new Date() });
+
+        if (task) {
+            const project = await Project.findById(task.projectId);
+            if (project) {
+                await project.updateStatusBasedOnProgress();
+                await project.save();
+                return res.json({ message: 'Task deleted', progress: project.progress });
+            }
+        }
+
         res.json({ message: 'Task deleted' });
     } catch (error) {
         res.status(400).json({ error: error.message });

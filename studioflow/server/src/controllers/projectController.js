@@ -527,7 +527,7 @@ export const getProjectById = async (req, res) => {
     const totalComments = await Comment.countDocuments({ projectId: id });
 
     // List tasks
-    const tasks = await Task.find({ projectId: id }).sort({ createdAt: -1 }).lean();
+    const tasks = await Task.find({ projectId: id, deletedAt: null }).sort({ createdAt: -1 }).lean();
 
     // Calculate Invoice Stats
     const invoiceStats = await ProjectInvoice.aggregate([
