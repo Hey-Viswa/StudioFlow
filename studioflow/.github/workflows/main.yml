@@ -1,0 +1,35 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "development", "production" ]
+  pull_request:
+    branches: [ "development", "production" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./server
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        cache-dependency-path: './server/package-lock.json'
+        
+    - name: Install Dependencies
+      run: npm ci
+
+    - name: Run Tests
+      run: npm test
+      env:
+        CI: true
+        JWT_SECRET: "dummy_secret_for_ci_test"
+        MONGODB_URI: "mongodb://localhost:27017/test-ci"
