@@ -226,6 +226,8 @@ export const confirmUpload = async (req, res) => {
     const { fileId, storageKey, description, tags } = req.body;
     const userId = req.userId;
 
+
+
     // Validation
     if (!fileId || !storageKey) {
       return res.status(400).json({ error: 'Missing required fields: fileId, storageKey' });
@@ -317,9 +319,17 @@ export const confirmUpload = async (req, res) => {
 
       await session.commitTransaction();
       session.endSession();
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
 
-      // --- AUTOMATION HOOK: Version Upload ---
-      if (featureFlags.isEnabled('phase3.taskAutomations')) {
+    // --- NON-TRANSACTIONAL OPERATIONS ---
+
+    // --- AUTOMATION HOOK: Version Upload ---
+    if (featureFlags.isEnabled('phase3.taskAutomations')) {
+      try {
         const automationService = (await import('../services/automationService.js')).default;
         // Run async (fire and forget)
         automationService.processVersionAutomation({
@@ -329,11 +339,12 @@ export const confirmUpload = async (req, res) => {
           baseFileId: fileRecord.baseFileId,
           userId
         }).catch(err => console.error('❌ Version automation failed:', err));
-      }
+      } catch (importErr) { console.error('⚠️ Failed to load automationService:', importErr); }
+    }
 
-      // --- AUTOMATION HOOK: Auto-Tagging ---
-      // Enqueue job for async processing (non-blocking) within Feature Flag
-      if (featureFlags.isEnabled('phase3.autotagging')) {
+    // --- AUTOMATION HOOK: Auto-Tagging ---
+    if (featureFlags.isEnabled('phase3.autotagging')) {
+      try {
         const automationPayload = {
           fileId: fileRecord._id,
           projectId,
@@ -343,41 +354,38 @@ export const confirmUpload = async (req, res) => {
           uploadedBy: userId
         };
 
-        try {
-          let queued = false;
-          if (process.env.ENABLE_REDIS_QUEUE === 'true') {
-            try {
-              // Job Name: process-file-tags
-              // Job ID: fileId (Idempotency)
-              await tagQueue.add('process-file-tags', automationPayload, {
-                jobId: fileRecord._id.toString(),
-                attempts: 3,
-                removeOnComplete: true
-              });
-              queued = true;
-              console.log(`🚀 Queued auto-tagging for ${fileRecord._id}`);
-            } catch (qErr) {
-              console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
-            }
-          }
-
-          if (!queued) {
-            const automationService = (await import('../services/automationService.js')).default;
-            console.log('ℹ️ Running tagging automation directly (No Queue)');
-            automationService.processTagAutomation(automationPayload).catch(err => {
-              console.error('❌ Direct tagging failed:', err);
+        let queued = false;
+        if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+          try {
+            // ... existing redis code if accessible ...
+            // Re-importing queue here to be safe or assuming global/top-level import? 
+            // tagQueue is top-level import.
+            await tagQueue.add('process-file-tags', automationPayload, {
+              jobId: fileRecord._id.toString(),
+              attempts: 3,
+              removeOnComplete: true
             });
+            queued = true;
+          } catch (qErr) {
+            console.warn('⚠️ Redis queue add failed:', qErr.message);
           }
-        } catch (err) {
-          console.error('⚠️ Failed to queue auto-tagging:', err);
         }
+
+        if (!queued) {
+          const automationService = (await import('../services/automationService.js')).default;
+          automationService.processTagAutomation(automationPayload).catch(err => console.error('❌ Direct tagging failed:', err));
+        }
+      } catch (err) {
+        console.error('⚠️ Failed to queue auto-tagging:', err);
       }
+    }
 
+    // Log success
+    console.log(`✅ File confirmed: ${fileRecord.filename} (ID: ${fileRecord._id})`);
 
-      // Log success
-      console.log(`✅ File confirmed: ${fileRecord.filename} (ID: ${fileRecord._id})`);
-
-      // Audit LOG
+    // Audit LOG
+    // ... (Audit log is async/outside tx) ...
+    try {
       await logAudit({
         userId,
         action: 'file.upload_complete',
@@ -390,7 +398,10 @@ export const confirmUpload = async (req, res) => {
         },
         req
       });
-      // Trigger Preview Generation for Images
+    } catch (err) { console.error("Audit log failed", err); }
+
+    // Trigger Preview
+    try {
       if (fileRecord.mimeType.startsWith('image/')) {
         previewQueue.add({
           fileId: fileRecord.fileId,
@@ -398,65 +409,56 @@ export const confirmUpload = async (req, res) => {
           storageKey: fileRecord.storageKey,
           mimeType: fileRecord.mimeType
         });
-        // Update status to pending immediately to satisfy UI
         await ProjectFile.updateOne({ _id: fileRecord._id }, { previewState: 'pending' });
       }
+    } catch (err) { console.error("Preview trigger failed", err); }
 
-      // Populate uploader info for response
-      const populatedFile = await ProjectFile.findById(fileRecord._id).lean();
+    const populatedFile = await ProjectFile.findById(fileRecord._id).lean();
 
-      // Generate preview URL if applicable
-      if (populatedFile.storageKey && populatedFile.mimeType && (populatedFile.mimeType.startsWith('image/') || populatedFile.mimeType.startsWith('video/'))) {
-        try {
-          populatedFile.previewUrl = await storageAdapter.getSignedDownloadUrl(
-            populatedFile.storageKey,
-            populatedFile.filename,
-            false,
-            populatedFile.mimeType,
-            3600
-          );
-        } catch (err) {
-          console.warn(`Failed to generate preview URL for new file ${populatedFile._id}:`, err.message);
-        }
-      }
+    // Generate preview URL
+    if (populatedFile.storageKey && populatedFile.mimeType && (populatedFile.mimeType.startsWith('image/') || populatedFile.mimeType.startsWith('video/'))) {
+      try {
+        populatedFile.previewUrl = await storageAdapter.getSignedDownloadUrl(
+          populatedFile.storageKey,
+          populatedFile.filename,
+          false,
+          populatedFile.mimeType,
+          3600
+        );
+      } catch (err) { console.warn('Preview URL gen failed', err.message); }
+    }
 
-      // Emit Socket.IO event for real-time updates
+    // Emit Socket
+    try {
       const io = req.app?.get('io');
       if (io) {
         io.to(`project-${projectId}`).emit('project:files:added', { file: populatedFile });
       }
+    } catch (err) { console.error("Socket emit failed", err); }
 
-      // Trigger Notification
-      try {
-        const { triggerNotification } = await import('../services/notificationService.js');
-        const project = await Project.findById(projectId).select('title').lean();
+    // Trigger Notification
+    try {
+      const { triggerNotification } = await import('../services/notificationService.js');
+      const project = await Project.findById(projectId).select('title').lean();
+      await triggerNotification(
+        'file.uploaded',
+        {
+          projectId,
+          fileId: fileRecord.fileId,
+          fileName: fileRecord.filename,
+          projectTitle: project?.title || 'Project',
+          uploadedBy: userId,
+          link: `/dashboard/projects/${projectId}?tab=files`,
+          category: 'file'
+        },
+        userId
+      );
+    } catch (err) { console.error("Notification trigger failed", err); }
 
-        await triggerNotification(
-          'file.uploaded',
-          {
-            projectId,
-            fileId: fileRecord.fileId,
-            fileName: fileRecord.filename,
-            projectTitle: project?.title || 'Project',
-            uploadedBy: userId,
-            link: `/dashboard/projects/${projectId}?tab=files`,
-            category: 'file'
-          },
-          userId
-        );
-      } catch (notifError) {
-        console.error('⚠️ Failed to trigger file upload notification:', notifError);
-      }
-
-      res.status(200).json({
-        success: true,
-        file: populatedFile,
-      });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    res.status(200).json({
+      success: true,
+      file: populatedFile,
+    });
   } catch (error) {
     console.error('❌ Error confirming upload:', error);
     res.status(500).json({ error: 'Failed to confirm upload', details: error.message });

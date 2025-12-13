@@ -1,4 +1,4 @@
-import { scripts } from "workbox-sw";
+// Scripts for workbox-sw if needed, but not using module imports here.
 
 // Give the service worker access to Firebase Messaging.
 // Note that you can only use Firebase Messaging here. Other Firebase libraries
