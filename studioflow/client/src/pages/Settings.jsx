@@ -15,6 +15,7 @@ import BillingDetails from '../components/BillingDetails';
 import BillingHistory from '../components/BillingHistory';
 import SubscriptionAlert from '../components/SubscriptionAlert';
 import { useTheme } from 'next-themes';
+import { cn } from '../lib/utils';
 import {
   Settings as SettingsIcon,
   User,
@@ -549,27 +550,34 @@ export default function Settings() {
                             { name: 'blue', label: 'Blue', color: 'bg-blue-500' },
                             { name: 'violet', label: 'Violet', color: 'bg-violet-500' },
                             { name: 'orange', label: 'Orange', color: 'bg-orange-500' },
-                          ].map((theme) => (
-                            <div
-                              key={theme.name}
-                              className={`
-                                cursor-pointer rounded-lg border-2 p-1 hover:bg-accent
-                                ${themeColor === theme.name ? 'border-primary' : 'border-transparent'}
-                              `}
-                              onClick={() => setThemeColor(theme.name)}
-                            >
-                              <div className="space-y-2 rounded-md bg-popover p-2">
-                                <div className={`h-2 w-full rounded-lg ${theme.color}`} />
-                                <div className="space-y-1">
-                                  <div className={`h-2 w-[80%] rounded-lg ${theme.color}/50`} />
-                                  <div className={`h-2 w-[60%] rounded-lg ${theme.color}/20`} />
+                            { name: 'rose', label: 'Rose', color: 'bg-rose-500' },
+                            { name: 'yellow', label: 'Yellow', color: 'bg-yellow-500' },
+                            { name: 'red', label: 'Red', color: 'bg-red-500' },
+                            { name: 'zinc', label: 'Zinc', color: 'bg-zinc-500' },
+                          ].map((theme) => {
+                            const isActive = themeColor === theme.name;
+                            return (
+                              <div
+                                key={theme.name}
+                                className={cn(
+                                  "cursor-pointer rounded-lg border-2 p-1 hover:bg-accent transition-all",
+                                  isActive ? "border-primary ring-2 ring-primary ring-offset-2" : "border-transparent"
+                                )}
+                                onClick={() => setThemeColor(theme.name)}
+                              >
+                                <div className="space-y-2 rounded-md bg-popover p-2">
+                                  <div className={`h-2 w-full rounded-lg ${theme.color}`} />
+                                  <div className="space-y-1">
+                                    <div className={`h-2 w-[80%] rounded-lg ${theme.color}`} style={{ opacity: 0.6 }} />
+                                    <div className={`h-2 w-[60%] rounded-lg ${theme.color}`} style={{ opacity: 0.3 }} />
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-center text-sm font-medium">
+                                  {theme.label}
                                 </div>
                               </div>
-                              <div className="mt-2 text-center text-sm font-medium">
-                                {theme.label}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     </CardContent>

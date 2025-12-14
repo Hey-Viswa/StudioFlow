@@ -70,8 +70,11 @@ import {
   MoreVertical,
   RefreshCw,
   ArrowRightLeft,
-  Settings
+  Settings,
+  Map,
+  Maximize2
 } from 'lucide-react';
+import Storyboard from '../components/storyboard/Storyboard';
 import { ShimmerProjectDetail } from '../components/skeletons/ShimmerProjectDetail';
 import OwnershipTransferModal from '../components/OwnershipTransferModal';
 import OwnershipAcceptanceBanner from '../components/OwnershipAcceptanceBanner';
@@ -625,6 +628,11 @@ export default function ProjectDetail() {
             <Activity className="h-4 w-4" /> Activity
           </TabsTrigger>
 
+           {/* Feature Flagged Storyboard */}
+
+           {/* Feature Flagged Storyboard - Enabled by default for testing */}
+
+
           <div className="flex-1 min-w-4" />
 
           <TabsTrigger value="team" id="team-tab-trigger" className="gap-2">
@@ -682,6 +690,9 @@ export default function ProjectDetail() {
           <TabsContent value="activity" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <ActivityTab projectId={projectId} />
           </TabsContent>
+
+
+
 
           <TabsContent value="team" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <TeamTab

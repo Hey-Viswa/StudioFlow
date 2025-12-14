@@ -28,14 +28,14 @@ export default function AnalyticsHeatmap({ data = [] }) {
   }, [dataMap]);
 
   const getColor = (count) => {
-    if (!count) return 'bg-muted/40'; // Empty state
+    if (!count) return 'bg-slate-100 dark:bg-slate-800'; // Empty state: distinct from background
     
-    // Simple 4-step intensity scale similar to GitHub
+    // Simple 4-step intensity scale similar to GitHub, but optimized for Dark Mode visibility
     const intensity = count / maxCount;
-    if (intensity < 0.25) return 'bg-green-200 dark:bg-green-900/40';
-    if (intensity < 0.50) return 'bg-green-400 dark:bg-green-700/60';
-    if (intensity < 0.75) return 'bg-green-500 dark:bg-green-600';
-    return 'bg-green-600 dark:bg-green-500';
+    if (intensity < 0.25) return 'bg-emerald-200 dark:bg-emerald-900/60';
+    if (intensity < 0.50) return 'bg-emerald-400 dark:bg-emerald-700';
+    if (intensity < 0.75) return 'bg-emerald-500 dark:bg-emerald-500';
+    return 'bg-emerald-700 dark:bg-emerald-400'; // Highlight brightest for max intensity in dark mode
   };
 
   return (
@@ -106,11 +106,11 @@ export default function AnalyticsHeatmap({ data = [] }) {
              <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Less</span>
               <div className="flex gap-1" role="img" aria-label="Activity Intensity Legend">
-                <div className="w-3 h-3 rounded-[2px] bg-muted/40" title="No Activity"></div>
-                <div className="w-3 h-3 rounded-[2px] bg-green-200 dark:bg-green-900/40" title="Low Activity"></div>
-                <div className="w-3 h-3 rounded-[2px] bg-green-400 dark:bg-green-700/60" title="Medium Activity"></div>
-                <div className="w-3 h-3 rounded-[2px] bg-green-500 dark:bg-green-600" title="High Activity"></div>
-                <div className="w-3 h-3 rounded-[2px] bg-green-600 dark:bg-green-500" title="Peak Activity"></div>
+                <div className="w-3 h-3 rounded-[2px] bg-slate-100 dark:bg-slate-800" title="No Activity"></div>
+                <div className="w-3 h-3 rounded-[2px] bg-emerald-200 dark:bg-emerald-900/60" title="Low Activity"></div>
+                <div className="w-3 h-3 rounded-[2px] bg-emerald-400 dark:bg-emerald-700" title="Medium Activity"></div>
+                <div className="w-3 h-3 rounded-[2px] bg-emerald-500 dark:bg-emerald-500" title="High Activity"></div>
+                <div className="w-3 h-3 rounded-[2px] bg-emerald-700 dark:bg-emerald-400" title="Peak Activity"></div>
               </div>
               <span>More</span>
             </div>

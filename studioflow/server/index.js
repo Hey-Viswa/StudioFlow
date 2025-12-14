@@ -28,6 +28,7 @@ import auditRoutes from './src/routes/audit.js';
 import billingRoutes from './src/routes/billing.js';
 import analyticsRoutes from './src/routes/analyticsRoutes.js';
 import showcaseRoutes from './src/routes/showcaseRoutes.js';
+import storyboardRoutes from './src/routes/storyboard.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -254,6 +255,7 @@ app.use('/api/upload', uploadRoutes); // Simple file upload
 app.use('/api/audit', auditRoutes); // Audit/Activity logs
 app.use('/api/analytics', analyticsRoutes); // Analytics Dashboard
 app.use('/api/showcase', showcaseRoutes); // Client Showcase/Portfolio
+app.use('/api/projects', storyboardRoutes); // Storyboard routes (mounted at /api/projects/:projectId/storyboard ideally, or just /api/projects for internal logic)
 
 
 // Sentry Error Handler moved to setupExpressErrorHandler if needed, but integration handles it.

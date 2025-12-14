@@ -246,6 +246,19 @@ export const initializeSocket = async (httpServer) => {
       // For now, we assume the controller handles the DB write and calls emitToRoom
     });
 
+
+    // Storyboard Cursor (Volatile)
+    socket.on('storyboard:cursor', ({ projectId, x, y }) => {
+      if (!projectId || !socket.data.userId) return;
+      
+      // Broadcast to storyboard channel (volatile = can be dropped)
+      socket.volatile.to(`project:${projectId}:storyboard`).emit('storyboard:cursor', {
+        userId: socket.data.userId,
+        x,
+        y
+      });
+    });
+
     socket.on('disconnect', async () => {
       console.log(`❌ Socket disconnected: ${socket.id}`);
       // Cleanup presence if we tracked active project
@@ -263,7 +276,7 @@ export const initializeSocket = async (httpServer) => {
 const joinProjectRooms = (socket, projectId) => {
   if (!projectId) return;
 
-  const channels = ['events', 'comment', 'revision', 'approval', 'presence'];
+  const channels = ['events', 'comment', 'revision', 'approval', 'presence', 'storyboard'];
   channels.forEach(ch => socket.join(`project:${projectId}:${ch}`));
 
   // Join the main project room (new format)

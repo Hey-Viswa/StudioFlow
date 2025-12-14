@@ -19,7 +19,10 @@ export function ThemeColorProvider({
     const root = window.document.documentElement
     
     // Remove all existing theme color classes
-    root.classList.remove("theme-green", "theme-blue", "theme-violet", "theme-orange")
+    root.classList.remove(
+      "theme-green", "theme-blue", "theme-violet", "theme-orange",
+      "theme-rose", "theme-yellow", "theme-red", "theme-zinc"
+    )
     
     // Add the new theme color class
     root.classList.add(`theme-${themeColor}`)
