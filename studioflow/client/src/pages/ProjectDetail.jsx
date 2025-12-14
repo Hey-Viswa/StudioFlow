@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import api from '../lib/api'; // Import standardized API client
 import { useProjectSocket } from '../hooks/useSocket';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -263,21 +264,7 @@ export default function ProjectDetail() {
     setGeneratingInvite(true);
     try {
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}/invite`, {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ role: role || inviteRole })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate invite link');
-      }
-
-      const data = await response.json();
+      const data = await api.post(`/projects/${projectId}/invite`, { role: role || inviteRole }, { getToken });
       setInviteLink(data.inviteLink);
       setCopied(false);
       // Use the passed role argument, fallback to state if needed
@@ -304,17 +291,7 @@ export default function ProjectDetail() {
 
     try {
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}/members/${memberUserId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove member');
-      }
+      await api.delete(`/projects/${projectId}/members/${memberUserId}`, { getToken });
 
       toast.success('Member removed successfully');
       await fetchProject();
@@ -396,35 +373,18 @@ export default function ProjectDetail() {
   const saveProject = async () => {
     setSaving(true);
     try {
-      const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
       // Prepare update data
       const updateData = {
         title: editForm.title,
         brief: editForm.brief,
         status: editForm.status,
         progress: editForm.progress,
-        dueDate: editForm.dueDate || null // Send null if empty to clear the date
+        dueDate: editForm.dueDate || null 
       };
 
-      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(updateData)
-      });
+      const response = await api.put(`/projects/${projectId}`, updateData, { getToken });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to update project' }));
-        throw new Error(errorData.error || 'Failed to update project');
-      }
-
-      const data = await response.json();
-      setProject(data.project);
+      setProject(response.project);
       setIsEditing(false);
       toast.success('Project updated successfully!');
 
@@ -452,19 +412,7 @@ export default function ProjectDetail() {
     setDeleting(true);
     try {
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete project');
-      }
+      await api.delete(`/projects/${projectId}`, { getToken });
 
       // Redirect to dashboard after successful deletion
       toast.success('Project deleted successfully!');
@@ -485,23 +433,10 @@ export default function ProjectDetail() {
     setSubmittingRevision(true);
     try {
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({
-          status: 'needs-revision',
-          revisionNotes: revisionNotes
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to request revision');
-      }
+      await api.put(`/projects/${projectId}`, {
+        status: 'needs-revision',
+        revisionNotes: revisionNotes
+      }, { getToken });
 
       toast.success('Revision requested successfully!');
       setShowRevisionModal(false);
@@ -518,23 +453,10 @@ export default function ProjectDetail() {
   const approveFinal = async () => {
     try {
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/projects/${projectId}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({
+      await api.patch(`/projects/${projectId}`, {
           status: 'completed',
           finalizedAt: new Date().toISOString()
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to approve project');
-      }
+      }, { getToken });
 
       toast.success('Project approved successfully! 🎉');
       setShowApproveModal(false);
@@ -550,31 +472,13 @@ export default function ProjectDetail() {
     try {
       // console.log('📊 Updating progress:', { projectId, progressValue });
       const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const url = `${apiUrl}/projects/${projectId}`;
-
       // Automatically set status to 'completed' if progress is 100%
       const updateData = { progress: progressValue };
       if (progressValue === 100) {
         updateData.status = 'completed';
       }
 
-      const response = await fetch(url, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to update progress' }));
-        throw new Error(errorData.error || 'Failed to update progress');
-      }
-
-      const data = await response.json();
+      await api.patch(`/projects/${projectId}`, updateData, { getToken });
 
       if (progressValue === 100) {
         toast.success('Progress updated to 100% and project marked as completed! 🎉');

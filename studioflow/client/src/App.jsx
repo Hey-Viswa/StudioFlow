@@ -7,6 +7,8 @@ import NetworkError from './pages/NetworkError';
 import { ThemeColorProvider } from './components/ThemeColorProvider';
 import NetworkStatusListener from './components/NetworkStatusListener';
 import CookieConsent from './components/CookieConsent';
+// import ShowcaseLandingPage from './pages/ShowcaseLandingPage';
+
 
 const Landing = lazy(() => import('./pages/Landing'));
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
@@ -37,6 +39,7 @@ const ClientPortal = lazy(() => import('./pages/features/ClientPortal'));
 const Invoicing = lazy(() => import('./pages/features/Invoicing'));
 const Compare = lazy(() => import('./pages/Compare'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+const ShowcaseLandingPage = lazy(() => import('./pages/ShowcaseLandingPage'));
 
 function ProtectedRoute({ children }) {
   return (
@@ -102,8 +105,8 @@ function App() {
 
                   <Route path="/contact" element={<ContactUs />} />
                   <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
-                  <Route path="/faq" element={<FAQ />} />
-                  <Route path="/network-error" element={<NetworkError />} />
+                  {/* Public Showcase Landing Page */}
+                  <Route path="/showcase/:slug" element={<ShowcaseLandingPage />} />
 
                   {/* Shared Files - Protected Route */}
                   <Route

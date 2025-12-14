@@ -28,8 +28,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FileUploadDropzone } from './FileUploadDropzone';
 import { ShareFileDialog } from './ShareFileDialog';
 import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
+import { ShowcaseConfigModal } from './ShowcaseConfigModal';
 import { toast } from 'sonner';
-import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard } from 'lucide-react';
+import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useRazorpay from '@/hooks/useRazorpay';
 import api from '@/lib/api';
@@ -48,6 +49,7 @@ export function ProjectFilesPanel({ projectId, project }) {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, fileId: null, filename: '', type: 'archive' });
   const [shareDialog, setShareDialog] = useState({ open: false, fileId: null, fileIds: [], filename: '' });
   const [manageDialog, setManageDialog] = useState({ open: false, file: null });
+  const [showcaseDialog, setShowcaseDialog] = useState({ open: false, file: null });
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [processingPayment, setProcessingPayment] = useState(null); // invoiceId being paid
 
@@ -364,6 +366,11 @@ export function ProjectFilesPanel({ projectId, project }) {
 
   const allSelected = filteredFiles.length > 0 && Array.from(selectedFiles).length >= filteredFiles.length;
 
+  const handleShowcaseConfig = (file) => {
+    // Check if approved? Maybe stricter UI check later.
+    setShowcaseDialog({ open: true, file });
+  };
+
   return (
     <div className="space-y-6">
       {/* Upload Area - Owner Only */}
@@ -448,6 +455,7 @@ export function ProjectFilesPanel({ projectId, project }) {
                       onPay={handlePayment}
                       onApprove={handleApproval}
                       processingPayment={processingPayment}
+                      onShowcase={handleShowcaseConfig}
                     />
                   ))}
                 </div>
@@ -501,6 +509,17 @@ export function ProjectFilesPanel({ projectId, project }) {
         file={manageDialog.file}
         onUpdate={handleManageSharingUpdate}
       />
+      
+      {/* Showcase Config Dialog */}
+      <ShowcaseConfigModal
+        open={showcaseDialog.open}
+        onOpenChange={(open) => setShowcaseDialog({ ...showcaseDialog, open: open })}
+        projectId={projectId}
+        file={showcaseDialog.file}
+        onPublishComplete={(data) => {
+            console.log('Published:', data);
+        }}
+      />
     </div>
   );
 }
@@ -508,7 +527,7 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
   const isPreviewable = file.mimeType.startsWith('image/') ||
     ['video/mp4', 'video/webm', 'video/ogg'].includes(file.mimeType) ||
     file.mimeType === 'application/pdf';
@@ -654,6 +673,13 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
                         <Share2 className="w-4 h-4 mr-2" />
                         Share with Client
                       </DropdownMenuItem>
+                      {/* SHOWCASE -- Owner Only */}
+                      {canDeleteFiles && (
+                         <DropdownMenuItem onClick={() => onShowcase(file)}>
+                            <Globe className="w-4 h-4 mr-2" />
+                            Add to Showcase
+                         </DropdownMenuItem>
+                      )}
                       {canManageShareAction && (
                         <DropdownMenuItem onClick={() => onManageSharing(file)}>
                           <Users className="w-4 h-4 mr-2" />

@@ -1,5 +1,6 @@
+import './src/config/env.js';
 import dotenv from 'dotenv';
-import express from 'express';
+import express from 'express'; // server-main
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -26,6 +27,7 @@ import uploadRoutes from './src/routes/upload.js';
 import auditRoutes from './src/routes/audit.js';
 import billingRoutes from './src/routes/billing.js';
 import analyticsRoutes from './src/routes/analyticsRoutes.js';
+import showcaseRoutes from './src/routes/showcaseRoutes.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -51,7 +53,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// dotenv.config({ path: path.resolve(__dirname, '../../.env') }); // Loaded in src/config/env.js
 
 // Global Error Handlers - Prevent crash on Redis connection errors
 process.on('uncaughtException', (err) => {
@@ -251,6 +253,7 @@ app.use('/api/projects', messageRoutes); // Message/chat routes
 app.use('/api/upload', uploadRoutes); // Simple file upload
 app.use('/api/audit', auditRoutes); // Audit/Activity logs
 app.use('/api/analytics', analyticsRoutes); // Analytics Dashboard
+app.use('/api/showcase', showcaseRoutes); // Client Showcase/Portfolio
 
 
 // Sentry Error Handler moved to setupExpressErrorHandler if needed, but integration handles it.

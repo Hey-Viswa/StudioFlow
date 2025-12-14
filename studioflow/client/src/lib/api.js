@@ -138,6 +138,30 @@ const api = {
       method: 'DELETE',
       headers,
     });
+  },
+
+  patch: async (endpoint, data, options = {}) => {
+    const url = getApiUrl(endpoint);
+    const { getToken: tokenGetter, ...fetchOptions } = options;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...fetchOptions.headers,
+    };
+
+    if (tokenGetter) {
+      const token = await tokenGetter();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    return handleFetch(url, {
+      ...fetchOptions,
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
   }
 };
 
