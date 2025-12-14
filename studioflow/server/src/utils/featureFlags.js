@@ -2,8 +2,9 @@ import ProjectBillingConfig from '../models/ProjectBillingConfig.js';
 
 export const isFeatureEnabled = async (featureName, context = {}) => {
     // 1. Global Kill Switch (Env Var)
-    // Logic: Must be explicitly 'true' to be enabled globally
-    if (process.env[`ENABLE_${featureName}`] !== 'true') return false;
+    // Logic: Must be explicitly 'true' (case-insensitive) to be enabled globally
+    const envVar = process.env[`ENABLE_${featureName}`];
+    if (!envVar || String(envVar).trim().toLowerCase() !== 'true') return false;
 
     // 2. Per-Project checks (Granular Rollout)
     if (featureName === 'ADVANCED_BILLING' && context.projectId) {

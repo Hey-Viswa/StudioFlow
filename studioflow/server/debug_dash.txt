@@ -60,3 +60,7 @@
 {"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
 {"time":"2025-12-14T10:59:50.593Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
 {"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:05:36.525Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:05:36.799Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
