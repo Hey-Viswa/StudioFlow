@@ -1,0 +1,14 @@
+{"time":"2025-12-14T06:49:43.035Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T06:49:43.093Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T06:50:16.259Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T06:50:16.461Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T06:50:20.481Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T07:34:42.129Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2025-12-14T07:34:42.185Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}

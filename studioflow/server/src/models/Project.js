@@ -181,6 +181,9 @@ ProjectSchema.methods.calculateProgress = async function () {
 ProjectSchema.methods.updateStatusBasedOnProgress = async function () {
   const progress = await this.calculateProgress();
 
+  // Update progress regardless of status
+  this.progress = progress;
+
   // Don't change status if it's archived, needs revision, or finalized
   if (this.status === 'archived' || this.status === 'needs-revision' || this.status === 'finalized') {
     return;
@@ -201,8 +204,6 @@ ProjectSchema.methods.updateStatusBasedOnProgress = async function () {
       this.status = 'active';
     }
   }
-
-  this.progress = progress;
 };
 
 // Pre-save middleware to auto-calculate progress and update status

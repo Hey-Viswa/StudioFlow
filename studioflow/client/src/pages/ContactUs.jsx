@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Mail, MessageSquare, Send, CheckCircle2, Loader2, Phone, MapPin } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 export default function ContactUs() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -28,7 +29,13 @@ export default function ContactUs() {
     if (metaDescription) {
       metaDescription.setAttribute('content', 'Get in touch with StudioFlow. Contact our support team for help with your projects, billing, or general inquiries.');
     }
-  }, []);
+
+    // Pre-fill subject from URL
+    const subjectParam = searchParams.get('subject');
+    if (subjectParam) {
+      setFormData(prev => ({ ...prev, subject: subjectParam }));
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -69,7 +76,6 @@ export default function ContactUs() {
         throw new Error(data.error || 'Failed to send message');
       }
 
-      // console.log('Contact form submitted successfully');
       setSubmitted(true);
       toast.success(data.message || 'Message sent successfully!');
 
@@ -109,10 +115,21 @@ export default function ContactUs() {
 
       {/* Main Content */}
       <div className="container mx-auto max-w-6xl py-12 px-4">
-        <div className="grid md:grid-cols-2 gap-8">
+        {/* Intro Section */}
+        <div className="mb-12 text-center max-w-2xl mx-auto">
+          <h2 className="text-3xl font-bold tracking-tight mb-4">We'd love to hear from you</h2>
+          <p className="text-muted-foreground text-lg">
+            Whether you have a question about our features, pricing, or need technical support, our team is ready to answer all your questions.
+          </p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
           {/* Contact Form */}
-          <div>
-            <Card>
+          <div className="relative">
+            {/* Decorative gradient blob */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-xl blur opacity-20 transition duration-1000 group-hover:opacity-100"></div>
+
+            <Card className="relative border-border/50 shadow-xl">
               <CardHeader>
                 <CardTitle>Send us a message</CardTitle>
                 <CardDescription>
@@ -121,12 +138,15 @@ export default function ContactUs() {
               </CardHeader>
               <CardContent>
                 {submitted ? (
-                  <Alert className="bg-green-500/10 border-green-500/50">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <AlertDescription className="text-green-500">
-                      Thank you for contacting us! We'll respond to your message shortly.
-                    </AlertDescription>
-                  </Alert>
+                  <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in duration-500">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                      <CheckCircle2 className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">Message Sent!</h3>
+                    <p className="text-muted-foreground max-w-xs">
+                      Thank you for contacting us. We'll be in touch with you shortly.
+                    </p>
+                  </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Honeypot field - hidden from users */}
@@ -152,6 +172,7 @@ export default function ContactUs() {
                         required
                         disabled={loading}
                         maxLength={100}
+                        className="bg-background/50"
                       />
                     </div>
 
@@ -166,6 +187,7 @@ export default function ContactUs() {
                         onChange={handleChange}
                         required
                         disabled={loading}
+                        className="bg-background/50"
                       />
                     </div>
 
@@ -181,6 +203,7 @@ export default function ContactUs() {
                         required
                         disabled={loading}
                         maxLength={200}
+                        className="bg-background/50"
                       />
                     </div>
 
@@ -190,21 +213,21 @@ export default function ContactUs() {
                         id="message"
                         name="message"
                         placeholder="Tell us more about your inquiry..."
-                        className="min-h-[150px] resize-none"
+                        className="min-h-[150px] resize-none bg-background/50"
                         value={formData.message}
                         onChange={handleChange}
                         required
                         disabled={loading}
                         maxLength={2000}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground text-right">
                         {formData.message.length}/2000 characters
                       </p>
                     </div>
 
                     <Button
                       type="submit"
-                      className="w-full"
+                      className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 transition-all duration-300 transform hover:scale-[1.01]"
                       disabled={loading}
                     >
                       {loading ? (
@@ -227,7 +250,7 @@ export default function ContactUs() {
 
           {/* Contact Information */}
           <div className="space-y-6">
-            <Card>
+            <Card className="border-border/50 hover:border-primary/50 transition-colors duration-300">
               <CardHeader>
                 <CardTitle>Get in Touch</CardTitle>
                 <CardDescription>
@@ -235,30 +258,31 @@ export default function ContactUs() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors">
                   <div className="p-3 rounded-lg bg-primary/10 text-primary">
-                    <Mail className="h-5 w-5" />
+                    <Mail className="h-6 w-6" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-semibold">Email Support</h3>
                     <p className="text-sm text-muted-foreground">
                       For all inquiries and support
                     </p>
-                    <a href="mailto:support@studioflow.studio" className="text-sm text-primary hover:underline">
-                      support@studioflow.studio
+                    <a href="mailto:viswaranjan.dev@gmail.com" className="text-sm font-medium text-primary hover:underline">
+                      viswaranjan.dev@gmail.com
                     </a>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors">
                   <div className="p-3 rounded-lg bg-primary/10 text-primary">
-                    <MapPin className="h-5 w-5" />
+                    <MapPin className="h-6 w-6" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-semibold">Office Location</h3>
                     <p className="text-sm text-muted-foreground">
-                      StudioFlow<br />
-                      Mumbai, Maharashtra 400001<br />
+                      StudioFlow HQ<br />
+                      Pen, Raigad<br />
+                      Maharashtra, 402107<br />
                       India
                     </p>
                   </div>
@@ -266,7 +290,7 @@ export default function ContactUs() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/50">
               <CardHeader>
                 <CardTitle>Support Resources</CardTitle>
               </CardHeader>
@@ -278,19 +302,22 @@ export default function ContactUs() {
                   </p>
                   <ul className="space-y-2 text-sm">
                     <li>
-                      <a href="/#faq" className="text-primary hover:underline">
-                        • Frequently Asked Questions
-                      </a>
+                      <button onClick={() => navigate('/faq')} className="text-primary hover:underline flex items-center gap-2 text-left">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        Frequently Asked Questions
+                      </button>
                     </li>
                     <li>
-                      <a href="/privacy-policy" className="text-primary hover:underline">
-                        • Privacy Policy
-                      </a>
+                      <button onClick={() => navigate('/privacy-policy')} className="text-primary hover:underline flex items-center gap-2 text-left">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        Privacy Policy
+                      </button>
                     </li>
                     <li>
-                      <a href="/terms-conditions" className="text-primary hover:underline">
-                        • Terms & Conditions
-                      </a>
+                      <button onClick={() => navigate('/terms-conditions')} className="text-primary hover:underline flex items-center gap-2 text-left">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        Terms & Conditions
+                      </button>
                     </li>
                   </ul>
                 </div>
@@ -298,21 +325,15 @@ export default function ContactUs() {
                 <div className="pt-4 border-t">
                   <h3 className="font-semibold text-sm mb-2">Response Time</h3>
                   <p className="text-sm text-muted-foreground">
-                    We typically respond within:
+                    We typically respond within <strong>24-48 hours</strong>.
                   </p>
-                  <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                    <li>• Free Plan: 48-72 hours</li>
-                    <li>• Pro Plan: 24-48 hours</li>
-                    <li>• Studio Plan: 12-24 hours (priority)</li>
-                  </ul>
                 </div>
               </CardContent>
             </Card>
 
-            <Alert>
-              <AlertDescription>
+            <Alert className="border-primary/20 bg-primary/5">
+              <AlertDescription className="text-xs text-muted-foreground">
                 <strong>Business Hours:</strong> Monday - Friday, 9:00 AM - 6:00 PM IST.
-                We aim to respond to all inquiries within 24-48 hours during business days.
               </AlertDescription>
             </Alert>
           </div>

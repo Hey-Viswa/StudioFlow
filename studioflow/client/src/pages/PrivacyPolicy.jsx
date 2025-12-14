@@ -93,279 +93,144 @@ export default function PrivacyPolicy() {
 
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-8">
-            {/* Introduction */}
             <Card id="introduction">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Introduction
-                </CardTitle>
-                <CardDescription>
-                  Last updated: November 6, 2024
-                </CardDescription>
+                <CardTitle>Introduction</CardTitle>
+                <CardDescription>Last updated: {new Date().toLocaleDateString()}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  Welcome to StudioFlow ("we," "our," or "us"). We respect your privacy and are committed to protecting your personal data.
-                  This privacy policy explains how we collect, use, disclose, and safeguard your information when you use our project management service.
+              <CardContent className="space-y-4 text-sm leading-relaxed text-muted-foreground">
+                <p>
+                  At StudioFlow ("we," "our," or "us"), we respect your privacy and are committed to protecting your personal data.
+                  This privacy policy will inform you as to how we look after your personal data when you visit our website (regardless of where you visit it from)
+                  and tell you about your privacy rights and how the law protects you.
                 </p>
-                <p className="text-muted-foreground leading-relaxed">
-                  StudioFlow is operated from India and complies with applicable data protection laws. By using StudioFlow, you agree to the collection
-                  and use of information in accordance with this policy.
-                </p>
-                <div className="bg-muted/50 p-4 rounded-lg border">
-                  <p className="text-sm">
-                    <strong>Contact Information:</strong> For privacy-related inquiries, email us at{' '}
-                    <a href="mailto:legal@studioflow.studio" className="text-primary hover:underline">
-                      legal@studioflow.studio
-                    </a>
-                  </p>
+                <div className="flex items-center gap-2 p-4 bg-primary/5 rounded-lg border border-primary/20 text-primary">
+                  <Shield className="h-5 w-5" />
+                  <span className="font-medium">Your data security is our top priority.</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Information We Collect */}
-            <Card id="information-collected">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-primary" />
-                  Information We Collect
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">1. Personal Information</h3>
-                  <p className="text-muted-foreground">
-                    When you create an account and use StudioFlow, we collect:
-                  </p>
-                  <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                    <li>Name and email address (via Clerk authentication)</li>
-                    <li>Profile information and preferences</li>
-                    <li>Project data including titles, descriptions, and due dates</li>
-                    <li>Task assignments and comments</li>
-                    <li>Team member invitations and collaborations</li>
+            <div id="information-collected">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Database className="h-5 w-5 text-primary" />
+                1. Information We Collect
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>We may collect, use, store and transfer different kinds of personal data about you which we have grouped together as follows:</p>
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li><strong>Identity Data:</strong> includes first name, last name, username or similar identifier.</li>
+                    <li><strong>Contact Data:</strong> includes billing address, delivery address, email address and telephone numbers.</li>
+                    <li><strong>Financial Data:</strong> includes bank account and payment card details (processed securely by our payment providers).</li>
+                    <li><strong>Transaction Data:</strong> includes details about payments to and from you and other details of products and services you have purchased from us.</li>
+                    <li><strong>Technical Data:</strong> includes internet protocol (IP) address, your login data, browser type and version, time zone setting and location, browser plug-in types and versions, operating system and platform, and other technology on the devices you use to access this website.</li>
                   </ul>
-                </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <Separator />
+            <div id="how-we-use">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                2. How We Use Your Data
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>We will only use your personal data when the law allows us to. Most commonly, we will use your personal data in the following circumstances:</p>
+                  <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                    <div className="p-4 rounded-lg bg-muted/50 border">
+                      <h4 className="font-medium text-foreground mb-2">Contract Performance</h4>
+                      <p className="text-xs">Where we need to perform the contract we are about to enter into or have entered into with you.</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/50 border">
+                      <h4 className="font-medium text-foreground mb-2">Legitimate Interests</h4>
+                      <p className="text-xs">Where it is necessary for our legitimate interests (or those of a third party) and your interests and fundamental rights do not override those interests.</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/50 border">
+                      <h4 className="font-medium text-foreground mb-2">Legal Compliance</h4>
+                      <p className="text-xs">Where we need to comply with a legal obligation.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">2. Payment Information</h3>
-                  <p className="text-muted-foreground">
-                    Payment data is processed securely through Razorpay. We do not store your complete credit card information on our servers.
-                    We only store:
-                  </p>
-                  <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                    <li>Subscription plan details</li>
-                    <li>Transaction IDs and payment status</li>
-                    <li>Billing history</li>
+            <div id="data-sharing">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Globe className="h-5 w-5 text-primary" />
+                3. Disclosures of Your Data
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>We may share your personal data with the parties set out below for the purposes set out in 'How we use your personal data'.</p>
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li>Service providers acting as processors who provide IT and system administration services.</li>
+                    <li>Professional advisers acting as processors or joint controllers including lawyers, bankers, auditors and insurers.</li>
+                    <li>Regulators and other authorities acting as processors or joint controllers who require reporting of processing activities in certain circumstances.</li>
                   </ul>
-                </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <Separator />
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">3. Usage Data</h3>
-                  <p className="text-muted-foreground">
-                    We automatically collect certain information when you use our service:
+            <div id="data-security">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Lock className="h-5 w-5 text-primary" />
+                4. Data Security
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>
+                    We have put in place appropriate security measures to prevent your personal data from being accidentally lost, used or accessed in an unauthorised way, altered or disclosed.
+                    In addition, we limit access to your personal data to those employees, agents, contractors and other third parties who have a business need to know.
+                    They will only process your personal data on our instructions and they are subject to a duty of confidentiality.
                   </p>
-                  <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                    <li>IP address and browser type</li>
-                    <li>Pages visited and features used</li>
-                    <li>Time spent on different sections</li>
-                    <li>Device information and operating system</li>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div id="your-rights">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-primary" />
+                5. Your Legal Rights
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>Under certain circumstances, you have rights under data protection laws in relation to your personal data, including:</p>
+                  <ul className="grid sm:grid-cols-2 gap-2 mt-2">
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Request access to your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Request correction of your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Request erasure of your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Object to processing of your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Request restriction of processing your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Request transfer of your personal data.</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary" />Right to withdraw consent.</li>
                   </ul>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* How We Use Your Information */}
-            <Card id="how-we-use">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-primary" />
-                  How We Use Your Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3 text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Service Delivery:</strong> To provide, maintain, and improve StudioFlow's features and functionality</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Communication:</strong> To send you technical notices, updates, security alerts, and support messages</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Payments:</strong> To process transactions and manage your subscription</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Analytics:</strong> To understand how users interact with our service and improve user experience</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Security:</strong> To detect, prevent, and address technical issues, fraud, or security threats</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span><strong className="text-foreground">Compliance:</strong> To comply with legal obligations and enforce our terms</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Data Security */}
-            <Card id="data-security">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="h-5 w-5 text-primary" />
-                  Data Security
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  We implement industry-standard security measures to protect your personal information:
-                </p>
-                <ul className="space-y-2 text-muted-foreground ml-4">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">✓</span>
-                    <span>Encryption in transit (HTTPS/TLS) and at rest for sensitive data</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">✓</span>
-                    <span>Secure authentication via Clerk with JWT tokens</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">✓</span>
-                    <span>Regular security audits and updates</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">✓</span>
-                    <span>Access controls and permission-based data access</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">✓</span>
-                    <span>Secure payment processing through PCI-compliant Razorpay</span>
-                  </li>
-                </ul>
-                <p className="text-muted-foreground leading-relaxed mt-4">
-                  However, no method of transmission over the internet is 100% secure. While we strive to protect your data,
-                  we cannot guarantee absolute security.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Data Sharing */}
-            <Card id="data-sharing">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-primary" />
-                  Information Sharing and Disclosure
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  We do not sell your personal information. We may share your data only in the following circumstances:
-                </p>
-                <ul className="space-y-3 text-muted-foreground ml-4">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span><strong className="text-foreground">Service Providers:</strong> With Clerk (authentication), Razorpay (payments), and MongoDB Atlas (database hosting) to operate our service</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span><strong className="text-foreground">Team Members:</strong> Project data is shared with team members you invite to collaborate</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span><strong className="text-foreground">Legal Requirements:</strong> When required by law or to protect our rights</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span><strong className="text-foreground">Business Transfers:</strong> In connection with a merger, sale, or asset transfer</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Your Rights */}
-            <Card id="your-rights">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-primary" />
-                  Your Rights and Choices
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  You have the following rights regarding your personal data:
-                </p>
-                <ul className="space-y-3 text-muted-foreground ml-4">
-                  <li><strong className="text-foreground">Access:</strong> Request a copy of your personal data</li>
-                  <li><strong className="text-foreground">Correction:</strong> Update or correct inaccurate information</li>
-                  <li><strong className="text-foreground">Deletion:</strong> Request deletion of your account and data</li>
-                  <li><strong className="text-foreground">Export:</strong> Download your project data at any time</li>
-                  <li><strong className="text-foreground">Opt-out:</strong> Unsubscribe from marketing emails</li>
-                </ul>
-                <p className="text-muted-foreground mt-4">
-                  To exercise these rights, visit your Settings page or contact us at the email below.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Data Retention */}
-            <Card id="data-retention">
-              <CardHeader>
-                <CardTitle>Data Retention</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  We retain your personal information for as long as your account is active or as needed to provide services.
-                  When you delete your account:
-                </p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                  <li>Projects are moved to trash and retained for 30 days</li>
-                  <li>After 30 days, projects are permanently deleted</li>
-                  <li>Account data is deleted within 90 days after account closure</li>
-                  <li>Some data may be retained for legal or security purposes</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Contact */}
-            <Card id="contact">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-primary" />
-                  Contact Us
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  If you have questions about this Privacy Policy or our data practices, please contact us:
-                </p>
-                <div className="space-y-2 text-muted-foreground">
-                  <p><strong className="text-foreground">Email:</strong> legal@studioflow.studio</p>
-                  <p><strong className="text-foreground">Contact Form:</strong> <a href="/contact-us" className="text-primary hover:underline">www.studioflow.studio/contact-us</a></p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Changes to Policy */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Changes to This Policy</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground leading-relaxed">
-                  We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy
-                  on this page and updating the "Last updated" date. You are advised to review this policy periodically for any changes.
-                </p>
-              </CardContent>
-            </Card>
+            <div id="contact">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                6. Contact Details
+              </h2>
+              <Card>
+                <CardContent className="p-6 space-y-4 text-sm text-muted-foreground">
+                  <p>If you have any questions about this privacy policy or our privacy practices, please contact us:</p>
+                  <div className="bg-muted p-4 rounded-lg space-y-2">
+                    <div className="grid grid-cols-[100px_1fr] gap-2">
+                      <span className="font-semibold">Email:</span>
+                      <a href="mailto:viswaranjan.dev@gmail.com" className="text-primary hover:underline">viswaranjan.dev@gmail.com</a>
+                    </div>
+                    <div className="grid grid-cols-[100px_1fr] gap-2">
+                      <span className="font-semibold">Address:</span>
+                      <span>Pen, Raigad, Maharashtra, 402107, India</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>

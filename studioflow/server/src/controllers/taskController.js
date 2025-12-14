@@ -55,7 +55,10 @@ export const createTask = async (req, res) => {
 
         // Trigger Project progress update (async)
         const project = await Project.findById(projectId);
-        if (project) await project.updateStatusBasedOnProgress();
+        if (project) {
+            await project.updateStatusBasedOnProgress();
+            await project.save();
+        }
 
         res.status(201).json(task);
     } catch (error) {

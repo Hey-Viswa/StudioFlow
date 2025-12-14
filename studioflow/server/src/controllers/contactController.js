@@ -49,7 +49,7 @@ export const submitContactForm = async (req, res) => {
 
     // Send notification email to admin
     try {
-      const adminEmail = process.env.ADMIN_EMAIL || 'admin@studioflow.com';
+      const adminEmail = process.env.ADMIN_EMAIL || 'viswaranjan.dev@gmail.com';
       const emailBody = `
         <!DOCTYPE html>
         <html>
@@ -130,9 +130,9 @@ export const submitContactForm = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Contact form error:', error);
-    res.status(500).json({ 
-      error: 'Failed to submit contact form', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Failed to submit contact form',
+      details: error.message
     });
   }
 };

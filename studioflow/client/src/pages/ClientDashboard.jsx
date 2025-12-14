@@ -45,6 +45,7 @@ export default function ClientDashboard() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [clientFilter, setClientFilter] = useState('all')
   const [dateRange, setDateRange] = useState('all')
+  const [viewContext, setViewContext] = useState(undefined) // 'owner' | 'client' | undefined
 
   // Memoize filters to prevent unnecessary re-renders
   const filters = useMemo(() => ({
@@ -56,7 +57,7 @@ export default function ClientDashboard() {
 
   // Data
   const { projects, loading: projectsLoading, refetch: refetchProjects, requestRevision, approveFinal } = useProjects(filters)
-  const { metrics, loading: metricsLoading } = useProjectMetrics()
+  const { metrics, loading: metricsLoading } = useProjectMetrics(viewContext)
 
   // UI State
   const [selectedProject, setSelectedProject] = useState(null)
@@ -81,17 +82,19 @@ export default function ClientDashboard() {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
+      const contextParam = viewContext ? `&viewContext=${viewContext}` : ''
+
       const [chartsRes, kpiRes, recentFilesRes, recentInvoicesRes] = await Promise.all([
-        fetch(`${apiUrl}/dashboard/charts?granularity=${revenueGranularity}`, {
+        fetch(`${apiUrl}/dashboard/charts?granularity=${revenueGranularity}${contextParam}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${apiUrl}/dashboard/kpi`, {
+        fetch(`${apiUrl}/dashboard/kpi${viewContext ? `?projectId=&viewContext=${viewContext}` : ''}`, { // dashboard/kpi might accept viewContext or inferred
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${apiUrl}/dashboard/recent-files`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${apiUrl}/dashboard/recent-invoices`, {
+        fetch(`${apiUrl}/dashboard/recent-invoices?limit=10${contextParam ? contextParam.replace('&', '&') : ''}`, { // fix query param Append
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ])
@@ -113,12 +116,23 @@ export default function ClientDashboard() {
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     }
-  }, [getToken, revenueGranularity])
+  }, [getToken, revenueGranularity, viewContext])
 
-  // Only fetch dashboard data once on mount
+  // Only fetch dashboard data once on mount or when context/granularity changes
   useEffect(() => {
     fetchDashboardData()
-  }, [revenueGranularity]) // Empty dependency array - only run once
+  }, [revenueGranularity, viewContext])
+
+  // Determine active view:
+  // If viewContext is set, use it.
+  // Else if roleContext is available, check it.
+  // Heuristic fallbacks remain for safety.
+
+  const isMixedRole = metrics.roleContext === 'mixed' || (metrics.hasOwnedProjects && metrics.hasClientProjects);
+
+  // Decide which KPI cards to show
+  const showClientKPIs = viewContext === 'client' || (!viewContext && metrics.roleContext === 'client') || (!viewContext && !metrics.totalBilled && metrics.clientMetrics?.totalSpent > 0);
+
 
   // Real-time updates
   const handleRefresh = useCallback(() => {
@@ -328,78 +342,169 @@ export default function ClientDashboard() {
               Monitor projects, invoices, and collaborate with your team
             </p>
           </div>
+          {isMixedRole && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">View as:</span>
+              <Select value={viewContext || 'all'} onValueChange={(v) => setViewContext(v === 'all' ? undefined : v)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Unified View" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Unified View</SelectItem>
+                  <SelectItem value="owner">Owner View</SelectItem>
+                  <SelectItem value="client">Client View</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {(!metrics.totalBilled && metrics.clientMetrics?.totalSpent > 0) ? (
-            // --- CLIENT VIEW ---
-            <>
-              <KpiCard
-                title="Total Spent"
-                value={`₹${metrics.clientMetrics.totalSpent?.toLocaleString() || 0}`}
-                description="Total amount invoiced to you"
-                icon={IndianRupee}
-                trend="neutral"
-              />
-              <KpiCard
-                title="Paid"
-                value={`₹${metrics.clientMetrics.totalPaid?.toLocaleString() || 0}`}
-                description="Successfully paid"
-                icon={CheckCircle2}
-                trend="neutral"
-              />
-              <KpiCard
-                title="Pending Payment"
-                value={`₹${metrics.clientMetrics.totalPending?.toLocaleString() || 0}`}
-                description="Invoices to pay"
-                icon={Clock}
-              />
-              {/* Hide Overdue for pure clients or show placeholder? Keeping 3 cards is fine or show invoice count */}
-              <KpiCard
-                title="Invoices"
-                value={metrics.clientMetrics.invoiceCount || 0}
-                description="Total interactions"
-                icon={FileText}
-              />
-            </>
-          ) : (
-            // --- OWNER VIEW (Default) ---
-            <>
-              <KpiCard
-                title="Total Billed"
-                value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
-                description="Total amount invoiced"
-                icon={IndianRupee}
-                trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
-                trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
-              />
-              <KpiCard
-                title="Paid"
-                value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
-                description="Successfully collected"
-                icon={CheckCircle2}
-                trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
-                trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
-              />
-              <KpiCard
-                title="Outstanding"
-                value={`₹${metrics.outstanding?.toLocaleString() || 0}`}
-                description="Awaiting payment"
-                icon={Clock}
-              />
-              <KpiCard
-                title="Overdue"
-                value={`₹${metrics.overdue?.toLocaleString() || 0}`}
-                description="Past due date"
-                icon={AlertCircle}
-                trend={metrics.overdueChange >= 0 ? "up" : "down"}
-                trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
-                reverseColor={true}
-              />
-            </>
-          )}
-        </div>
+        {/* Unified View (Default for Mixed) - Shows both if no specific context is selected */}
+        {((!viewContext && isMixedRole) || viewContext === 'all') ? (
+          <div className="space-y-8">
+            {/* Revenue Section */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold tracking-tight">Revenue & Billing</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KpiCard
+                  title="Total Billed"
+                  value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
+                  description="Total amount invoiced"
+                  icon={IndianRupee}
+                  trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
+                />
+                <KpiCard
+                  title="Paid"
+                  value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
+                  description="Successfully collected"
+                  icon={CheckCircle2}
+                  trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
+                />
+                <KpiCard
+                  title="Outstanding"
+                  value={`₹${metrics.outstanding?.toLocaleString() || 0}`}
+                  description="Awaiting payment"
+                  icon={Clock}
+                />
+                <KpiCard
+                  title="Overdue"
+                  value={`₹${metrics.overdue?.toLocaleString() || 0}`}
+                  description="Past due date"
+                  icon={AlertCircle}
+                  trend={metrics.overdueChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
+                  reverseColor={true}
+                />
+              </div>
+            </div>
+
+            {/* Expenses Section */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold tracking-tight">Expenses & Pathments</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KpiCard
+                  title="Total Spent"
+                  value={`₹${metrics.clientMetrics?.totalSpent?.toLocaleString() || 0}`}
+                  description="Total amount invoiced to you"
+                  icon={IndianRupee}
+                  trend="neutral"
+                />
+                <KpiCard
+                  title="Paid"
+                  value={`₹${metrics.clientMetrics?.totalPaid?.toLocaleString() || 0}`}
+                  description="Successfully paid"
+                  icon={CheckCircle2}
+                  trend="neutral"
+                />
+                <KpiCard
+                  title="Pending Payment"
+                  value={`₹${metrics.clientMetrics?.totalPending?.toLocaleString() || 0}`}
+                  description="Invoices to pay"
+                  icon={Clock}
+                />
+                <KpiCard
+                  title="Invoices"
+                  value={metrics.clientMetrics?.invoiceCount || 0}
+                  description="Total interactions"
+                  icon={FileText}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Specific View Logic
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {showClientKPIs ? (
+              // --- CLIENT VIEW ---
+              <>
+                <KpiCard
+                  title="Total Spent"
+                  value={`₹${metrics.clientMetrics?.totalSpent?.toLocaleString() || 0}`}
+                  description="Total amount invoiced to you"
+                  icon={IndianRupee}
+                  trend="neutral"
+                />
+                <KpiCard
+                  title="Paid"
+                  value={`₹${metrics.clientMetrics?.totalPaid?.toLocaleString() || 0}`}
+                  description="Successfully paid"
+                  icon={CheckCircle2}
+                  trend="neutral"
+                />
+                <KpiCard
+                  title="Pending Payment"
+                  value={`₹${metrics.clientMetrics?.totalPending?.toLocaleString() || 0}`}
+                  description="Invoices to pay"
+                  icon={Clock}
+                />
+                <KpiCard
+                  title="Invoices"
+                  value={metrics.clientMetrics?.invoiceCount || 0}
+                  description="Total interactions"
+                  icon={FileText}
+                />
+              </>
+            ) : (
+              // --- OWNER VIEW (Default) ---
+              <>
+                <KpiCard
+                  title="Total Billed"
+                  value={`₹${metrics.totalBilled?.toLocaleString() || 0}`}
+                  description="Total amount invoiced"
+                  icon={IndianRupee}
+                  trend={metrics.totalBilledChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.totalBilledChange >= 0 ? '+' : ''}${metrics.totalBilledChange?.toFixed(1) || 0}%`}
+                />
+                <KpiCard
+                  title="Paid"
+                  value={`₹${metrics.totalPaid?.toLocaleString() || 0}`}
+                  description="Successfully collected"
+                  icon={CheckCircle2}
+                  trend={metrics.totalPaidChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.totalPaidChange >= 0 ? '+' : ''}${metrics.totalPaidChange?.toFixed(1) || 0}%`}
+                />
+                <KpiCard
+                  title="Outstanding"
+                  value={`₹${metrics.outstanding?.toLocaleString() || 0}`}
+                  description="Awaiting payment"
+                  icon={Clock}
+                />
+                <KpiCard
+                  title="Overdue"
+                  value={`₹${metrics.overdue?.toLocaleString() || 0}`}
+                  description="Past due date"
+                  icon={AlertCircle}
+                  trend={metrics.overdueChange >= 0 ? "up" : "down"}
+                  trendValue={`${metrics.overdueChange >= 0 ? '+' : ''}${metrics.overdueChange?.toFixed(1) || 0}%`}
+                  reverseColor={true}
+                />
+              </>
+            )}
+          </div>
+        )}
 
         {/* Search and Filters */}
         <Card>

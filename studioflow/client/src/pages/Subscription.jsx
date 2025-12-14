@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -94,6 +95,7 @@ const TONE_CLASSES = {
 import BillingHistory from '../components/BillingHistory';
 
 export default function Subscription() {
+  const navigate = useNavigate();
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentSubscription, setCurrentSubscription] = useState(null);
@@ -646,11 +648,21 @@ export default function Subscription() {
           <BillingHistory />
         </div>
 
-        {/* FAQ or Trust Section could go here */}
-        <div className="mt-20 text-center">
+        {/* FAQ or Trust Section */}
+        <div className="mt-20 text-center space-y-4">
           <p className="text-muted-foreground text-sm">
             Secure payments powered by Razorpay. Cancel anytime.
           </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span>Have questions about your bill?</span>
+            <Button
+              variant="link"
+              className="px-0 text-primary h-auto"
+              onClick={() => navigate('/contact?subject=Billing%20Support')}
+            >
+              Contact Billing Support
+            </Button>
+          </div>
         </div>
         {/* Features Comparison */}
         <Card className="bg-card border-slate-800 p-6 mt-12">

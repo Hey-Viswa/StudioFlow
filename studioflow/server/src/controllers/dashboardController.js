@@ -12,153 +12,159 @@ import storageAdapter from '../utils/storageAdapter.js';
 export const getDashboardMetrics = async (req, res) => {
   try {
     const userId = req.userId;
+    const viewContext = req.query.viewContext; // 'owner' | 'client' | undefined
 
-    // Parallelize all independent queries
-    const [
-      user,
-      memberships,
-      unreadNotificationsCount
-    ] = await Promise.all([
-      User.findOne({ clerkUserId: userId }).select('stats recentActivity'),
-      ProjectMember.find({ userId, status: { $ne: 'inactive' } }).select('projectId'),
-      Notification.countDocuments({ recipientId: userId, isRead: false })
-    ]);
+    // 1. Get Project Contexts
+    const { ownedProjectIds, memberProjectIds } = await getProjectContexts(userId);
 
-    const memberProjectIds = memberships.map(m => m.projectId);
+    // 2. Fetch Invoices based on View Context
+    let invoices = [];
+    let projectIdsToFetch = [];
 
-    // Find active projects
-    const projects = await Project.find({
-      $and: [
-        { deletedAt: null },
-        {
-          $or: [
-            { ownerId: userId },
-            { _id: { $in: memberProjectIds } }
-          ]
-        }
-      ]
-    }).select('_id status ownerId createdAt');
+    // Determine which projects we are interested in based on context
+    if (viewContext === 'owner') {
+      projectIdsToFetch = ownedProjectIds;
+    } else if (viewContext === 'client') {
+      projectIdsToFetch = memberProjectIds;
+    } else {
+      // Default / Mixed view: Fetch everything the user has access to
+      projectIdsToFetch = [...ownedProjectIds, ...memberProjectIds];
+    }
 
-    const projectIds = projects.map(p => p._id);
+    if (projectIdsToFetch.length > 0) {
+      invoices = await ProjectInvoice.find({ projectId: { $in: projectIdsToFetch } });
+    }
 
-    // Get invoice stats
-    const invoices = await ProjectInvoice.find({ projectId: { $in: projectIds } });
+    // console.log('DEBUG DASHBOARD:', {
+    //   userId,
+    //   viewContext,
+    //   ownedLen: ownedProjectIds.length,
+    //   memberLen: memberProjectIds.length,
+    //   fetchedInvoices: invoices.length
+    // });
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync('debug_dash.txt', JSON.stringify({
+        time: new Date().toISOString(),
+        userId,
+        viewContext,
+        ownedLen: ownedProjectIds.length,
+        memberLen: memberProjectIds.length,
+        fetchedInvoicesLen: invoices.length,
+        // ownedProjectIds: ownedProjectIds,
+        // firstInv: invoices[0]
+      }) + '\n');
+    } catch (e) { console.error('Log error', e); }
 
-    // ... (Keep existing calculation logic)
+    // 3. Filter Invoices by Role Logic
+    let ownerInvoices = [];
+    let clientInvoices = [];
 
-    // Helper to calculate percentage change
-    const calculateChange = (current, previous) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return ((current - previous) / previous) * 100;
+    if (viewContext === 'owner' || !viewContext) {
+      // Owner Logic: All invoices in projects I own
+      ownerInvoices = invoices.filter(inv =>
+        ownedProjectIds.some(id => id.toString() === inv.projectId.toString())
+      );
+    }
+
+    if (viewContext === 'client' || !viewContext) {
+      // Client Logic: Invoices where I am the payer
+      clientInvoices = invoices.filter(inv => {
+        // Must be a project I am a member of (or just check explicit payer match)
+        // Safety: Ensure it's not one of my owned projects if we want strict separation, 
+        // but typically you can't be client in your own project in this app's logic?
+        // Let's stick to: I am payer OR client.userId matches
+        return (inv.client && inv.client.userId === userId) || (inv.payerUserId === userId);
+      });
+    }
+
+    // console.log('DEBUG DASHBOARD FILTERED:', { ... });
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync('debug_dash.txt', JSON.stringify({
+        msg: 'FILTERED',
+        ownerInvoicesLen: ownerInvoices.length,
+        clientInvoicesLen: clientInvoices.length
+      }) + '\n');
+    } catch (e) { }
+
+
+
+    // 4. Calculate Metrics based on Context
+    // If viewContext is 'owner', we ONLY return owner metrics
+    // If viewContext is 'client', we ONLY return client metrics
+
+    let metrics = {
+      totalProjects: new Set([...ownedProjectIds.map(id => id.toString()), ...memberProjectIds.map(id => id.toString())]).size, // Total unique access
+      activeProjects: 0, // Simplified for now, or fetch projects to count
+      completedProjects: 0,
+      unreadNotifications: 0, // Placeholder
+      storageUsed: 0,
+      recentActivity: []
     };
 
-    // Date ranges for trends (This Month vs Last Month)
-    const now = new Date();
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    // Fill in extra user data
+    if (!viewContext) {
+      // Only fetch user-level stats if full dashboard
+      const [user, unreadCount] = await Promise.all([
+        User.findOne({ clerkUserId: userId }).select('stats recentActivity'),
+        Notification.countDocuments({ recipientId: userId, isRead: false })
+      ]);
+      metrics.unreadNotifications = unreadCount;
+      metrics.storageUsed = user?.stats?.storageUsed || 0;
+      metrics.recentActivity = user?.recentActivity || [];
+    }
 
-    // --- CONTEXT SEPARATION START ---
+    // --- OWNER METRICS ---
+    if (viewContext === 'owner' || !viewContext) {
+      const calculateChange = (current, previous) => previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
+      const now = new Date();
+      const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    // 1. Identify Contexts
-    const ownedProjectIds = projects.filter(p => p.ownerId === userId).map(p => p._id);
-    // memberProjectIds already defined above
-    // const memberProjectIds = memberships.map(m => m.projectId.toString());
-    // In strict Client view, we should look for projects where member role is 'client' or just use memberships as 'non-owner' context
-    // Ideally, we rely on Invoice filters for accuracy (payerUserId)
+      metrics.totalBilled = ownerInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.totalPaid = ownerInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.outstanding = ownerInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.overdue = ownerInvoices.filter(inv => {
+        const isOverdueStatus = inv.status === 'overdue';
+        const isPendingAndLate = inv.status === 'pending' && inv.dueDate && new Date(inv.dueDate) < new Date();
+        return isOverdueStatus || isPendingAndLate;
+      }).reduce((sum, inv) => sum + (inv.total || 0), 0);
 
-    // 2. Fetch Invoices separately or Filter in memory?
-    // Memory filtering is safer to minimalize DB calls if volume is low, but separate queries are cleaner.
-    // Given we already fetch all invoices for these projects, let's filter in memory for efficiency unless volume is huge.
+      // Trends
+      const billedThisMonth = ownerInvoices.filter(inv => new Date(inv.createdAt) >= startOfCurrentMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      const billedLastMonth = ownerInvoices.filter(inv => new Date(inv.createdAt) >= startOfLastMonth && new Date(inv.createdAt) <= endOfLastMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.totalBilledChange = calculateChange(billedThisMonth, billedLastMonth);
 
-    // Split Invoices by Context
-    // Owner Context: Invoices belonging to projects I OWN.
-    const ownerInvoices = invoices.filter(inv => ownedProjectIds.find(id => id.toString() === inv.projectId.toString()));
+      const paidThisMonth = ownerInvoices.filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfCurrentMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      const paidLastMonth = ownerInvoices.filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfLastMonth && new Date(inv.paidAt || inv.updatedAt) <= endOfLastMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.totalPaidChange = calculateChange(paidThisMonth, paidLastMonth);
 
-    // Client Context: Invoices where I am the Client/Payer.
-    // We check: client.userId OR payerUserId OR (projectId is in memberships AND not owner)
-    // Strict Check: payerUserId or client.userId matches me.
-    const clientInvoices = invoices.filter(inv => {
-      return (inv.client && inv.client.userId === userId) ||
-        (inv.payerUserId === userId);
-    });
+      const overdueThisMonth = ownerInvoices.filter(inv => (inv.status === 'overdue' || (inv.status === 'pending' && inv.dueDate && new Date(inv.dueDate) < now)) && new Date(inv.dueDate) >= startOfCurrentMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      const overdueLastMonth = ownerInvoices.filter(inv => (inv.status === 'overdue' || (inv.status === 'pending' && inv.dueDate && new Date(inv.dueDate) <= endOfLastMonth)) && new Date(inv.dueDate) >= startOfLastMonth).reduce((sum, inv) => sum + (inv.total || 0), 0);
+      metrics.overdueChange = calculateChange(overdueThisMonth, overdueLastMonth);
+    }
 
-    // --- OWNER METRICS (REVENUE) ---
-    // Calculated ONLY from ownerInvoices
-    const totalBilled = ownerInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const totalPaid = ownerInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const outstanding = ownerInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0);
+    // --- CLIENT METRICS ---
+    if (viewContext === 'client' || !viewContext) {
+      metrics.clientMetrics = {
+        totalSpent: clientInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+        totalPaid: clientInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0),
+        totalPending: clientInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0),
+        invoiceCount: clientInvoices.length
+      };
+    }
 
-    // Overdue (Owner Context)
-    const overdue = ownerInvoices.filter(inv => {
-      const isOverdueStatus = inv.status === 'overdue';
-      const isPendingAndLate = inv.status === 'pending' && inv.dueDate && new Date(inv.dueDate) < new Date();
-      return isOverdueStatus || isPendingAndLate;
-    }).reduce((sum, inv) => sum + (inv.total || 0), 0);
+    // Determine context based on Project Existence, NOT just financial activity
+    const hasOwnedProjects = ownedProjectIds.length > 0;
+    const hasClientProjects = memberProjectIds.length > 0;
 
-    // Trends (Owner Context) using ownerInvoices...
-    // 1. Billed Trend
-    const billedThisMonth = ownerInvoices
-      .filter(inv => new Date(inv.createdAt) >= startOfCurrentMonth)
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const billedLastMonth = ownerInvoices
-      .filter(inv => new Date(inv.createdAt) >= startOfLastMonth && new Date(inv.createdAt) <= endOfLastMonth)
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const totalBilledChange = calculateChange(billedThisMonth, billedLastMonth);
+    metrics.roleContext = viewContext || (hasOwnedProjects && hasClientProjects ? 'mixed' : (hasOwnedProjects ? 'owner' : 'client'));
+    metrics.hasOwnedProjects = hasOwnedProjects;
+    metrics.hasClientProjects = hasClientProjects;
 
-    // 2. Paid Trend
-    const paidThisMonth = ownerInvoices
-      .filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfCurrentMonth)
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const paidLastMonth = ownerInvoices
-      .filter(inv => inv.status === 'paid' && new Date(inv.paidAt || inv.updatedAt) >= startOfLastMonth && new Date(inv.paidAt || inv.updatedAt) <= endOfLastMonth)
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const totalPaidChange = calculateChange(paidThisMonth, paidLastMonth);
-
-    // 3. Overdue Trend
-    const overdueThisMonth = ownerInvoices
-      .filter(inv => {
-        const dueDate = new Date(inv.dueDate);
-        return dueDate >= startOfCurrentMonth && dueDate < now && inv.status !== 'paid';
-      })
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const overdueLastMonth = ownerInvoices
-      .filter(inv => {
-        const dueDate = new Date(inv.dueDate);
-        return dueDate >= startOfLastMonth && dueDate <= endOfLastMonth && inv.status !== 'paid';
-      })
-      .reduce((sum, inv) => sum + (inv.total || 0), 0);
-    const overdueChange = calculateChange(overdueThisMonth, overdueLastMonth);
-
-    // --- CLIENT METRICS (SPENDING) ---
-    // Calculated ONLY from clientInvoices
-    const clientMetrics = {
-      totalSpent: clientInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
-      totalPaid: clientInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0),
-      totalPending: clientInvoices.filter(inv => inv.status === 'pending').reduce((sum, inv) => sum + (inv.total || 0), 0),
-      invoiceCount: clientInvoices.length
-    };
-    // --- CONTEXT SEPARATION END ---
-
-    res.status(200).json({
-      metrics: {
-        totalProjects: projects.length,
-        activeProjects: projects.filter(p => p.status === 'active').length,
-        completedProjects: projects.filter(p => p.status === 'completed').length,
-        totalBilled,
-        totalBilledChange,
-        totalPaid,
-        totalPaidChange,
-        outstanding,
-        overdue,
-        overdueChange,
-        clientMetrics,
-        roleContext: totalBilled > 0 && clientMetrics.totalSpent > 0 ? 'mixed' : (totalBilled > 0 ? 'owner' : 'client'),
-        unreadNotifications: unreadNotificationsCount,
-        storageUsed: user?.stats?.storageUsed || 0,
-        recentActivity: user?.recentActivity || []
-      }
-    });
+    res.status(200).json({ metrics });
   } catch (error) {
     console.error('❌ Error fetching dashboard metrics:', error);
     res.status(500).json({ error: 'Failed to fetch metrics' });
@@ -269,39 +275,43 @@ export const getRecentFiles = async (req, res) => {
 export const getRecentInvoices = async (req, res) => {
   try {
     const userId = req.userId;
+    const viewContext = req.query.viewContext; // 'owner' | 'client'
     const limit = parseInt(req.query.limit) || 10;
 
-    // 1. Find all project memberships for this user
-    const memberships = await ProjectMember.find({
-      userId,
-      status: { $ne: 'inactive' }
-    }).select('projectId');
+    const { ownedProjectIds, memberProjectIds } = await getProjectContexts(userId);
+    let invoices = [];
 
-    const memberProjectIds = memberships.map(m => m.projectId);
+    // Filter by context
+    if (viewContext === 'owner') {
+      invoices = await ProjectInvoice.find({ projectId: { $in: ownedProjectIds } })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean();
+    } else if (viewContext === 'client') {
+      const potentialInvoices = await ProjectInvoice.find({ projectId: { $in: memberProjectIds } })
+        .sort({ createdAt: -1 })
+        .lean();
 
-    // 2. Get active projects user has access to
-    const projects = await Project.find({
-      $and: [
-        { deletedAt: null }, // Only active projects
-        {
-          $or: [
-            { ownerId: userId },
-            { _id: { $in: memberProjectIds } }
-          ]
-        }
-      ]
-    }).select('_id title');
+      // Post-filter for strict client matching
+      invoices = potentialInvoices
+        .filter(inv => (inv.client && inv.client.userId === userId) || (inv.payerUserId === userId))
+        .slice(0, limit);
+    } else {
+      // Fallback or Mixed: Show both (but careful with leakage)
+      // Ideally default to Owner if owner, Client if client.
+      // For safety, let's fetch both but strictly filtered
+      const ownerInvs = await ProjectInvoice.find({ projectId: { $in: ownedProjectIds } }).sort({ createdAt: -1 }).limit(limit).lean();
+      const clientInvsRaw = await ProjectInvoice.find({ projectId: { $in: memberProjectIds } }).sort({ createdAt: -1 }).limit(limit).lean();
+      const clientInvs = clientInvsRaw.filter(inv => (inv.client && inv.client.userId === userId) || (inv.payerUserId === userId));
 
-    const projectIds = projects.map(p => p._id);
+      invoices = [...ownerInvs, ...clientInvs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, limit);
+    }
+
+    // Enrich logic remains (fetching project titles)
+    const allProjectIdsKey = [...new Set(invoices.map(i => i.projectId))];
+    const projects = await Project.find({ _id: { $in: allProjectIdsKey } }).select('title');
     const projectMap = Object.fromEntries(projects.map(p => [p._id.toString(), p.title]));
 
-    // Get recent invoices from active projects only
-    const invoices = await ProjectInvoice.find({ projectId: { $in: projectIds } })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
-    // Enrich with project titles
     const enrichedInvoices = invoices.map(inv => ({
       ...inv,
       projectTitle: projectMap[inv.projectId?.toString()] || 'Unknown Project'
@@ -320,37 +330,32 @@ export const getRecentInvoices = async (req, res) => {
 export const getChartData = async (req, res) => {
   try {
     const userId = req.userId;
+    const viewContext = req.query.viewContext; // 'owner' | 'client'
     const { granularity = 'monthly' } = req.query;
 
-    // 1. Find all project memberships for this user
-    const memberships = await ProjectMember.find({
-      userId,
-      status: { $ne: 'inactive' }
-    }).select('projectId');
+    const { ownedProjectIds, memberProjectIds } = await getProjectContexts(userId);
+    let invoices = [];
+    let projects = []; // For progress chart, needs same scoping
 
-    const memberProjectIds = memberships.map(m => m.projectId);
+    // Determine Invoices and Projects based on Context
+    if (viewContext === 'owner') {
+      projects = await Project.find({ _id: { $in: ownedProjectIds }, deletedAt: null });
+      invoices = await ProjectInvoice.find({ projectId: { $in: ownedProjectIds } }).sort({ createdAt: 1 }).lean();
+    } else if (viewContext === 'client') {
+      projects = await Project.find({ _id: { $in: memberProjectIds }, deletedAt: null });
+      const potentialInvoices = await ProjectInvoice.find({ projectId: { $in: memberProjectIds } }).sort({ createdAt: 1 }).lean();
+      invoices = potentialInvoices.filter(inv => (inv.client && inv.client.userId === userId) || (inv.payerUserId === userId));
+    } else {
+      // Mixed
+      const ownedProjects = await Project.find({ _id: { $in: ownedProjectIds }, deletedAt: null });
+      const memberProjects = await Project.find({ _id: { $in: memberProjectIds }, deletedAt: null });
+      projects = [...ownedProjects, ...memberProjects];
 
-    // 2. Get active projects user has access to
-    const projects = await Project.find({
-      $and: [
-        { deletedAt: null }, // Only active projects
-        {
-          $or: [
-            { ownerId: userId },
-            { _id: { $in: memberProjectIds } }
-          ]
-        }
-      ]
-    });
-
-    const projectIds = projects.map(p => p._id);
-    console.log('📊 Chart Debug:', { userId, projectsFound: projectIds.length });
-
-    // Get invoices for revenue chart
-    const invoices = await ProjectInvoice.find({ projectId: { $in: projectIds } })
-      .sort({ createdAt: 1 })
-      .lean();
-    console.log('📊 Chart Debug Invoices:', { count: invoices.length, detailed: invoices.map(i => ({ id: i._id, status: i.status })) });
+      const ownerInvs = await ProjectInvoice.find({ projectId: { $in: ownedProjectIds } }).lean();
+      const clientInvsRaw = await ProjectInvoice.find({ projectId: { $in: memberProjectIds } }).lean();
+      const clientInvs = clientInvsRaw.filter(inv => (inv.client && inv.client.userId === userId) || (inv.payerUserId === userId));
+      invoices = [...ownerInvs, ...clientInvs].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    }
 
     // Generate revenue data based on granularity
     const revenueData = generateRevenueData(invoices, granularity);
@@ -358,14 +363,14 @@ export const getChartData = async (req, res) => {
     // Invoice status distribution
     const invoiceStatusData = [
       { status: 'draft', count: invoices.filter(i => i.status === 'draft').length },
-      { status: 'sent', count: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length }, // Map pending/sent to sent
+      { status: 'sent', count: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length },
       { status: 'paid', count: invoices.filter(i => i.status === 'paid' || i.status === 'partially_paid').length },
       { status: 'overdue', count: invoices.filter(i => i.status === 'overdue' || (i.status === 'pending' && i.dueDate && new Date(i.dueDate) < new Date())).length },
       { status: 'cancelled', count: invoices.filter(i => i.status === 'cancelled').length },
       { status: 'failed', count: invoices.filter(i => i.status === 'failed').length }
     ];
 
-    // Project progress by week
+    // Project progress by week - Filtered by relevant projects
     const projectProgressData = generateProjectProgressData(projects);
 
     res.status(200).json({
@@ -377,6 +382,38 @@ export const getChartData = async (req, res) => {
     console.error('❌ Error fetching chart data:', error);
     res.status(500).json({ error: 'Failed to fetch chart data' });
   }
+};
+
+/**
+ * Helper to get project contexts for a user
+ * Returns { ownedProjectIds, memberProjectIds }
+ */
+const getProjectContexts = async (userId) => {
+  const memberships = await ProjectMember.find({
+    userId,
+    status: { $ne: 'inactive' }
+  }).select('projectId');
+  const memberProjectIds = memberships.map(m => m.projectId);
+
+  const projects = await Project.find({
+    $and: [
+      { deletedAt: null },
+      {
+        $or: [
+          { ownerId: userId },
+          { _id: { $in: memberProjectIds } }
+        ]
+      }
+    ]
+  }).select('_id ownerId');
+
+  const ownedProjectIds = projects.filter(p => p.ownerId === userId).map(p => p._id);
+
+  // Allow user to be a member of their own project (for testing or specific workflows)
+  // We strictly check if they have a membership record.
+  const validMemberProjectIds = memberships.map(m => m.projectId);
+
+  return { ownedProjectIds, memberProjectIds: validMemberProjectIds };
 };
 
 // Helper function to generate revenue data

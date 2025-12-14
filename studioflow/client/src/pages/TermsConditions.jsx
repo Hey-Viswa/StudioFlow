@@ -71,15 +71,12 @@ export default function TermsConditions() {
               <h3 className="font-semibold mb-4 text-sm text-muted-foreground uppercase tracking-wider">On This Page</h3>
               <nav className="space-y-1">
                 {[
-                  { id: 'agreement', label: 'Agreement to Terms' },
-                  { id: 'service', label: 'Service Description' },
-                  { id: 'account', label: 'Account Terms' },
-                  { id: 'subscription', label: 'Subscription & Billing' },
-                  { id: 'cancellation', label: 'Cancellation & Refunds' },
+                  { id: 'cancellation', label: 'Cancellation & Refund' },
                   { id: 'acceptable-use', label: 'Acceptable Use' },
                   { id: 'intellectual-property', label: 'Intellectual Property' },
                   { id: 'termination', label: 'Termination' },
-                  { id: 'liability', label: 'Limitation of Liability' }
+                  { id: 'liability', label: 'Limitation of Liability' },
+                  { id: 'contact', label: 'Contact Us' }
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -95,142 +92,17 @@ export default function TermsConditions() {
 
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-8">
-            {/* Introduction */}
-            <Card id="agreement">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Agreement to Terms
-                </CardTitle>
-                <CardDescription>
-                  Last updated: November 6, 2024
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Please read these Terms and Conditions carefully before using StudioFlow. By accessing or using our service,
-                    you agree to be bound by these terms.
-                  </AlertDescription>
-                </Alert>
-                <p className="text-muted-foreground leading-relaxed">
-                  These Terms and Conditions ("Terms") govern your use of the StudioFlow platform and services operated by StudioFlow,
-                  a project management service based in Mumbai, India. If you do not agree with any part of these terms, you may not access the service.
-                </p>
-                <div className="bg-muted/50 p-4 rounded-lg border">
-                  <p className="text-sm">
-                    <strong>Operating Entity:</strong> StudioFlow<br />
-                    <strong>Location:</strong> Mumbai, Maharashtra, India<br />
-                    <strong>Contact:</strong>{' '}
-                    <a href="mailto:legal@studioflow.studio" className="text-primary hover:underline">
-                      legal@studioflow.studio
-                    </a>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Service Description */}
-            <Card id="service">
-              <CardHeader>
-                <CardTitle>1. Service Description</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  StudioFlow is a project management and collaboration platform that enables users to:
-                </p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                  <li>Create and manage creative projects</li>
-                  <li>Collaborate with team members and clients</li>
-                  <li>Track project progress with tasks and comments</li>
-                  <li>Generate and share project invite links</li>
-                  <li>Access invoicing and subscription features</li>
-                </ul>
-                <p className="text-muted-foreground leading-relaxed">
-                  We reserve the right to modify, suspend, or discontinue any aspect of the service at any time, with or without notice.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Account Terms */}
-            <Card id="account">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  2. Account Registration and Security
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <h3 className="font-semibold">Account Creation</h3>
-                <ul className="space-y-2 text-muted-foreground ml-4">
-                  <li>• You must provide accurate and complete information during registration</li>
-                  <li>• You must be at least 18 years old to use StudioFlow</li>
-                  <li>• One person or entity may not maintain more than one free account</li>
-                  <li>• You are responsible for maintaining the security of your account credentials</li>
-                </ul>
-
-                <Separator />
-
-                <h3 className="font-semibold">Account Responsibilities</h3>
-                <p className="text-muted-foreground">
-                  You are responsible for all activities that occur under your account. You must immediately notify us of any unauthorized
-                  use of your account or any other security breach. We cannot and will not be liable for any loss or damage arising from your
-                  failure to comply with this security obligation.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Subscription Plans */}
-            <Card id="subscription">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  3. Subscription Plans and Billing
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Available Plans</h3>
-                  <ul className="space-y-3 text-muted-foreground ml-4">
-                    <li><strong className="text-foreground">Starter Plan (Free):</strong> 5 projects, 1 team member per project, email support (48h response)</li>
-                    <li><strong className="text-foreground">Pro Plan (₹1/month):</strong> 50 projects, 5 team members per project, real-time updates, priority support (24h response)</li>
-                    <li><strong className="text-foreground">Studio Plan (₹2/month):</strong> 100 projects, unlimited team members, all Pro features, advanced analytics, dedicated support (12h response)</li>
-                  </ul>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Billing Terms</h3>
-                  <ul className="space-y-2 text-muted-foreground ml-4">
-                    <li>• All payments are processed securely through Razorpay</li>
-                    <li>• Subscriptions are billed monthly on the date you subscribed</li>
-                    <li>• You will be charged automatically unless you cancel before the next billing cycle</li>
-                    <li>• All fees are in INR (Indian Rupees) unless otherwise stated</li>
-                    <li>• Prices are subject to change with 30 days notice</li>
-                    <li>• No refunds for partial months when you cancel</li>
-                  </ul>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Payment Methods</h3>
-                  <p className="text-muted-foreground">
-                    We accept credit cards, debit cards, UPI, net banking, and digital wallets through Razorpay.
-                    You authorize us to charge your payment method for all fees incurred under your account.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold mb-4">Terms and Conditions</h1>
+              <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
+            </div>
 
             {/* Cancellation and Refunds */}
             <Card id="cancellation">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Ban className="h-5 w-5 text-primary" />
-                  4. Cancellation and Refund Policy
+                  1. Cancellation and Refund Policy
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -262,7 +134,7 @@ export default function TermsConditions() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-primary" />
-                  5. Acceptable Use Policy
+                  2. Acceptable Use Policy
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -292,7 +164,10 @@ export default function TermsConditions() {
             {/* Content Ownership */}
             <Card id="intellectual-property">
               <CardHeader>
-                <CardTitle>6. Intellectual Property and Content Ownership</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  3. Intellectual Property and Content Ownership
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <h3 className="font-semibold">Your Content</h3>
@@ -326,7 +201,7 @@ export default function TermsConditions() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-primary" />
-                  7. Termination
+                  4. Termination
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -346,7 +221,10 @@ export default function TermsConditions() {
             {/* Limitations of Liability */}
             <Card id="liability">
               <CardHeader>
-                <CardTitle>8. Limitation of Liability</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-primary" />
+                  5. Limitation of Liability
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground leading-relaxed">
@@ -366,82 +244,27 @@ export default function TermsConditions() {
               </CardContent>
             </Card>
 
-            {/* Service Availability */}
-            <Card>
-              <CardHeader>
-                <CardTitle>9. Service Availability and Support</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  We strive for 99.9% uptime but do not guarantee uninterrupted access to the service. We may:
-                </p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-                  <li>Perform scheduled maintenance with advance notice</li>
-                  <li>Experience unexpected downtime due to technical issues</li>
-                  <li>Temporarily suspend service for security reasons</li>
-                </ul>
-                <p className="text-muted-foreground mt-4">
-                  Support response times vary by plan: Free (community support), Pro (48-hour response), Studio (24-hour priority response).
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Privacy */}
-            <Card>
-              <CardHeader>
-                <CardTitle>10. Privacy and Data Protection</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  Your use of StudioFlow is also governed by our Privacy Policy. By using our service, you consent to the
-                  collection and use of your information as described in the Privacy Policy.
-                </p>
-                <Button variant="outline" onClick={() => navigate('/privacy-policy')}>
-                  Read Privacy Policy
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Changes to Terms */}
-            <Card>
-              <CardHeader>
-                <CardTitle>11. Changes to Terms</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  We reserve the right to modify these Terms at any time. We will notify you of material changes via email or
-                  through a notice on the service. Your continued use of StudioFlow after changes take effect constitutes your
-                  acceptance of the revised Terms.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Governing Law */}
-            <Card>
-              <CardHeader>
-                <CardTitle>12. Governing Law and Dispute Resolution</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground leading-relaxed">
-                  These Terms shall be governed by and construed in accordance with the laws of India, without regard to its
-                  conflict of law provisions. Any disputes arising from these Terms or the service shall be resolved through
-                  binding arbitration in accordance with Indian arbitration laws.
-                </p>
-              </CardContent>
-            </Card>
-
             {/* Contact */}
-            <Card>
+            <Card id="contact">
               <CardHeader>
-                <CardTitle>13. Contact Information</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  6. Contact Information
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">
                   If you have questions about these Terms and Conditions, please contact us:
                 </p>
-                <div className="space-y-2 text-muted-foreground">
-                  <p><strong className="text-foreground">Email:</strong> legal@studioflow.studio</p>
-                  <p><strong className="text-foreground">Contact Form:</strong> <a href="/contact-us" className="text-primary hover:underline">www.studioflow.studio/contact-us</a></p>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <div className="grid grid-cols-[100px_1fr] gap-2">
+                    <span className="font-semibold">Email:</span>
+                    <a href="mailto:viswaranjan.dev@gmail.com" className="text-primary hover:underline">viswaranjan.dev@gmail.com</a>
+                  </div>
+                  <div className="grid grid-cols-[100px_1fr] gap-2">
+                    <span className="font-semibold">Address:</span>
+                    <span>Pen, Raigad, Maharashtra, 402107, India</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>

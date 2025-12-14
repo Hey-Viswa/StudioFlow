@@ -166,7 +166,7 @@ export function useProjects(filters = {}) {
   }
 }
 
-export function useProjectMetrics() {
+export function useProjectMetrics(viewContext) {
   const { getToken } = useAuth()
   const [metrics, setMetrics] = useState({
     totalProjects: 0,
@@ -178,15 +178,18 @@ export function useProjectMetrics() {
     overdue: 0,
     totalBilledChange: 0,
     totalPaidChange: 0,
-    overdueChange: 0
+    overdueChange: 0,
+    clientMetrics: { totalSpent: 0, totalPaid: 0, totalPending: 0, invoiceCount: 0 },
+    roleContext: 'mixed'
   })
   const [loading, setLoading] = useState(true)
   const [lastFetch, setLastFetch] = useState(0)
+  const [lastContext, setLastContext] = useState(null)
 
-  const fetchMetrics = useCallback(async () => {
-    // Prevent fetching more than once every 30 seconds
+  const fetchMetrics = useCallback(async (force = false) => {
     const now = Date.now()
-    if (now - lastFetch < 30000) {
+    // Bypass throttle if forced or if context changed
+    if (!force && viewContext === lastContext && now - lastFetch < 30000) {
       return
     }
 
@@ -194,7 +197,10 @@ export function useProjectMetrics() {
       const token = await getToken()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-      const response = await fetch(`${apiUrl}/dashboard/metrics`, {
+      const queryParams = new URLSearchParams()
+      if (viewContext) queryParams.append('viewContext', viewContext)
+
+      const response = await fetch(`${apiUrl}/dashboard/metrics?${queryParams.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -205,19 +211,20 @@ export function useProjectMetrics() {
 
       if (response.ok) {
         const data = await response.json()
-        setMetrics(data.metrics || metrics)
+        setMetrics(prev => ({ ...prev, ...data.metrics }))
         setLastFetch(now)
+        setLastContext(viewContext)
       }
     } catch (err) {
       console.error('Fetch metrics error:', err)
     } finally {
       setLoading(false)
     }
-  }, [getToken])
+  }, [getToken, viewContext, lastContext, lastFetch])
 
   useEffect(() => {
     fetchMetrics()
   }, [fetchMetrics])
 
-  return { metrics, loading, refetch: fetchMetrics }
+  return { metrics, loading, refetch: () => fetchMetrics(true) }
 }

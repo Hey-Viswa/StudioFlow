@@ -564,6 +564,11 @@ export const getProjectById = async (req, res) => {
       pending: tasks.filter(t => !['completed', 'approved'].includes(t.status)).length
     };
 
+    // Calculate real-time progress
+    const realTimeProgress = taskStats.total > 0
+      ? Math.round((taskStats.completed / taskStats.total) * 100)
+      : 0;
+
     // Attach to response
     const projectResponse = { ...project };
     projectResponse.members = validMembers;
@@ -572,6 +577,9 @@ export const getProjectById = async (req, res) => {
     projectResponse.userRole = userRole;
     projectResponse.isShared = !isOwner;
     projectResponse.tasks = tasks; // Attach tasks list
+
+    // OVERRIDE cached progress with real-time progress
+    projectResponse.progress = realTimeProgress;
 
     // Ensure stats object exists and populate tasks
     projectResponse.stats = {

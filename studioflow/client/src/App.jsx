@@ -20,6 +20,7 @@ const TermsConditions = lazy(() => import('./pages/TermsConditions'));
 const CancellationRefund = lazy(() => import('./pages/CancellationRefund'));
 const ShippingDelivery = lazy(() => import('./pages/ShippingDelivery'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
+const FAQ = lazy(() => import('./pages/FAQ'));
 const Projects = lazy(() => import('./pages/Projects'));
 const Trash = lazy(() => import('./pages/Trash'));
 const Invoices = lazy(() => import('./pages/Invoices'));
@@ -100,6 +101,7 @@ function App() {
 
                   <Route path="/contact" element={<ContactUs />} />
                   <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
+                  <Route path="/faq" element={<FAQ />} />
                   <Route path="/network-error" element={<NetworkError />} />
 
                   {/* Shared Files - Protected Route */}
