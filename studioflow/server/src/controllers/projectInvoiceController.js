@@ -11,6 +11,9 @@ import { createClerkClient } from '@clerk/backend';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 import PaymentThread from '../models/PaymentThread.js';
 import { logAudit } from '../services/auditService.js';
+import { isFeatureEnabled } from '../utils/featureFlags.js';
+import ProjectBillingConfig from '../models/ProjectBillingConfig.js';
+import TimeEntry from '../models/TimeEntry.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -312,7 +315,7 @@ export const generateProjectInvoice = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.userId;
-    const { items, dueDate, notes, tax, discount, clientUserId, linkedFileIds, accessType } = req.body;
+    let { items, dueDate, notes, tax, discount, clientUserId, linkedFileIds, accessType, includeUnbilledHours } = req.body;
 
     console.log('=== GENERATE PROJECT INVOICE ===');
     console.log('User:', userId);
@@ -335,6 +338,55 @@ export const generateProjectInvoice = async (req, res) => {
     }
 
     // Calculate item amounts
+
+    // [ADDITIVE] Advanced Billing: Auto-apply discounts & Import time entries
+    let timeEntryIdsToMark = [];
+    if (await isFeatureEnabled('ADVANCED_BILLING', { projectId })) {
+      try {
+        const billingConfig = await ProjectBillingConfig.findOne({ projectId });
+
+        if (billingConfig) {
+          // 1. Auto-apply discounts (If not already manually provided)
+          if (!discount && billingConfig.discounts && billingConfig.discounts.length > 0) {
+            // Find active discount (priority to percentage)
+            const activeDiscount = billingConfig.discounts.find(d => d.active);
+            if (activeDiscount) {
+              discount = {
+                percentage: activeDiscount.type === 'percentage' ? activeDiscount.value : 0,
+                amount: activeDiscount.type === 'fixed' ? activeDiscount.value : 0
+              };
+            }
+          }
+
+          // 2. Import "pending" Time Entries if requested
+          if (includeUnbilledHours) {
+            const timeEntries = await TimeEntry.find({ projectId, status: 'pending' });
+
+            if (timeEntries.length > 0) {
+              const hourlyRate = billingConfig.hourlyRate || 0;
+
+              const timeSheetItems = timeEntries.map(entry => {
+                timeEntryIdsToMark.push(entry._id);
+                return {
+                  title: `Hours: ${entry.description}`,
+                  description: `${new Date(entry.startTime).toLocaleDateString()} - ${entry.durationMinutes} mins`,
+                  quantity: parseFloat((entry.durationMinutes / 60).toFixed(2)),
+                  rate: hourlyRate,
+                  amount: parseFloat((entry.durationMinutes / 60 * hourlyRate).toFixed(2))
+                };
+              });
+
+              // Append to items
+              if (!items) items = [];
+              items.push(...timeSheetItems);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Advanced billing hook failed (non-blocking):', err);
+      }
+    }
+
     const processedItems = items.map(item => ({
       title: item.title,
       description: item.description || '',
@@ -392,6 +444,24 @@ export const generateProjectInvoice = async (req, res) => {
 
     console.log('✓ Invoice created:', invoice.invoiceNumber);
     console.log('  Total:', invoice.total);
+
+    // [ADDITIVE] Post-Creation Hook: Mark Time Entries as Invoiced
+    if (timeEntryIdsToMark.length > 0 && invoice._id) {
+      try {
+        await TimeEntry.updateMany(
+          { _id: { $in: timeEntryIdsToMark } },
+          {
+            $set: {
+              status: 'invoiced',
+              invoiceId: invoice._id
+            }
+          }
+        );
+        console.log(`✓ Marked ${timeEntryIdsToMark.length} time entries as invoiced`);
+      } catch (err) {
+        console.error('❌ Failed to update time entries status:', err);
+      }
+    }
 
     // Notify client about new invoice
     if (clientInfo.userId) {

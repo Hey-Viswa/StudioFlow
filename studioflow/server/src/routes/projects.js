@@ -55,7 +55,7 @@ router.get('/usage', getProjectUsage);                     // Get project usage/
 router.get('/trash', cacheMiddleware(5 * 60 * 1000), listTrash); // Get trashed projects (5 min cache)
 router.get('/:id/metrics', getProjectMetrics);
 router.get('/:id/ownership/pending', getPendingRequest);
-router.get('/:id', cacheMiddleware(1 * 60 * 1000), getProjectById); // Get single project (1 min cache)
+router.get('/:id', getProjectById); // Get single project (No cache for real-time KPIs)
 router.put('/:id', updateProject);                        // Update project (owner only)
 router.patch('/:id', updateProject);                      // Update project (owner only) - supports PATCH too
 router.delete('/:id', deleteProject);                     // Soft delete project (move to trash - owner only)

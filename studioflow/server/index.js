@@ -24,6 +24,7 @@ import dashboardRoutes from './src/routes/dashboard.js';
 import messageRoutes from './src/routes/messages.js';
 import uploadRoutes from './src/routes/upload.js';
 import auditRoutes from './src/routes/audit.js';
+import billingRoutes from './src/routes/billing.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -244,6 +245,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/notifications', notificationRoutes); // Notification system
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
+app.use('/api/projects', billingRoutes); // Advanced Billing routes
 app.use('/api/projects', messageRoutes); // Message/chat routes
 app.use('/api/upload', uploadRoutes); // Simple file upload
 app.use('/api/audit', auditRoutes); // Audit/Activity logs

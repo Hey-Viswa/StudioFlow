@@ -23,6 +23,7 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import TasksTab from '../components/TasksTab';
+import TimeTrackingTab from '../components/TimeTrackingTab';
 import CommentsTab from '../components/CommentsTab';
 import CommentThread from '../components/CommentThread';
 import ActivityTab from '../components/ActivityTab';
@@ -51,6 +52,7 @@ import {
   CheckCircle2,
   Copy,
   Activity,
+  Clock,
   Calendar as CalendarIcon,
   Users,
   FileText,
@@ -75,6 +77,7 @@ import OwnershipAcceptanceBanner from '../components/OwnershipAcceptanceBanner';
 import ProjectHeader from '../components/ProjectHeader';
 import ProjectStats from '../components/ProjectStats';
 import TeamTab from '../components/TeamTab';
+import BillingSettings from '../components/projects/BillingSettings';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -633,7 +636,7 @@ export default function ProjectDetail() {
   if (!project) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
-        <FolderOpen className="w-12 h-12 text-muted-foreground mb-4" />
+        <Home className="w-12 h-12 text-muted-foreground mb-4" />
         <h3 className="text-lg font-semibold text-foreground">Project Not Found</h3>
         <p className="text-muted-foreground mb-4">The project you are looking for does not exist or has been deleted.</p>
         <Button onClick={() => navigate('/dashboard/projects')}>Back to Projects</Button>
@@ -699,6 +702,9 @@ export default function ProjectDetail() {
           <TabsTrigger value="tasks" className="gap-2">
             <ListTodo className="h-4 w-4" /> Tasks
           </TabsTrigger>
+          <TabsTrigger value="time" className="gap-2">
+            <Clock className="h-4 w-4" /> Time
+          </TabsTrigger>
           <TabsTrigger value="invoices" className="gap-2">
             <FileText className="h-4 w-4" /> Invoices
           </TabsTrigger>
@@ -732,6 +738,10 @@ export default function ProjectDetail() {
             <Card className="border-none shadow-none bg-transparent">
               <TasksTab projectId={projectId} project={project} userRole={userRole} />
             </Card>
+          </TabsContent>
+
+          <TabsContent value="time" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <TimeTrackingTab projectId={projectId} userRole={userRole} />
           </TabsContent>
 
           <TabsContent value="invoices" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -822,24 +832,49 @@ export default function ProjectDetail() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button onClick={saveProject} disabled={saving}>
-                      {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                      Save Changes
-                    </Button>
                   </div>
 
-                  <Separator />
+                  <div className="flex justify-end gap-3 pt-4">
+                    {isEditing && (
+                      <Button variant="outline" onClick={cancelEditing} disabled={saving}>
+                        Cancel
+                      </Button>
+                    )}
 
-                  <div className="pt-4 space-y-4">
-                    <h4 className="font-medium text-destructive">Danger Zone</h4>
-                    <div className="flex flex-col gap-2">
-                      <Button variant="outline" className="justify-start text-destructive hover:text-destructive" onClick={() => setShowTransferModal(true)}>
-                        <Crown className="w-4 h-4 mr-2" /> Transfer Ownership
+                    {!isEditing ? (
+                      <Button onClick={startEditing}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Details
                       </Button>
-                      <Button variant="destructive" className="justify-start" onClick={openDeleteConfirm}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Delete Project
+                    ) : (
+                      <Button onClick={saveProject} disabled={saving}>
+                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        Save Changes
                       </Button>
-                    </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Billing Settings */}
+              <div className="mt-8">
+                <BillingSettings projectId={projectId} />
+              </div>
+
+              {/* Danger Zone */}
+              <Card className="border-destructive/20 bg-destructive/5 mt-8">
+                <CardHeader>
+                  <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                  <CardDescription>Irreversible actions.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <Button variant="outline" className="justify-start text-destructive hover:text-destructive" onClick={() => setShowTransferModal(true)}>
+                      <Crown className="w-4 h-4 mr-2" /> Transfer Ownership
+                    </Button>
+                    <Button variant="destructive" className="justify-start" onClick={openDeleteConfirm}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Delete Project
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -868,157 +903,151 @@ export default function ProjectDetail() {
       />
 
       {/* Delete Confirmation Modal */}
-      {
-        showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-md w-full border-red-500 border-2">
-              <CardHeader>
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-6 h-6 text-red-600 mt-1" />
-                  <div>
-                    <CardTitle className="text-red-600">Delete Project</CardTitle>
-                    <CardDescription>
-                      This action cannot be undone. This will permanently delete the project
-                      <span className="font-semibold text-foreground"> {project?.title} </span>
-                      and all associated data.
-                    </CardDescription>
-                  </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full border-red-500 border-2">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-600 mt-1" />
+                <div>
+                  <CardTitle className="text-red-600">Delete Project</CardTitle>
+                  <CardDescription>
+                    This action cannot be undone. This will permanently delete the project
+                    <span className="font-semibold text-foreground"> {project?.title} </span>
+                    and all associated data.
+                  </CardDescription>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-delete">
-                    Type <span className="font-mono font-bold">{project?.title}</span> to confirm
-                  </Label>
-                  <Input
-                    id="confirm-delete"
-                    value={deleteConfirmInput}
-                    onChange={(e) => setDeleteConfirmInput(e.target.value)}
-                    className="border-red-200 focus-visible:ring-red-500"
-                  />
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={closeDeleteConfirm}>Cancel</Button>
-                  <Button
-                    variant="destructive"
-                    onClick={deleteProjectHandler}
-                    disabled={deleteConfirmInput !== project?.title || deleting}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    {deleting ? 'Moving to trash...' : 'Move to Trash'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )
-      }
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="confirm-delete">
+                  Type <span className="font-mono font-bold">{project?.title}</span> to confirm
+                </Label>
+                <Input
+                  id="confirm-delete"
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  className="border-red-200 focus-visible:ring-red-500"
+                />
+              </div>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={closeDeleteConfirm}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={deleteProjectHandler}
+                  disabled={deleteConfirmInput !== project?.title || deleting}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deleting ? 'Moving to trash...' : 'Move to Trash'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Request Revision Modal */}
-      {
-        showRevisionModal && (
-          <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
-            <DialogContent className="max-w-md bg-card border-border">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <RefreshCw className="w-5 h-5 text-orange-500" />
-                  Request Revision
-                </DialogTitle>
-                <DialogDescription className="text-muted-foreground">
-                  Explain what needs to be changed or improved in this project.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <Textarea
-                  value={revisionNotes}
-                  onChange={(e) => setRevisionNotes(e.target.value)}
-                  placeholder="Describe the changes you'd like to see..."
-                  className="min-h-[120px] bg-background border-border focus:ring-orange-500"
-                  maxLength={500}
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  {revisionNotes.length}/500 characters
-                </p>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setShowRevisionModal(false);
-                    setRevisionNotes('');
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={requestRevision}
-                  disabled={!revisionNotes.trim() || submittingRevision}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  {submittingRevision ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Submit Request
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )
-      }
+      {showRevisionModal && (
+        <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
+          <DialogContent className="max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-orange-500" />
+                Request Revision
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Explain what needs to be changed or improved in this project.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <Textarea
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                placeholder="Describe the changes you'd like to see..."
+                className="min-h-[120px] bg-background border-border focus:ring-orange-500"
+                maxLength={500}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {revisionNotes.length}/500 characters
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowRevisionModal(false);
+                  setRevisionNotes('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={requestRevision}
+                disabled={!revisionNotes.trim() || submittingRevision}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {submittingRevision ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Submit Request
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Approve Final Modal */}
-      {
-        showApproveModal && (
-          <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
-            <DialogContent className="max-w-md bg-card border-border">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
+      {showApproveModal && (
+        <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
+          <DialogContent className="max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                Approve Final Version
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Confirm that you approve the final version of {project?.title}. This will mark the project as completed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="p-4 rounded-lg bg-muted/30 border border-emerald-500/20 space-y-2">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  Approve Final Version
-                </DialogTitle>
-                <DialogDescription className="text-muted-foreground">
-                  Confirm that you approve the final version of {project?.title}. This will mark the project as completed.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <div className="p-4 rounded-lg bg-muted/30 border border-emerald-500/20 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                    <span className="font-medium text-emerald-500">Final Approval</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    By approving, you confirm that all requirements have been met and the project is complete.
-                  </p>
+                  <span className="font-medium text-emerald-500">Final Approval</span>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  By approving, you confirm that all requirements have been met and the project is complete.
+                </p>
               </div>
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowApproveModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={approveFinal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Approve Final
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )
-      }
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setShowApproveModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={approveFinal}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Approve Final
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-    </div >
+    </div>
   );
 }
