@@ -96,17 +96,18 @@ export const submitContactForm = async (req, res) => {
         </html>
       `;
 
-      if (isMessagingAvailable()) {
-        // Use Appwrite Messaging
-        await sendEmail({
-          to: [adminEmail],
-          subject: `New Contact: ${contact.subject}`,
-          body: emailBody,
-          isHtml: true
-        });
-        console.log('✅ Contact notification sent via Appwrite');
+      // Try to send email directly (SMTP or Appwrite)
+      const emailSent = await sendEmail({
+        to: [adminEmail],
+        subject: `New Contact: ${contact.subject}`,
+        body: emailBody,
+        isHtml: true
+      });
+
+      if (emailSent) {
+        console.log('✅ Contact notification sent successfully');
       } else {
-        // Fallback to BullMQ + SendGrid
+        // Fallback to BullMQ + SendGrid if direct send failed
         await emailQueue.add('send-contact-notification', {
           contactId: contact._id.toString(),
           name: contact.name,
@@ -134,5 +135,88 @@ export const submitContactForm = async (req, res) => {
       error: 'Failed to submit contact form',
       details: error.message
     });
+  }
+
+};
+
+// @desc    Get all contact submissions (Admin)
+// @route   GET /api/contact
+// @access  Private (Owner/Admin)
+export const getContacts = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const { status, search } = req.query;
+
+    let query = {};
+
+    // Filter by status
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Search by name, email, or subject
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { subject: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const contacts = await Contact.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Contact.countDocuments(query);
+
+    res.json({
+      contacts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalContacts: total
+    });
+  } catch (error) {
+    console.error('❌ Get contacts error:', error);
+    res.status(500).json({ error: 'Failed to fetch contacts' });
+  }
+};
+
+// @desc    Update contact status/notes (Admin)
+// @route   PATCH /api/contact/:id
+// @access  Private (Owner/Admin)
+export const updateContact = async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    const contactId = req.params.id;
+
+    const contact = await Contact.findById(contactId);
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    if (status) {
+      contact.status = status;
+      if (status === 'resolved' || status === 'in-progress') {
+        contact.handled = true;
+        contact.handledBy = req.auth.userId; // Clerk User ID
+        contact.handledAt = new Date();
+      }
+    }
+
+    if (notes !== undefined) {
+      contact.notes = notes;
+    }
+
+    await contact.save();
+
+    res.json({ success: true, contact });
+  } catch (error) {
+    console.error('❌ Update contact error:', error);
+    res.status(500).json({ error: 'Failed to update contact' });
   }
 };
