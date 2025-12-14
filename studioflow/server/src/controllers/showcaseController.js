@@ -38,11 +38,8 @@ export const publishShowcaseItem = async (req, res) => {
         const { fileId, title, description, tags, comparisonFileId } = req.body;
 
         // 1. Feature Flag
-        /* 
-           TODO: Re-enable when ready
-           const isEnabled = await isFeatureEnabled('SHOWCASE_MODE');
-           if (!isEnabled) return res.status(403).json({ error: 'Showcase mode disabled' });
-        */
+        const isEnabled = await isFeatureEnabled('SHOWCASE_MODE');
+        if (!isEnabled) return res.status(403).json({ error: 'Showcase mode disabled' });
 
         // 2. Fetch File & Ownership
         const file = await ProjectFile.findOne({ fileId, status: 'active' });
