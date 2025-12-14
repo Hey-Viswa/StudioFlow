@@ -203,7 +203,7 @@ export const updateContact = async (req, res) => {
       contact.status = status;
       if (status === 'resolved' || status === 'in-progress') {
         contact.handled = true;
-        contact.handledBy = req.auth.userId; // Clerk User ID
+        contact.handledBy = req.userId; // Clerk User ID
         contact.handledAt = new Date();
       }
     }

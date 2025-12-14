@@ -25,6 +25,7 @@ import messageRoutes from './src/routes/messages.js';
 import uploadRoutes from './src/routes/upload.js';
 import auditRoutes from './src/routes/audit.js';
 import billingRoutes from './src/routes/billing.js';
+import analyticsRoutes from './src/routes/analyticsRoutes.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
@@ -249,6 +250,8 @@ app.use('/api/projects', billingRoutes); // Advanced Billing routes
 app.use('/api/projects', messageRoutes); // Message/chat routes
 app.use('/api/upload', uploadRoutes); // Simple file upload
 app.use('/api/audit', auditRoutes); // Audit/Activity logs
+app.use('/api/analytics', analyticsRoutes); // Analytics Dashboard
+
 
 // Sentry Error Handler moved to setupExpressErrorHandler if needed, but integration handles it.
 // app.use(Sentry.Handlers.errorHandler()); 

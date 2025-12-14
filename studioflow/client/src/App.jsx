@@ -36,6 +36,7 @@ const Features = lazy(() => import('./pages/Features'));
 const ClientPortal = lazy(() => import('./pages/features/ClientPortal'));
 const Invoicing = lazy(() => import('./pages/features/Invoicing'));
 const Compare = lazy(() => import('./pages/Compare'));
+const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 
 function ProtectedRoute({ children }) {
   return (
@@ -134,6 +135,7 @@ function App() {
                     <Route path="subscription" element={<Subscription />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="trash" element={<Trash />} />
+                    <Route path="analytics" element={<AnalyticsDashboard />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />

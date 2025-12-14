@@ -12,7 +12,8 @@ import {
   Trash2,
   Menu,
   ChevronLeft,
-  Bell
+  Bell,
+  BarChart3
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -58,6 +59,7 @@ export default function DashboardLayout() {
     { name: 'Projects', path: '/dashboard/projects', icon: FolderKanban },
     { name: 'Invoices', path: '/dashboard/invoices', icon: Receipt },
     { name: 'Subscription', path: '/dashboard/subscription', icon: CreditCard },
+    { name: 'Analytics', path: '/dashboard/analytics', icon: BarChart3 },
     { name: 'Settings', path: '/dashboard/settings', icon: Settings },
   ];
 

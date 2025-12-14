@@ -64,3 +64,17 @@
 {"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
 {"time":"2025-12-14T11:05:36.799Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
 {"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:19:04.470Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:22:08.911Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:22:08.968Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:25:24.102Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:25:24.236Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:28:48.408Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
+{"time":"2025-12-14T11:28:48.508Z","userId":"user_34ahC8n6ajkmZSIkEgnhz8PUh8k","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":3}
+{"msg":"FILTERED","ownerInvoicesLen":3,"clientInvoicesLen":0}
