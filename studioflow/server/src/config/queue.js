@@ -45,26 +45,45 @@ if (isQueueEnabled) {
     previewQueue = new Bull('preview', redisConfig, previewOpts);
   } else {
     // Bull(name, opts) pattern for object config
-    emailQueue = new Bull('email', {
-      redis: redisConfig,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000
-        },
-        removeOnComplete: true,
-        removeOnFail: false
-      }
-    });
-    previewQueue = new Bull('preview', {
-      redis: redisConfig,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 },
-        removeOnComplete: true,
-      }
-    });
+    // Bull(name, opts) pattern for object config
+    try {
+      emailQueue = new Bull('email', {
+        redis: redisConfig,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000
+          },
+          removeOnComplete: true,
+          removeOnFail: false
+        }
+      });
+      // Prevent unhandled rejections from within Bull's Redis client
+      emailQueue.on('error', (err) => {
+         console.warn(`⚠️ Email Queue Redis Error: ${err.message}`);
+      });
+    } catch (err) {
+      console.error('❌ Failed to create email queue:', err.message);
+      // Fallback
+      isQueueEnabled = false;
+    }
+
+    try {
+      previewQueue = new Bull('preview', {
+        redis: redisConfig,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: true,
+        }
+      });
+      previewQueue.on('error', (err) => {
+         console.warn(`⚠️ Preview Queue Redis Error: ${err.message}`);
+      });
+    } catch (err) {
+      console.error('❌ Failed to create preview queue:', err.message);
+    }
   }
 } else {
   // Already logged why queues are disabled above

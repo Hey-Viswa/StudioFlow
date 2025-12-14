@@ -4,6 +4,15 @@ export const isFeatureEnabled = async (featureName, context = {}) => {
     // 1. Global Kill Switch (Env Var)
     // Logic: Must be explicitly 'true' (case-insensitive) to be enabled globally
     const envVar = process.env[`ENABLE_${featureName}`];
+    
+    if (featureName === 'ANALYTICS_DASHBOARD') {
+        console.log(`[FeatureFlag:DEBUG] Inspecting ENABLE_${featureName}`);
+        console.log(`  Value: '${envVar}'`);
+        console.log(`  Type: ${typeof envVar}`);
+        console.log(`  Length: ${envVar ? envVar.length : 'N/A'}`);
+        console.log(`  Process.env keys starting with ENABLE_:`, Object.keys(process.env).filter(k => k.startsWith('ENABLE_')));
+    }
+
     if (!envVar || String(envVar).trim().toLowerCase() !== 'true') return false;
 
     // 2. Per-Project checks (Granular Rollout)

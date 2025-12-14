@@ -9,6 +9,8 @@ export const getRedisConfig = () => process.env.REDIS_URL
         password: process.env.REDIS_PASSWORD || undefined,
         tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
         retryStrategy: (times) => Math.min(times * 50, 2000),
+        maxRetriesPerRequest: null, // Required by Bull/ioredis to prevent crashing on timeout
+        enableReadyCheck: false
     };
 
 // Singleton instance for general purpose (caching, presence, throttling)
