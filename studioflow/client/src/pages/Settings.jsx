@@ -1,5 +1,29 @@
+import { useState, useEffect } from "react";
 import { useSearchParams } from 'react-router-dom';
-// ... other imports
+import { useAuth, useUser } from '@clerk/clerk-react';
+import { useTheme } from "next-themes";
+import { useThemeColor } from "../components/ThemeColorProvider";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+import { User, Globe, Bell, CreditCard, Shield, Settings as SettingsIcon, Check, Sun, Moon, Laptop, Mail, Calendar, Smartphone, LogOut, Loader2, ChevronRight } from "lucide-react";
+
+import { usePushToken } from "../hooks/usePushToken";
+import BillingDetails from "../components/BillingDetails";
+import BillingHistory from "../components/BillingHistory";
+import SubscriptionAlert from "../components/SubscriptionAlert";
+import { DashboardSkeleton } from "../components/DashboardSkeleton";
 
 export default function Settings() {
   const { user } = useUser();
@@ -354,17 +378,20 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Section */}
-      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-6 pt-6 px-4 md:pb-8 md:pt-10 md:px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <SettingsIcon className="w-6 h-6 text-primary" />
+      <div className="bg-gradient-to-b from-muted/30 to-background border-b border-border/40 pb-8 pt-8 px-4 md:px-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-slate-900/[0.04] bg-[bottom_1px_center] dark:bg-grid-slate-400/[0.05] [mask-image:linear-gradient(0deg,transparent,black)] pointer-events-none" />
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="p-3 bg-primary/10 rounded-xl border border-primary/10 ring-1 ring-inset ring-primary/5">
+              <SettingsIcon className="w-6 h-6 text-primary shadow-sm" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Settings</h1>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Settings</h1>
+              <p className="text-muted-foreground text-sm md:text-base mt-1">
+                Manage your account settings, preferences, and subscription
+              </p>
+            </div>
           </div>
-          <p className="text-muted-foreground text-base md:text-lg ml-14">
-            Manage your account settings, preferences, and subscription
-          </p>
         </div>
       </div>
 
@@ -376,26 +403,36 @@ export default function Settings() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
             {/* Sidebar Navigation */}
-            <div className="md:col-span-3 space-y-2">
-              <div className="sticky top-6 space-y-1">
+            <div className="md:col-span-3">
+              <div className="sticky top-24 space-y-1">
+                <nav className="flex flex-col gap-1">
                 {navItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left ${activeSection === item.id
-                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                      : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'
-                      }`}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group text-left border relative overflow-hidden",
+                      activeSection === item.id
+                        ? "bg-primary/10 text-primary border-primary/20 shadow-sm font-medium"
+                        : "hover:bg-accent/50 text-muted-foreground border-transparent hover:text-foreground"
+                    )}
                   >
-                    <item.icon className={`w-5 h-5 ${activeSection === item.id ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-accent-foreground'}`} />
-                    <div>
-                      <div className="font-medium text-sm">{item.label}</div>
+                    {activeSection === item.id && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-lg" />
+                    )}
+                    <item.icon className={cn("w-5 h-5 shrink-0 transition-colors", 
+                      activeSection === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    )} />
+                    <div className="flex-1">
+                      <div className="font-medium text-sm leading-none mb-1">{item.label}</div>
+                      <div className="text-[10px] opacity-70 leading-none">{item.description}</div>
                     </div>
                     {activeSection === item.id && (
-                      <ChevronRight className="w-4 h-4 ml-auto opacity-50" />
+                      <ChevronRight className="w-4 h-4 ml-auto text-primary/50" />
                     )}
                   </button>
                 ))}
+                </nav>
               </div>
             </div>
 
@@ -404,29 +441,34 @@ export default function Settings() {
               {/* Account Section */}
               {activeSection === 'account' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Card className="border-border/50 shadow-sm">
-                    <CardHeader>
-                      <CardTitle>Profile Information</CardTitle>
+                  <Card className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                      <CardTitle className="text-xl">Profile Information</CardTitle>
                       <CardDescription>Update your photo and personal details</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-8">
-                      <div className="flex items-center gap-6">
-                        <div className="relative group">
-                          <img
-                            src={user?.imageUrl || '/default-avatar.png'}
-                            alt={user?.fullName || 'User'}
-                            className="w-24 h-24 rounded-full border-4 border-background shadow-xl"
-                          />
+                    <CardContent className="space-y-8 pt-6">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                        <div className="relative group shrink-0">
+                          <div className="w-24 h-24 rounded-full border-4 border-background shadow-md overflow-hidden ring-1 ring-border">
+                            <img
+                              src={user?.imageUrl || '/default-avatar.png'}
+                              alt={user?.fullName || 'User'}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                           <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                             <span className="text-xs text-white font-medium">Change</span>
                           </div>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 text-center sm:text-left pt-2">
                           <h3 className="text-xl font-semibold">{user?.fullName || 'User'}</h3>
-                          <p className="text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</p>
-                          <Badge variant="secondary" className="mt-2">
-                            Member since {new Date(user?.createdAt).getFullYear()}
-                          </Badge>
+                          <p className="text-muted-foreground break-all">{user?.primaryEmailAddress?.emailAddress}</p>
+                          <div className="pt-2 flex justify-center sm:justify-start">
+                            <Badge variant="secondary" className="gap-1">
+                              <Calendar className="w-3 h-3" />
+                              Member since {new Date(user?.createdAt).getFullYear()}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
 
@@ -435,22 +477,28 @@ export default function Settings() {
                       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Full Name</Label>
-                          <Input
-                            value={user?.fullName || ''}
-                            disabled
-                            className="bg-muted/50"
-                          />
+                          <div className="relative">
+                            <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              value={user?.fullName || ''}
+                              disabled
+                              className="bg-muted/50 pl-9"
+                            />
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label>Email Address</Label>
                           <div className="flex gap-2">
-                            <Input
-                              value={user?.primaryEmailAddress?.emailAddress || ''}
-                              disabled
-                              className="bg-muted/50"
-                            />
+                            <div className="relative flex-1">
+                              <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                              <Input
+                                value={user?.primaryEmailAddress?.emailAddress || ''}
+                                disabled
+                                className="bg-muted/50 pl-9"
+                              />
+                            </div>
                             {user?.primaryEmailAddress?.verification?.status === 'verified' && (
-                              <div className="flex items-center justify-center w-10 bg-emerald-500/10 rounded-md border border-emerald-500/20">
+                              <div className="flex items-center justify-center w-10 bg-emerald-500/10 rounded-md border border-emerald-500/20 shrink-0" title="Verified">
                                 <Check className="w-4 h-4 text-emerald-500" />
                               </div>
                             )}
@@ -465,53 +513,55 @@ export default function Settings() {
               {/* Appearance Section */}
               {activeSection === 'appearance' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Card className="border-border/50 shadow-sm">
-                    <CardHeader>
-                      <CardTitle>Appearance</CardTitle>
+                  <Card className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                      <CardTitle className="text-xl">Appearance</CardTitle>
                       <CardDescription>Customize the look and feel of StudioFlow</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 pt-6">
                       <div className="space-y-4">
-                        <Label>Theme Mode</Label>
+                        <Label className="text-base">Theme Mode</Label>
                         <div className="grid grid-cols-3 gap-4">
-                          <div
-                            className={`
-                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
-                              ${theme === 'light' ? 'border-primary bg-accent' : 'border-transparent'}
-                            `}
-                            onClick={() => setTheme('light')}
-                          >
-                            <Sun className="w-6 h-6" />
-                            <span className="text-sm font-medium">Light</span>
-                          </div>
-                          <div
-                            className={`
-                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
-                              ${theme === 'dark' ? 'border-primary bg-accent' : 'border-transparent'}
-                            `}
-                            onClick={() => setTheme('dark')}
-                          >
-                            <Moon className="w-6 h-6" />
-                            <span className="text-sm font-medium">Dark</span>
-                          </div>
-                          <div
-                            className={`
-                              cursor-pointer rounded-lg border-2 p-4 hover:bg-accent flex flex-col items-center gap-2
-                              ${theme === 'system' ? 'border-primary bg-accent' : 'border-transparent'}
-                            `}
-                            onClick={() => setTheme('system')}
-                          >
-                            <Laptop className="w-6 h-6" />
-                            <span className="text-sm font-medium">System</span>
-                          </div>
+                          {[
+                            { id: 'light', label: 'Light', icon: Sun },
+                            { id: 'dark', label: 'Dark', icon: Moon },
+                            { id: 'system', label: 'System', icon: Laptop },
+                          ].map(({ id, label, icon: Icon }) => (
+                            <button
+                              key={id}
+                              onClick={() => setTheme(id)}
+                              className={cn(
+                                "relative flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 hover:bg-accent hover:text-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                                theme === id
+                                  ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                                  : "border-border/40 text-muted-foreground hover:border-border"
+                              )}
+                            >
+                              <div className={cn(
+                                "p-3 rounded-full transition-colors",
+                                theme === id ? "bg-primary text-primary-foreground" : "bg-muted"
+                              )}>
+                                <Icon className="w-5 h-5" />
+                              </div>
+                              <span className="font-medium text-sm">{label}</span>
+                              {theme === id && (
+                                <div className="absolute top-3 right-3 text-primary">
+                                  <Check className="w-4 h-4" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
                         </div>
                       </div>
 
                       <Separator />
 
                       <div className="space-y-4">
-                        <Label>Theme Color</Label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Label className="text-base">Theme Color</Label>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Select a primary color for buttons, links, and active elements.
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           {[
                             { name: 'green', label: 'Emerald', color: 'bg-emerald-500' },
                             { name: 'blue', label: 'Blue', color: 'bg-blue-500' },
@@ -521,28 +571,33 @@ export default function Settings() {
                             { name: 'yellow', label: 'Yellow', color: 'bg-yellow-500' },
                             { name: 'red', label: 'Red', color: 'bg-red-500' },
                             { name: 'zinc', label: 'Zinc', color: 'bg-zinc-500' },
-                          ].map((theme) => {
-                            const isActive = themeColor === theme.name;
+                          ].map((item) => {
+                            const isActive = themeColor === item.name;
                             return (
-                              <div
-                                key={theme.name}
+                              <button
+                                key={item.name}
+                                onClick={() => setThemeColor(item.name)}
                                 className={cn(
-                                  "cursor-pointer rounded-lg border-2 p-1 hover:bg-accent transition-all",
-                                  isActive ? "border-primary ring-2 ring-primary ring-offset-2" : "border-transparent"
+                                  "group relative flex flex-col items-start gap-2 p-3 rounded-xl border-2 transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                                  isActive
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                    : "border-border/40 hover:border-border hover:bg-accent/50"
                                 )}
-                                onClick={() => setThemeColor(theme.name)}
                               >
-                                <div className="space-y-2 rounded-md bg-popover p-2">
-                                  <div className={`h-2 w-full rounded-lg ${theme.color}`} />
-                                  <div className="space-y-1">
-                                    <div className={`h-2 w-[80%] rounded-lg ${theme.color}`} style={{ opacity: 0.6 }} />
-                                    <div className={`h-2 w-[60%] rounded-lg ${theme.color}`} style={{ opacity: 0.3 }} />
+                                <div className="w-full h-12 rounded-lg bg-background border border-border/50 shadow-sm p-2 flex flex-col gap-1.5 overflow-hidden relative">
+                                  <div className={cn("h-full w-full rounded md:rounded-md transition-all", item.color)} />
+                                  <div className="flex gap-1 opacity-50">
+                                     <div className={cn("h-1.5 w-full rounded-full", item.color)} />
+                                     <div className={cn("h-1.5 w-2/3 rounded-full", item.color)} />
                                   </div>
                                 </div>
-                                <div className="mt-2 text-center text-sm font-medium">
-                                  {theme.label}
+                                <div className="flex items-center justify-between w-full">
+                                  <span className={cn("text-xs font-medium", isActive ? "text-primary" : "text-muted-foreground")}>
+                                    {item.label}
+                                  </span>
+                                  {isActive && <Check className="w-3 h-3 text-primary" />}
                                 </div>
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
@@ -555,12 +610,12 @@ export default function Settings() {
               {/* Notifications Section */}
               {activeSection === 'notifications' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Card className="border-border/50 shadow-sm">
-                    <CardHeader>
-                      <CardTitle>Notification Preferences</CardTitle>
+                  <Card className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                      <CardTitle className="text-xl">Notification Preferences</CardTitle>
                       <CardDescription>Choose how you want to be notified</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-6 pt-6">
                       <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
@@ -730,12 +785,12 @@ export default function Settings() {
               {/* Security Section */}
               {activeSection === 'security' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Card className="border-border/50 shadow-sm">
-                    <CardHeader>
-                      <CardTitle>Security Settings</CardTitle>
+                  <Card className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                      <CardTitle className="text-xl">Security Settings</CardTitle>
                       <CardDescription>Manage your account security and sessions</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-6 pt-6">
                       <div className="grid gap-4">
                         <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
                           <div className="flex items-center gap-4">
@@ -751,7 +806,7 @@ export default function Settings() {
                             Change
                           </Button>
                         </div>
-
+                        
                         <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
                           <div className="flex items-center gap-4">
                             <div className="p-2 bg-primary/10 rounded-full">

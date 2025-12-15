@@ -31,6 +31,10 @@ import {
   Download
 } from 'lucide-react';
 import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { useThemeColor } from '../components/ThemeColorProvider';
+import { useTheme } from 'next-themes';
+import { cn } from '@/lib/utils';
+import BillingHistory from '../components/BillingHistory';
 
 const STATUS_META = {
   trial: {
@@ -84,19 +88,20 @@ const STATUS_META = {
 };
 
 const TONE_CLASSES = {
-  green: 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/30',
-  amber: 'bg-amber-500/15 text-amber-200 border border-amber-500/30',
-  yellow: 'bg-yellow-500/15 text-yellow-200 border border-yellow-500/30',
-  red: 'bg-rose-500/15 text-rose-200 border border-rose-500/30',
-  blue: 'bg-sky-500/15 text-sky-200 border border-sky-500/30',
-  slate: 'bg-slate-700/40 text-slate-200 border border-slate-600/50'
+  green: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+  amber: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+  yellow: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30',
+  red: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',
+  blue: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30',
+  slate: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
 };
-
-import BillingHistory from '../components/BillingHistory';
 
 export default function Subscription() {
   const navigate = useNavigate();
   const { getToken } = useAuth();
+  const { themeColor } = useThemeColor();
+  const { theme } = useTheme();
+  
   const [loading, setLoading] = useState(true);
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [processingPlan, setProcessingPlan] = useState(null);
@@ -104,18 +109,14 @@ export default function Subscription() {
   const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
-  const getButtonStyles = (planId) => {
-    switch (planId) {
-      case 'pro':
-        return 'bg-gradient-to-r from-emerald-400 to-lime-400 text-slate-900 shadow-lg shadow-emerald-500/25 hover:brightness-95';
-      case 'studio':
-        return 'bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white shadow-lg shadow-fuchsia-500/30 hover:brightness-110';
-      case 'free':
-        return 'bg-slate-800 text-white border border-slate-700 hover:border-white/60 hover:bg-slate-700';
-      default:
-        return 'bg-secondary hover:bg-secondary/80';
+  // Helper to get consistent plan icon
+  const getPlanIcon = (planId) => {
+    switch(planId) {
+        case 'pro': return Zap;
+        case 'studio': return Crown;
+        default: return Rocket;
     }
-  };
+  }
 
   const plans = [
     {
@@ -131,9 +132,8 @@ export default function Subscription() {
         'Basic invoicing',
         'Email support (48h response)'
       ],
-      color: 'slate',
       popular: false,
-      icon: Rocket
+      accent: 'slate'
     },
     {
       id: 'pro',
@@ -150,9 +150,8 @@ export default function Subscription() {
         'Priority support (24h response)',
         'Advanced analytics'
       ],
-      color: 'primary',
       popular: true,
-      icon: Zap
+      accent: 'primary' // Will use theme color
     },
     {
       id: 'studio',
@@ -169,9 +168,8 @@ export default function Subscription() {
         'Custom workflows',
         'Dedicated support (12h response)'
       ],
-      color: 'purple',
       popular: false,
-      icon: Crown
+      accent: 'violet'
     }
   ];
 
@@ -222,7 +220,6 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      // console.log(`🔄 Creating ${planId} subscription...`);
       const response = await fetch(`${apiUrl}/subscriptions/create`, {
         method: 'POST',
         headers: {
@@ -233,7 +230,6 @@ export default function Subscription() {
       });
 
       const data = await response.json();
-      // console.log('📥 Create subscription response:', data);
 
       if (!response.ok) {
         console.error('❌ Subscription creation failed:', data);
@@ -287,7 +283,7 @@ export default function Subscription() {
           }
         },
         theme: {
-          color: '#6366f1'
+          color: '#6366f1' // Could be dynamic based on theme, but branding standard is usually fixed
         },
         modal: {
           ondismiss: function () {
@@ -331,7 +327,6 @@ export default function Subscription() {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-      // console.log(`🔄 Changing plan from ${currentPlan} to ${planId}...`);
       const response = await fetch(`${apiUrl}/subscriptions/change-plan`, {
         method: 'POST',
         headers: {
@@ -342,7 +337,6 @@ export default function Subscription() {
       });
 
       const data = await response.json();
-      // console.log('📥 Change plan response:', data);
 
       if (!response.ok) {
         console.error('❌ Plan change failed:', data);
@@ -436,7 +430,6 @@ export default function Subscription() {
       });
 
       const data = await response.json();
-      console.log('📥 Cancel response:', data);
 
       if (response.ok) {
         toast.success(data.message || 'Subscription cancelled successfully');
@@ -451,174 +444,167 @@ export default function Subscription() {
     }
   };
 
-  const formatDate = (value) => {
-    if (!value) return null;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
-
-  const handleDownloadInvoice = async (invoiceId) => {
-    try {
-      toast.info('Fetching invoice...');
-      const token = await getToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/subscriptions/invoices/${invoiceId}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.url) {
-          window.open(data.url, '_blank');
-        } else {
-          toast.error('Invoice URL not found');
-        }
-      } else {
-        const err = await response.json();
-        toast.error(err.error || 'Failed to fetch invoice');
-      }
-    } catch (error) {
-      console.error('Error downloading invoice:', error);
-      toast.error('Failed to download invoice');
-    }
-  };
-
   if (loading) {
-    return <DashboardSkeleton />;
+     return <DashboardSkeleton />;
   }
 
   const currentPlan = currentSubscription?.subscription?.plan || 'free';
   const subscriptionStatus = currentSubscription?.subscription?.status || 'default';
   const statusMeta = STATUS_META[subscriptionStatus] || STATUS_META.default;
   const badgeClass = TONE_CLASSES[statusMeta.tone] || TONE_CLASSES.slate;
-  const activePlanMeta = plans.find((plan) => plan.id === currentPlan) || plans[0];
-  const trialEndDate = formatDate(currentSubscription?.subscription?.trialEnd);
-  const renewalDate = formatDate(currentSubscription?.subscription?.subscriptionEndDate);
+  
+  const activePlanData = plans.find((plan) => plan.id === currentPlan) || plans[0];
+  const ActiveIcon = getPlanIcon(activePlanData.id);
+
+  const trialEndDate = currentSubscription?.subscription?.trialEnd ? new Date(currentSubscription.subscription.trialEnd).toLocaleDateString() : null;
+  const renewalDate = currentSubscription?.subscription?.subscriptionEndDate ? new Date(currentSubscription.subscription.subscriptionEndDate).toLocaleDateString() : null;
   const primaryDate = subscriptionStatus === 'trial' ? trialEndDate : renewalDate;
   const dateLabel = statusMeta.dateLabel;
-  const autoRenewEnabled = currentSubscription?.subscription?.autoRenew ?? true;
 
   return (
-    <div className="min-h-screen bg-background/50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-b from-background to-background/50 border-b border-border/40 pb-8 pt-8 px-4 md:pb-12 md:pt-10 md:px-8">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-            Choose the Perfect Plan
+    <div className="flex-1 space-y-8 p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+            Subscription & Billing
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Unlock the full potential of StudioFlow with our premium plans.
-            Scale your business with advanced features and priority support.
+          <p className="text-muted-foreground mt-1 max-w-xl">
+             Manage your studio's tier, billing methods, and usage. Scale your capabilities as your team grows.
           </p>
+        </div>
+        <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/contact?subject=Billing%20Support')}>
+                Contact Support
+            </Button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
-        {/* Current Subscription Status */}
-        {currentPlan !== 'free' && (
-          <div className="mb-12">
-            <Card className="border-primary/20 bg-primary/5 p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-32 bg-primary/10 blur-3xl rounded-full -mr-16 -mt-16" />
-              <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/20 rounded-xl">
-                    <activePlanMeta.icon className="w-8 h-8 text-primary" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-xl font-bold">{activePlanMeta.name} Plan</h3>
-                      <Badge className={badgeClass}>{statusMeta.label}</Badge>
-                    </div>
-                    <p className="text-muted-foreground">
-                      {statusMeta.description} • {dateLabel} {primaryDate}
-                    </p>
-                  </div>
-                </div>
-
-                {subscriptionStatus === 'active' && (
-                  <Button
-                    variant="outline"
-                    className="border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                    onClick={handleCancelSubscription}
-                  >
-                    Cancel Subscription
-                  </Button>
-                )}
+      {/* Current Plan Card */}
+      {currentPlan !== 'free' && (
+        <Card className={cn("relative overflow-hidden border-primary/20 bg-gradient-to-br from-card to-primary/5")}>
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                <ActiveIcon className="w-8 h-8 text-primary" />
               </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Pricing Cards */}
-        <div className="grid gap-8 md:grid-cols-3">
-          {plans.map((plan) => {
-            const isCurrentPlan = currentPlan === plan.id;
-            const isActive = subscriptionStatus === 'active';
-            const isReactivation = isCurrentPlan && ['expired', 'cancelled'].includes(subscriptionStatus);
-            const isUpgrade = !isCurrentPlan && (currentPlan === 'free' || plan.id === 'studio');
-            const isDowngrade = !isCurrentPlan && currentPlan === 'studio' && plan.id === 'pro';
-            const isButtonDisabled = plan.id === 'free' || (isCurrentPlan && isActive) || processingPlan === plan.id;
-
-            return (
-              <Card
-                key={plan.id}
-                className={`relative flex flex-col p-8 transition-all duration-300 hover:translate-y-[-4px] ${plan.popular
-                  ? 'border-primary shadow-2xl shadow-primary/10 bg-card'
-                  : 'border-border/50 bg-card/50 hover:bg-card hover:border-border'
-                  }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground px-4 py-1 text-sm shadow-lg shadow-primary/20">
-                      MOST POPULAR
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold">{activePlanData.name} Plan</h2>
+                    <Badge className={cn("text-xs px-2 py-0.5", badgeClass)}>
+                        {statusMeta.label}
                     </Badge>
-                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>{statusMeta.description}</span>
+                    {primaryDate && (
+                      <>
+                        <span className="w-1 h-1 rounded-full bg-border" />
+                        <span className="font-medium text-foreground/80">{dateLabel} {primaryDate}</span>
+                      </>
+                    )}
+                </div>
+              </div>
+            </div>
+
+            {subscriptionStatus === 'active' && (
+              <Button 
+                variant="outline" 
+                className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleCancelSubscription}
+              >
+                Cancel Subscription
+              </Button>
+            )}
+            {subscriptionStatus === 'cancelled' && (
+                <Button onClick={() => handleUpgrade(currentPlan)}>
+                    Reactivate Plan
+                </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Pricing Grid */}
+      <div className="grid gap-6 md:grid-cols-3 lg:gap-8">
+        {plans.map((plan) => {
+          const isCurrentPlan = currentPlan === plan.id;
+          const isActive = subscriptionStatus === 'active';
+          const isReactivation = isCurrentPlan && ['expired', 'cancelled'].includes(subscriptionStatus);
+          const isUpgrade = !isCurrentPlan && (currentPlan === 'free' || plan.id === 'studio');
+          const isDowngrade = !isCurrentPlan && currentPlan === 'studio' && plan.id === 'pro';
+          const isButtonDisabled = plan.id === 'free' || (isCurrentPlan && isActive) || processingPlan === plan.id;
+          const PlanIcon = getPlanIcon(plan.id);
+
+          return (
+            <Card
+              key={plan.id}
+              className={cn(
+                "relative flex flex-col p-6 transition-all duration-300 hover:shadow-lg border-2",
+                plan.popular ? "border-primary shadow-md" : "border-border hover:border-border/80" 
+              )}
+            >
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="bg-primary hover:bg-primary text-primary-foreground shadow-sm">
+                    MOST POPULAR
+                  </Badge>
+                </div>
+              )}
+
+              <div className="mb-6 space-y-4">
+                 <div className={cn(
+                     "w-12 h-12 rounded-lg flex items-center justify-center",
+                     plan.popular ? "bg-primary/10 text-primary" : "bg-secondary text-foreground"
+                 )}>
+                    <PlanIcon className="w-6 h-6" />
+                 </div>
+                 
+                 <div>
+                    <h3 className="text-xl font-bold">{plan.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{plan.subtitle}</p>
+                 </div>
+              </div>
+
+              <div className="mb-6 pb-6 border-b border-border/50">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold">{plan.currency}{plan.price}</span>
+                  <span className="text-muted-foreground text-sm font-medium">{plan.period}</span>
+                </div>
+              </div>
+
+              <ul className="space-y-3 flex-1 mb-8">
+                {plan.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <Check className={cn(
+                        "w-4 h-4 mt-0.5 shrink-0",
+                        plan.popular ? "text-primary" : "text-foreground"
+                    )} />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Button
+                className={cn(
+                    "w-full font-semibold",
+                    plan.id === 'pro' && "shadow-lg shadow-primary/20",
+                    isButtonDisabled && "opacity-80"
                 )}
-
-                <div className="mb-6">
-                  <div className="p-3 w-fit rounded-xl bg-muted/50 mb-4">
-                    <plan.icon className={`w-6 h-6 text-${plan.color}-500`} />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
-                  <p className="text-muted-foreground text-sm h-10">{plan.subtitle}</p>
-                </div>
-
-                <div className="mb-8">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold">{plan.currency}{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
-                  </div>
-                </div>
-
-                <div className="flex-1 mb-8">
-                  <ul className="space-y-4">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm">
-                        <div className={`mt-1 p-0.5 rounded-full bg-${plan.color}-500/20`}>
-                          <Check className={`w-3 h-3 text-${plan.color}-500`} />
-                        </div>
-                        <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <Button
-                  className={`w-full py-6 text-base font-semibold shadow-lg transition-all duration-300 ${getButtonStyles(plan.id)} ${isButtonDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                    }`}
-                  disabled={isButtonDisabled || (isReactivation && new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date())}
-                  onClick={() => {
+                variant={plan.popular ? 'default' : 'secondary'}
+                disabled={isButtonDisabled || (isReactivation && new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date())}
+                onClick={() => {
                     if (currentPlan === 'free' || isReactivation) {
                       handleUpgrade(plan.id);
                     } else {
                       handleChangePlan(plan.id);
                     }
-                  }}
-                >
-                  {processingPlan === plan.id ? (
+                }}
+              >
+                 {processingPlan === plan.id ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
@@ -627,108 +613,80 @@ export default function Subscription() {
                     'Current Plan'
                   ) : isReactivation ? (
                     new Date(currentSubscription?.subscription?.subscriptionEndDate) > new Date()
-                      ? `Access until ${new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString()}`
-                      : 'Reactivate Plan'
+                      ? 'Expires Soon'
+                      : 'Reactivate'
                   ) : isUpgrade ? (
-                    'Upgrade Plan'
+                    'Upgrade'
                   ) : isDowngrade ? (
-                    'Downgrade Plan'
+                    'Downgrade'
                   ) : (
                     'Get Started'
                   )}
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
+              </Button>
+            </Card>
+          );
+        })}
+      </div>
 
-        {/* Billing History */}
-        <div className="mt-12">
-          <h3 className="text-lg font-semibold mb-4">Billing History</h3>
-          <BillingHistory />
-        </div>
-
-        {/* FAQ or Trust Section */}
-        <div className="mt-20 text-center space-y-4">
-          <p className="text-muted-foreground text-sm">
-            Secure payments powered by Razorpay. Cancel anytime.
-          </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <span>Have questions about your bill?</span>
-            <Button
-              variant="link"
-              className="px-0 text-primary h-auto"
-              onClick={() => navigate('/contact?subject=Billing%20Support')}
-            >
-              Contact Billing Support
-            </Button>
-          </div>
-        </div>
-        {/* Features Comparison */}
-        <Card className="bg-card border-slate-800 p-6 mt-12">
-          <h3 className="text-lg font-semibold text-white mb-4">All Plans Include</h3>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                <Zap className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-white">Project Management</p>
-                <p className="text-sm text-slate-400">Organize and track all your projects</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-white">Client Collaboration</p>
-                <p className="text-sm text-slate-400">Work together seamlessly</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+      {/* Billing History Section */}
+      <div className="mt-12 space-y-6">
+        <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-white">Invoicing</p>
-                <p className="text-sm text-slate-400">Professional invoicing tools</p>
-              </div>
-            </div>
-          </div>
-        </Card>
+                Billing History
+            </h3>
+            <p className="text-sm text-muted-foreground">View and download your past invoices</p>
+        </div>
+        <BillingHistory />
+      </div>
 
-        {/* Security Note */}
-        <Card className="bg-slate-900/50 border-slate-800 p-4 mt-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-white">Secure Payment via Razorpay</p>
-              <p className="text-sm text-slate-400">
-                All payments are processed securely through Razorpay. We never store your card details.
-              </p>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 border-t border-border/50">
+          <div className="flex gap-4">
+             <div className="p-2 bg-primary/10 rounded-lg h-fit">
+                <Shield className="w-5 h-5 text-primary" />
+             </div>
+             <div>
+                 <h4 className="font-medium text-sm">Secure Payments</h4>
+                 <p className="text-xs text-muted-foreground mt-1">Processed securely via Razorpay. We do not store card details.</p>
+             </div>
           </div>
-        </Card>
+          <div className="flex gap-4">
+             <div className="p-2 bg-primary/10 rounded-lg h-fit">
+                <Zap className="w-5 h-5 text-primary" />
+             </div>
+             <div>
+                 <h4 className="font-medium text-sm">Instant Activation</h4>
+                 <p className="text-xs text-muted-foreground mt-1">Access pro features immediately after payment confirmation.</p>
+             </div>
+          </div>
+          <div className="flex gap-4">
+             <div className="p-2 bg-primary/10 rounded-lg h-fit">
+                <Users className="w-5 h-5 text-primary" />
+             </div>
+             <div>
+                 <h4 className="font-medium text-sm">Team Scalability</h4>
+                 <p className="text-xs text-muted-foreground mt-1">Add more seats or upgrade your plan anytime as you grow.</p>
+             </div>
+          </div>
       </div>
 
       {/* Cancel Subscription Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Cancel Subscription?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+            <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+            <AlertDialogDescription>
               Your subscription will be cancelled and you will be downgraded to the Free plan.
               Any remaining subscription time will be lost, and premium features will be revoked immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700 font-semibold">
+            <AlertDialogCancel>
               Keep Subscription
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCancelSubscription}
-              className="bg-red-600 text-white hover:bg-red-700 font-semibold shadow-lg"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Cancel Subscription
             </AlertDialogAction>
@@ -738,23 +696,19 @@ export default function Subscription() {
 
       {/* Downgrade Confirmation Dialog */}
       <AlertDialog open={showDowngradeDialog} onOpenChange={setShowDowngradeDialog}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Downgrade Plan?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+            <AlertDialogTitle>Downgrade Plan?</AlertDialogTitle>
+            <AlertDialogDescription>
               You are downgrading to {plans.find(p => p.id === selectedPlan)?.name} plan.
               Your current plan will remain active until{' '}
-              {new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              })}, after which you'll be charged ₹{plans.find(p => p.id === selectedPlan)?.price}/month.
+              {new Date(currentSubscription?.subscription?.subscriptionEndDate).toLocaleDateString()}.
               <br /><br />
               <strong>No payment required now.</strong> You'll keep access to your current plan features until the end of your billing period.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700 font-semibold">
+            <AlertDialogCancel>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -762,7 +716,6 @@ export default function Subscription() {
                 setShowDowngradeDialog(false);
                 executePlanChange(selectedPlan);
               }}
-              className="bg-amber-600 text-white hover:bg-amber-700 font-semibold shadow-lg"
             >
               Confirm Downgrade
             </AlertDialogAction>
@@ -772,4 +725,3 @@ export default function Subscription() {
     </div>
   );
 }
-

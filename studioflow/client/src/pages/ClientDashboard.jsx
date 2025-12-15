@@ -34,6 +34,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { FilePreviewDialog } from '../components/FilePreviewDialog'
 
 export default function ClientDashboard() {
   const navigate = useNavigate()
@@ -67,6 +68,7 @@ export default function ClientDashboard() {
   const [recentFiles, setRecentFiles] = useState([])
   const [recentInvoices, setRecentInvoices] = useState([])
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all')
+  const [previewFile, setPreviewFile] = useState(null)
 
   // Chart data
   const [revenueGranularity, setRevenueGranularity] = useState('monthly')
@@ -693,15 +695,9 @@ export default function ClientDashboard() {
           title="Recent Files"
           maxVisible={6}
           onFileClick={(file) => {
-            if (file.url) {
-              window.open(file.url, '_blank');
-            } else {
-              toast.info(`Opening ${file.filename}...`);
-              // Fallback if no URL (shouldn't happen with new backend logic)
-              navigate(`/dashboard/projects/${file.projectId}?tab=files`);
-            }
+            setPreviewFile(file);
           }}
-          onViewAll={() => navigate('/dashboard/projects')}
+          onViewAll={() => navigate('/dashboard/files')}
         />
 
         {/* Analytics Charts */}
@@ -771,6 +767,13 @@ export default function ClientDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* File Preview Modal */}
+        <FilePreviewDialog 
+          open={!!previewFile} 
+          onOpenChange={(open) => !open && setPreviewFile(null)} 
+          file={previewFile} 
+        />
       </div>
     </div>
   )

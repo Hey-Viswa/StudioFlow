@@ -60,7 +60,29 @@ const NotificationsPage = () => {
 
     // Filter by type
     if (typeFilter !== 'all') {
-      filtered = filtered.filter((n) => n.type === typeFilter || n.category === typeFilter);
+      filtered = filtered.filter((n) => {
+        const type = n.type || '';
+        const category = n.category || '';
+        
+        switch (typeFilter) {
+          case 'project':
+            return type.includes('project') || category === 'project';
+          case 'task':
+            return type.includes('task') || category === 'task';
+          case 'comment':
+            return type.includes('comment') || category === 'comment';
+          case 'file':
+            return type.includes('file') || category === 'file';
+          case 'invoice':
+            return type.includes('invoice') || category === 'invoice';
+          case 'payment':
+            return type.includes('payment') || type.includes('subscription') || category === 'payment';
+          case 'system':
+            return type === 'system' || type === 'info' || type === 'warning' || type === 'error' || category === 'system';
+          default:
+            return type === typeFilter || category === typeFilter;
+        }
+      });
     }
 
     // Filter by search query
@@ -68,8 +90,8 @@ const NotificationsPage = () => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (n) =>
-          n.title.toLowerCase().includes(query) ||
-          n.message.toLowerCase().includes(query)
+          (n.title && n.title.toLowerCase().includes(query)) ||
+          (n.message && n.message.toLowerCase().includes(query))
       );
     }
 

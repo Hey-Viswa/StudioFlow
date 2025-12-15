@@ -41,6 +41,7 @@ const Compare = lazy(() => import('./pages/Compare'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 const ProjectStoryboard = lazy(() => import('./pages/ProjectStoryboard'));
 const ShowcaseLandingPage = lazy(() => import('./pages/ShowcaseLandingPage'));
+const AllFiles = lazy(() => import('./pages/AllFiles'));
 
 function ProtectedRoute({ children }) {
   return (
@@ -139,6 +140,7 @@ function App() {
                     <Route path="subscription" element={<Subscription />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="trash" element={<Trash />} />
+                    <Route path="files" element={<AllFiles />} />
                     <Route path="projects/:projectId/storyboard" element={<ProjectStoryboard />} />
                     <Route path="analytics" element={<AnalyticsDashboard />} />
                   </Route>
