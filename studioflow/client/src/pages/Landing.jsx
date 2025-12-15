@@ -1,7 +1,7 @@
 import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight, Zap, Shield, Globe, Move, Layers, MousePointer2, MessageSquare, FileText, Download, CheckCircle2, ListTodo, Clock } from 'lucide-react';
+import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight, Zap, Shield, Globe, Move, Layers, MousePointer2, MessageSquare, FileText, Download, CheckCircle2, ListTodo, Clock, Eye, Lock, BarChart3, Bell, RefreshCw, History, Layout, Folder, FileVideo } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { gsap } from 'gsap';
@@ -27,6 +27,35 @@ const Landing = () => {
 
   // Flip State
   const [layout, setLayout] = useState('grid');
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [isGatedLocked, setIsGatedLocked] = useState(true);
+  const [activeRole, setActiveRole] = useState('editor');
+  const [notifications, setNotifications] = useState([
+    { id: 1, type: 'client', text: 'Client approved cut', time: 'Just now', color: 'bg-rose-500' },
+    { id: 2, type: 'system', text: 'Upload complete', time: '2m ago', color: 'bg-blue-500' }
+  ]);
+  const [storyboardOrder, setStoryboardOrder] = useState([1, 2, 3, 4]);
+  const [invoiceStatus, setInvoiceStatus] = useState('pending');
+  const [activityLogs, setActivityLogs] = useState([
+     { id: 2, text: 'Invoice #1024 Paid', time: '2h ago', color: 'bg-green-500' }
+  ]);
+  
+  // Feature Mockup States
+  const [activeWorkspaceFile, setActiveWorkspaceFile] = useState(0);
+  const [reviewStatus, setReviewStatus] = useState('pending');
+  const [mainInvoiceStatus, setMainInvoiceStatus] = useState('pending');
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [tasks, setTasks] = useState([
+    { id: 1, text: 'Color Grade', time: 'Tomorrow', done: false, color: 'border-pink-500/50' },
+    { id: 2, text: 'Rough Cut', time: 'Done', done: true, color: 'bg-pink-500' }
+  ]);
+  const [teamCount, setTeamCount] = useState(2);
+  
+  // Workflow Mockup States
+  const [workflowActiveFile, setWorkflowActiveFile] = useState(0);
+  const [workflowVideoPlaying, setWorkflowVideoPlaying] = useState(false);
+  const [workflowPaymentStatus, setWorkflowPaymentStatus] = useState('processing'); // processing, paid
+
   const flipContainerRef = useRef();
 
   useGSAP(() => {
@@ -227,7 +256,7 @@ const Landing = () => {
 
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
               <div className="relative">
@@ -339,10 +368,14 @@ const Landing = () => {
                       <div className="w-6 h-6 rounded bg-primary/20" />
                       <div className="h-4 w-20 bg-primary/10 rounded" />
                     </div>
-                    {[1, 2, 3, 4].map(i => (
-                      <div key={i} className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-muted/20">
-                        <div className="w-4 h-4 rounded bg-muted-foreground/20" />
-                        <div className="h-3 w-16 bg-muted-foreground/10 rounded" />
+                    {[0, 1, 2, 3].map(i => (
+                      <div 
+                        key={i} 
+                        className={`flex items-center gap-3 px-2 py-1.5 rounded cursor-pointer transition-colors ${activeWorkspaceFile === i ? 'bg-primary/10' : 'hover:bg-muted/20'}`}
+                        onClick={() => setActiveWorkspaceFile(i)}
+                      >
+                        <div className={`w-4 h-4 rounded ${activeWorkspaceFile === i ? 'bg-primary/40' : 'bg-muted-foreground/20'}`} />
+                        <div className={`h-3 w-16 rounded ${activeWorkspaceFile === i ? 'bg-primary/20' : 'bg-muted-foreground/10'}`} />
                       </div>
                     ))}
                   </div>
@@ -354,7 +387,7 @@ const Landing = () => {
                         <div className="h-5 sm:h-6 w-24 sm:w-32 bg-foreground/10 rounded mb-2" />
                         <div className="h-3 sm:h-4 w-32 sm:w-48 bg-muted-foreground/10 rounded" />
                       </div>
-                      <div className="h-6 sm:h-8 w-16 sm:w-24 bg-primary rounded shadow-lg shadow-primary/20" />
+                      <div className="h-6 sm:h-8 w-16 sm:w-24 bg-primary rounded shadow-lg shadow-primary/20 hover:scale-105 transition-transform cursor-pointer" />
                     </div>
 
                     {/* Project Grid */}
@@ -410,7 +443,7 @@ const Landing = () => {
       {/* Features Section */}
       <section id="features" ref={featuresRef} className="py-24 relative bg-muted/10">
         <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:16px_16px] opacity-50" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Everything you need to scale</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -428,40 +461,39 @@ const Landing = () => {
                   </div>
                   <h3 className="text-2xl font-bold mb-3 tracking-tight">Centralized Workspace</h3>
                   <p className="text-muted-foreground text-lg">
-                    Keep every cut, asset, and version organized. Never lose a file again with our intuitive folder structure.
+                    Keep every cut, asset, and version organized. Never lose a file again.
                   </p>
                 </div>
 
                 {/* Mockup: File List */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner overflow-hidden w-full">
-                  <div className="p-3 border-b border-border/50 flex items-center gap-2">
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner overflow-hidden w-full h-[200px] flex flex-col">
+                  <div className="p-3 border-b border-border/50 flex items-center gap-2 bg-muted/20">
                     <div className="w-2 h-2 rounded-full bg-red-500/50" />
                     <div className="w-2 h-2 rounded-full bg-yellow-500/50" />
                     <div className="w-2 h-2 rounded-full bg-green-500/50" />
                   </div>
-                  <div className="p-2 space-y-2">
-                    <div className="mockup-file flex items-center justify-between p-2 rounded-lg bg-background/80 border border-border/50">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-4 h-4 text-blue-500" />
-                        <div className="text-xs font-medium">Final_Cut_v2.mp4</div>
+                  <div className="p-3 space-y-2.5 overflow-y-auto custom-scrollbar">
+                    {['Final_Cut_v2.mp4', 'Rough_Cut_v1.mp4', 'B-Roll_Assets.zip'].map((file, i) => (
+                      <div 
+                        key={i}
+                        className={`mockup-file flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${activeWorkspaceFile === i ? 'bg-blue-500/10 border-blue-500/30 shadow-sm scale-[1.02]' : 'bg-card border-border/40 hover:bg-muted/50'}`}
+                        onClick={() => setActiveWorkspaceFile(i)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FileText className={`w-4 h-4 ${activeWorkspaceFile === i ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                          <div className={`text-xs font-medium ${activeWorkspaceFile === i ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{file}</div>
+                        </div>
+                        {i === 0 && <div className="px-2 py-0.5 rounded-full bg-green-500/10 text-[10px] text-green-500 font-medium">Approved</div>}
                       </div>
-                      <div className="px-2 py-0.5 rounded-full bg-green-500/10 text-[10px] text-green-500 font-medium">Approved</div>
-                    </div>
-                    <div className="mockup-file flex items-center justify-between p-2 rounded-lg bg-background/40 border border-border/30">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-4 h-4 text-orange-500" />
-                        <div className="text-xs font-medium">Rough_Cut_v1.mp4</div>
-                      </div>
-                      <div className="px-2 py-0.5 rounded-full bg-orange-500/10 text-[10px] text-orange-500 font-medium">v1</div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Card 2: Streamlined Reviews (Tall) */}
-            <div className="feature-card feature-card-2 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
-              <div className="relative z-10 flex-1">
+            <div className="feature-card feature-card-2 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full min-h-[400px]">
+              <div className="relative z-10 flex-1 flex flex-col h-full">
                 <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-6 text-purple-500">
                   <MessageSquare className="w-6 h-6" />
                 </div>
@@ -471,27 +503,31 @@ const Landing = () => {
                 </p>
 
                 {/* Mockup: Comment/Approve */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4">
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4 mt-auto">
                   <div className="mockup-comment flex items-start gap-3 mb-4">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0" />
-                    <div className="flex-1 bg-background rounded-lg p-3 text-xs border border-border/50 shadow-sm">
+                    <div className="flex-1 bg-background rounded-lg p-3 text-xs border border-border/50 shadow-sm relative">
                       <p className="font-medium mb-1">Client</p>
-                      <p className="text-muted-foreground">Make the logo pop?</p>
+                      <p className="text-muted-foreground">{reviewStatus === 'approved' ? 'Looks perfect! Approved.' : 'Make the logo pop?'}</p>
+                      {reviewStatus === 'approved' && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />}
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500 text-white text-xs font-medium shadow-lg shadow-green-500/20 hover:scale-105 transition-transform cursor-default">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Approve
-                    </div>
+                    <button 
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg transition-all duration-300 ${reviewStatus === 'approved' ? 'bg-green-500 text-white cursor-default' : 'bg-background border border-green-500 text-green-500 hover:bg-green-500 hover:text-white'}`}
+                      onClick={() => setReviewStatus('approved')}
+                    >
+                      {reviewStatus === 'approved' ? <CheckCircle2 className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                      {reviewStatus === 'approved' ? 'Approved' : 'Approve'}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Card 3: Integrated Invoicing (Tall) */}
-            <div className="feature-card feature-card-3 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
-              <div className="relative z-10 flex-1">
+            <div className="feature-card feature-card-3 md:col-span-1 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full min-h-[400px]">
+              <div className="relative z-10 flex-1 flex flex-col h-full">
                 <div className="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center mb-6 text-green-500">
                   <Receipt className="w-6 h-6" />
                 </div>
@@ -501,19 +537,34 @@ const Landing = () => {
                 </p>
 
                 {/* Mockup: Invoice Row */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-2 space-y-2">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50 shadow-sm">
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-2 space-y-2 mt-auto">
+                  <div 
+                    className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50 shadow-sm cursor-pointer hover:border-green-500/50 transition-colors"
+                    onClick={() => setMainInvoiceStatus(mainInvoiceStatus === 'paid' ? 'pending' : 'paid')}
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-xs">₹</div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors duration-500 ${mainInvoiceStatus === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>₹</div>
                       <div>
                         <div className="text-xs font-bold">#1024</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-bold">₹45k</div>
-                      <div className="mockup-invoice-badge text-[10px] text-green-500 font-medium bg-green-500/10 px-2 py-0.5 rounded-full inline-block mt-1">Paid</div>
+                      <div className={`mockup-invoice-badge text-[10px] font-medium px-2 py-0.5 rounded-full inline-block mt-1 transition-colors duration-300 ${mainInvoiceStatus === 'paid' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                        {mainInvoiceStatus === 'paid' ? 'Paid' : 'Pending'}
+                      </div>
                     </div>
                   </div>
+                  {/* Decorative row */}
+                   <div className="flex items-center justify-between p-3 rounded-lg bg-card/60 border border-border/40 opacity-70">
+                     <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-bold text-xs">₹</div>
+                        <div className="text-xs font-bold">#1023</div>
+                     </div>
+                     <div className="text-right">
+                       <div className="text-xs font-bold">₹12k</div>
+                     </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -532,26 +583,51 @@ const Landing = () => {
                 </div>
 
                 {/* Mockup: Download UI */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4 flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
-                      <FileText className="w-5 h-5" />
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-6 flex flex-col justify-center w-full relative overflow-hidden h-full min-h-[160px]">
+                   <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-lg bg-orange-500/10 text-orange-500">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Final_Deliverables.zip</div>
+                        <div className="text-xs text-muted-foreground">2.4 GB • Ready</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium">Final_Deliverables.zip</div>
-                      <div className="text-xs text-muted-foreground">2.4 GB • Ready</div>
-                    </div>
+                    <button 
+                      className={`mockup-download-btn p-3 rounded-full shadow-lg transition-all duration-300 ${downloadProgress === 100 ? 'bg-green-500 text-white hover:scale-105' : 'bg-primary text-primary-foreground hover:scale-110'}`}
+                      onClick={(e) => {
+                         e.stopPropagation();
+                         if (downloadProgress === 100 || downloadProgress > 0) return;
+                         let p = 0;
+                         const int = setInterval(() => {
+                            p += 5;
+                            setDownloadProgress(p);
+                            if (p >= 100) clearInterval(int);
+                         }, 50);
+                      }}
+                    >
+                      {downloadProgress === 100 ? <Check className="w-5 h-5" /> : <Download className="w-5 h-5" />}
+                    </button>
                   </div>
-                  <div className="mockup-download-btn p-2 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:scale-110 transition-transform cursor-pointer">
-                    <Download className="w-4 h-4" />
-                  </div>
+                  {/* Progress Bar */}
+                  {downloadProgress > 0 && (
+                     <div className="w-full h-1.5 bg-muted rounded-full mt-6 overflow-hidden relative">
+                        <div className="absolute top-0 left-0 h-full bg-primary transition-all duration-75" style={{ width: `${downloadProgress}%` }} />
+                     </div>
+                  )}
+                  {downloadProgress === 100 && (
+                      <div className="absolute inset-0 bg-green-500/5 flex items-center justify-center pointer-events-none animate-in fade-in">
+                          <div className="text-green-600 font-bold text-lg bg-background/90 px-5 py-3 rounded-full shadow-lg border border-green-200/50">Downloaded!</div>
+                      </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Card 5: Task Management (Tall) */}
-            <div className="feature-card feature-card-5 md:col-span-2 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full">
-              <div className="relative z-10 flex-1">
+            <div className="feature-card feature-card-5 md:col-span-2 lg:col-span-1 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group overflow-hidden relative flex flex-col justify-between h-full min-h-[400px]">
+              <div className="relative z-10 flex-1 flex flex-col h-full">
                 <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-6 text-pink-500">
                   <ListTodo className="w-6 h-6" />
                 </div>
@@ -561,24 +637,31 @@ const Landing = () => {
                 </p>
 
                 {/* Mockup: Task List */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-2 space-y-2">
-                  <div className="mockup-task flex items-center gap-3 p-2 rounded-lg bg-background border border-border/50">
-                    <div className="w-4 h-4 rounded-full border-2 border-pink-500/50" />
-                    <div className="flex-1">
-                      <div className="text-xs font-medium">Color Grade</div>
-                      <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Tomorrow
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-3 space-y-3 mt-auto">
+                  {tasks.map((task) => (
+                    <div 
+                      key={task.id}
+                      className={`mockup-task flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 cursor-pointer ${task.done ? 'bg-background/30 border-border/40 opacity-50' : 'bg-card border-border/60 hover:border-pink-500/50 shadow-sm'}`}
+                      onClick={() => setTasks(tasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t))}
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${task.done ? 'bg-pink-500 border-pink-500' : 'border-pink-500/50'}`}>
+                         {task.done && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium transition-all ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.text}</div>
+                        {!task.done && (
+                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                             <Clock className="w-3 h-3" /> {task.time}
+                           </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="mockup-task flex items-center gap-3 p-2 rounded-lg bg-background border border-border/50 opacity-60">
-                    <div className="w-4 h-4 rounded-full bg-pink-500 flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs font-medium line-through text-muted-foreground">Rough Cut</div>
-                    </div>
-                  </div>
+                  ))}
+                   <div className="px-2 pt-1 pb-1">
+                      <div className="text-xs text-pink-500 font-medium cursor-pointer hover:underline flex items-center gap-1">
+                        <span>+</span> Add Task
+                      </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -597,26 +680,281 @@ const Landing = () => {
                 </div>
 
                 {/* Mockup: Team Avatars */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4 flex items-center justify-center gap-4 w-full">
-                  <div className="flex -space-x-3">
-                    <div className="mockup-avatar w-10 h-10 rounded-full bg-red-500 border-2 border-background" />
-                    <div className="mockup-avatar w-10 h-10 rounded-full bg-blue-500 border-2 border-background" />
-                    <div className="mockup-avatar w-10 h-10 rounded-full bg-green-500 border-2 border-background flex items-center justify-center text-xs font-bold text-white">+2</div>
+                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4 flex flex-col items-center justify-center gap-4 w-full">
+                  <div 
+                     className="flex -space-x-3 cursor-pointer hover:scale-105 transition-transform"
+                     onClick={() => setTeamCount(c => c + 1)}
+                  >
+                    <div className="mockup-avatar w-10 h-10 rounded-full bg-red-500 border-2 border-background shadow-sm" />
+                    <div className="mockup-avatar w-10 h-10 rounded-full bg-blue-500 border-2 border-background shadow-sm" />
+                    <div className="mockup-avatar w-10 h-10 rounded-full bg-green-500 border-2 border-background shadow-sm" />
+                    <div className="mockup-avatar w-10 h-10 rounded-full bg-indigo-500 border-2 border-background flex items-center justify-center text-xs font-bold text-white shadow-sm hover:overflow-visible overflow-hidden relative group/avatar">
+                        +{teamCount}
+                        <div className="absolute -top-8 bg-indigo-500 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap">
+                           Add Member
+                        </div>
+                    </div>
                   </div>
-                  <div className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-xs font-medium">
-                    Team Active
+                  <div className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-xs font-medium animate-pulse">
+                    {teamCount + 3} Active Members
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Micro Features Grid */}
+
+              {/* Micro Features Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 auto-rows-[320px] mt-6">
+                
+                {/* 1. Instant Previews (Large, Span 2) */}
+                <div 
+                  className="col-span-1 md:col-span-2 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col justify-between cursor-pointer"
+                  onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                >
+                  <div className="p-6 relative z-10 w-full h-full pointer-events-none">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 group-hover:scale-110 transition-transform duration-300">
+                        <Eye className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold text-lg">Instant Previews</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground w-2/3">Play 4K video & audio instantly. No downloads required.</p>
+                  </div>
+                  
+                  {/* Flush Mockup */}
+                  <div className="relative w-full h-[180px] mt-auto bg-background/50 border-t border-border/50 group-hover:bg-background/80 transition-colors duration-500">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className={`w-16 h-16 rounded-full bg-blue-500/90 text-white flex items-center justify-center shadow-2xl transition-all duration-300 z-20 ${isPreviewPlaying ? 'scale-90 bg-blue-600' : 'group-hover:scale-110'}`}>
+                        {isPreviewPlaying ? <div className="w-5 h-5 bg-white rounded-sm" /> : <Play className="w-6 h-6 ml-1 fill-current" />}
+                      </div>
+                      {/* Video Progress Bar Animation */}
+                      <div className="absolute bottom-0 left-0 h-1 bg-blue-500/20 w-full">
+                        <div className={`h-full bg-blue-500 transition-all duration-[2000ms] ease-linear rounded-r-full ${isPreviewPlaying ? 'w-full' : 'w-[30%] group-hover:w-[40%]'}`} />
+                      </div>
+                    </div>
+                    {/* Background Pattern or Frame */}
+                    {!isPreviewPlaying && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent opacity-50" />}
+                    {isPreviewPlaying && <div className="absolute inset-0 bg-blue-950/10 animate-pulse" />}
+                  </div>
+                </div>
+
+                {/* 2. Gated Delivery (Small) */}
+                <div 
+                   className="col-span-1 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                   onClick={() => setIsGatedLocked(!isGatedLocked)}
+                >
+                  <div className="p-6 z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-2">
+                       <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 group-hover:rotate-12 transition-transform duration-300">
+                        <Lock className={`w-5 h-5 transition-all ${!isGatedLocked ? 'text-green-500' : ''}`} />
+                      </div>
+                      <h4 className="font-semibold">Gated Delivery</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Lock files until payment.</p>
+                  </div>
+                  
+                  <div className="flex-1 relative flex items-center justify-center p-4 pt-0">
+                    <div className={`bg-background border px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-lg transition-all duration-300 ${isGatedLocked ? 'border-amber-500/20 text-amber-500' : 'border-green-500/20 text-green-500 scale-110'}`}>
+                      {isGatedLocked ? <Lock className="w-3 h-3 group-hover:animate-pulse" /> : <div className="w-3 h-3 rounded-full bg-green-500" />}
+                      <span>{isGatedLocked ? 'Payment Locked' : 'Unlocked'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Smart Notifications (Small) */}
+                <div 
+                   className="col-span-1 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                   onClick={() => {
+                      const newNotif = { id: Date.now(), type: 'system', text: 'New comment added', time: 'Just now', color: 'bg-indigo-500' };
+                      setNotifications(prev => [newNotif, ...prev].slice(0, 3));
+                   }}
+                >
+                  <div className="p-6 z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500 group-hover:animate-swing origin-top">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold">Smart Alerts</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Filter the noise.</p>
+                  </div>
+                  
+                  <div className="flex-1 relative p-4 pt-0 flex flex-col gap-2 justify-end mask-linear-fade overflow-hidden">
+                    {notifications.map((notif, i) => (
+                      <div key={notif.id} className="bg-background border border-border/50 p-3 rounded-xl shadow-sm animate-in slide-in-from-bottom-2 fade-in duration-300" style={{ opacity: 1 - (i * 0.3), transform: `scale(${1 - (i * 0.05)}) translateY(${i * 4}px)` }}>
+                           <div className="flex items-center gap-2 text-xs">
+                            <div className={`w-2 h-2 rounded-full ${notif.color} animate-pulse`} />
+                            <span className="truncate">{notif.text}</span>
+                           </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Revenue Analytics (Large, Span 2) */}
+                <div className="col-span-1 md:col-span-2 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col order-first lg:order-none cursor-crosshair">
+                   <div className="p-6 relative z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
+                        <BarChart3 className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold text-lg">Revenue Analytics</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Visualize your income and project growth in real-time.</p>
+                  </div>
+
+                  <div className="mt-auto px-6 h-[140px] flex items-end justify-between gap-2 pb-6">
+                    {[30, 50, 40, 70, 50, 90, 80, 40, 60].map((h, i) => (
+                      <div key={i} className="w-full bg-green-500/20 rounded-t-sm h-full relative group-hover:bg-green-500/30 transition-colors overflow-hidden group/bar">
+                        <div 
+                          className="absolute bottom-0 left-0 w-full bg-green-500 rounded-t-sm transition-all duration-[1000ms] ease-out group-hover:opacity-100 group-hover/bar:bg-green-400"
+                          style={{ height: `${h}%`, transitionDelay: `${i * 50}ms` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 5. Role Access (Small) */}
+                <div 
+                   className="col-span-1 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                   onClick={() => setActiveRole(activeRole === 'editor' ? 'viewer' : 'editor')}
+                >
+                  <div className="p-6 z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                       <h4 className="font-semibold">Role Access</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Control who sees what.</p>
+                  </div>
+                  
+                  <div className="flex-1 px-6 pb-6 pt-2 space-y-3">
+                     <div className={`flex items-center justify-between p-2 rounded-lg border transition-colors duration-300 ${activeRole === 'editor' ? 'bg-background border-purple-500 shadow-sm' : 'bg-background/50 border-border/50 opacity-60'}`}>
+                        <div className="flex items-center gap-2">
+                           <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] text-purple-500 font-bold">ED</div>
+                           <span className="text-xs font-medium">Editor</span>
+                        </div>
+                        <div className="w-8 h-4 rounded-full bg-green-500/20 relative">
+                           <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-green-500 shadow-sm transition-all duration-300 ${activeRole === 'editor' ? 'right-0.5' : 'left-0.5 bg-muted-foreground'}`} />
+                        </div>
+                     </div>
+                     <div className={`flex items-center justify-between p-2 rounded-lg border transition-colors duration-300 ${activeRole === 'viewer' ? 'bg-background border-orange-500 shadow-sm' : 'bg-background/50 border-border/50 opacity-60'}`}>
+                        <div className="flex items-center gap-2">
+                           <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-[10px] text-orange-500 font-bold">CL</div>
+                           <span className="text-xs font-medium">Client</span>
+                        </div>
+                        <div className="w-8 h-4 rounded-full bg-green-500/20 relative">
+                           <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-green-500 shadow-sm transition-all duration-300 ${activeRole === 'viewer' ? 'right-0.5' : 'left-0.5 bg-muted-foreground'}`} />
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* 6. Storyboards (Small) */}
+                <div 
+                   className="col-span-1 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                   onClick={() => setStoryboardOrder([...storyboardOrder.sort(() => Math.random() - 0.5)])}
+                >
+                  <div className="p-6 z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 group-hover:rotate-90 transition-transform duration-500">
+                        <Layout className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold">Storyboards</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Plan before you cut.</p>
+                  </div>
+                  
+                  <div className="flex-1 p-4 pt-0 grid grid-cols-2 gap-2 opacity-90 group-hover:opacity-100 transition-opacity duration-300">
+                     {storyboardOrder.slice(0, 4).map((id, i) => (
+                       <div 
+                         key={id} 
+                         className={`rounded-lg border border-border/50 bg-background/50 flex flex-col items-center justify-center p-2 relative overflow-hidden transition-all duration-500 hover:scale-105 ${i === 0 ? 'border-cyan-500/50 bg-cyan-500/5' : ''}`}
+                         style={{ transitionDelay: `${i * 50}ms` }}
+                       >
+                          <div className={`w-full aspect-video rounded-sm mb-1 ${i === 0 ? 'bg-cyan-500/20' : 'bg-muted/50'}`} />
+                          <div className="w-1/2 h-1 bg-muted rounded-full" />
+                       </div>
+                     ))}
+                  </div>
+                </div>
+                
+                 {/* 7. Activity Logs (Large, Span 2) */}
+                <div 
+                   className="col-span-1 md:col-span-2 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                   onClick={() => {
+                      const actions = ['Project Created', 'File Uploaded', 'Comment Added', 'Invoice Paid', 'User Invited'];
+                      const newLog = { id: Date.now(), text: actions[Math.floor(Math.random() * actions.length)], time: 'Just now', color: 'bg-indigo-500' };
+                      setActivityLogs(prev => [newLog, ...prev].slice(0, 3));
+                   }}
+                >
+                  <div className="p-6 z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 rounded-lg bg-slate-500/10 text-slate-500 group-hover:rotate-[360deg] transition-transform duration-700 ease-in-out">
+                         <History className="w-5 h-5" />
+                      </div>
+                       <h4 className="font-semibold text-lg">Activity Logs</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Track every action, update, and deletion in real-time.</p>
+                  </div>
+                   
+                   <div className="mt-auto p-6 pt-0 space-y-3">
+                      {activityLogs.map((log) => (
+                        <div key={log.id} className="flex items-start gap-3 animate-in slide-in-from-left-4 fade-in duration-300">
+                           <div className={`mt-1 w-2 h-2 rounded-full ${log.color} ring-4 ring-white/5`} />
+                           <div className="flex-1">
+                              <div className="text-xs font-medium">{log.text}</div>
+                              <div className="text-[10px] text-muted-foreground">{log.time}</div>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                 {/* 8. Auto-Invoicing (Large, Span 2) */}
+                 <div 
+                    className="col-span-1 md:col-span-2 rounded-3xl border border-border/50 bg-card/50 hover:bg-card/80 transition-all duration-500 group relative overflow-hidden flex flex-col cursor-pointer"
+                    onClick={() => setInvoiceStatus(invoiceStatus === 'pending' ? 'paid' : 'pending')}
+                 >
+                    <div className="flex h-full">
+                       <div className="p-6 flex-1 z-10 pointer-events-none">
+                          <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 group-hover:animate-spin-slow">
+                                <RefreshCw className="w-5 h-5" />
+                              </div>
+                              <h4 className="font-semibold text-lg">Auto-Invoicing</h4>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-4">Recurring billing on autopilot.</p>
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors duration-300 ${invoiceStatus === 'paid' ? 'bg-green-500/10 text-green-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                              {invoiceStatus === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <RefreshCw className="w-3 h-3" />} 
+                              {invoiceStatus === 'paid' ? 'Paid Successfully' : 'Recurring Monthly'}
+                          </div>
+                       </div>
+                       
+                       <div className="w-1/3 bg-background/50 border-l border-border/50 flex flex-col items-center justify-center gap-2 p-4 group-hover:w-1/2 transition-all duration-500 relative overflow-hidden">
+                          {invoiceStatus === 'paid' && <div className="absolute inset-0 bg-green-500/10 animate-pulse" />}
+                          <div className="text-2xl font-bold">₹40k</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Next Payout</div>
+                          <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-2">
+                             <div className={`h-full transition-all duration-1000 ${invoiceStatus === 'paid' ? 'bg-green-500 w-full' : 'bg-indigo-500 w-3/4'}`} />
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+              </div>
+            </div>
       </section>
+
 
       {/* Workflow Showcase Section */}
       <section id="workflow" ref={showcaseRef} className="py-24 bg-muted/30 relative overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] opacity-50" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12">
           <div className="text-center mb-20">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">How StudioFlow Works</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -624,122 +962,156 @@ const Landing = () => {
             </p>
           </div>
 
-          <div className="relative">
-            {/* Connecting Line */}
-            <div className="workflow-line absolute top-1/2 left-0 w-full h-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-green-500/20 -translate-y-1/2 hidden lg:block origin-left rounded-full" />
+          <div className="relative pt-10">
+            {/* Minimal Timeline Workflow */}
+            <div className="relative max-w-4xl mx-auto">
+              {/* Central Timeline Line */}
+              <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-blue-500/50 via-purple-500/50 to-green-500/50 md:-translate-x-1/2" />
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12 relative z-10">
-              {/* Step 1: Organize */}
-              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-blue-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-blue-500/20 relative z-10 group-hover:scale-110 transition-transform">
-                  1
-                </div>
-                <h3 className="text-xl font-bold mb-3">Organize Projects</h3>
-                <p className="text-muted-foreground mb-6">
-                  Create dedicated workspaces for each client. Upload assets, manage versions, and keep everything structured.
-                </p>
-
-                {/* Mockup: Folder Structure */}
-                <div className="bg-background/80 rounded-xl p-4 border border-border/50 shadow-sm">
-                  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border/50">
-                    <FolderKanban className="w-5 h-5 text-blue-500" />
-                    <div className="text-xs font-medium text-muted-foreground">Project Files</div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="workflow-file flex items-center gap-3 p-2 rounded-lg bg-muted/50 border border-border/30">
-                      <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center text-blue-500">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="h-2 w-24 bg-muted-foreground/20 rounded mb-1.5" />
-                        <div className="h-1.5 w-12 bg-muted-foreground/10 rounded" />
-                      </div>
-                    </div>
-                    <div className="workflow-file flex items-center gap-3 p-2 rounded-lg bg-muted/50 border border-border/30 opacity-60">
-                      <div className="w-8 h-8 rounded bg-orange-500/10 flex items-center justify-center text-orange-500">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="h-2 w-20 bg-muted-foreground/20 rounded mb-1.5" />
-                        <div className="h-1.5 w-10 bg-muted-foreground/10 rounded" />
-                      </div>
+              <div className="space-y-24">
+                {/* Step 1: Organize */}
+                <div className="relative grid md:grid-cols-2 gap-8 md:gap-16 items-center group">
+                  <div className="md:text-right order-2 md:order-1 relative z-10 pl-12 md:pl-0">
+                    <h3 className="text-2xl font-bold mb-3 flex items-center md:justify-end gap-3 text-blue-500">
+                      <span className="md:hidden w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold shadow-lg shadow-blue-500/20">1</span>
+                      Organize
+                    </h3>
+                    <p className="text-muted-foreground mb-6 max-w-sm ml-auto">
+                      Dedicated workspaces for every project. Keep files, versions, and assets in perfect order.
+                    </p>
+                    
+                    {/* Minimal Interactive File List */}
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm inline-block w-full max-w-sm text-left">
+                       <div className="p-2 space-y-1">
+                          {['Raw_Footage', 'Audio_Assets', 'Graphics', 'Exports'].map((folder, i) => (
+                             <div 
+                                key={i} 
+                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 ${workflowActiveFile === i ? 'bg-blue-500/10 text-blue-600' : 'hover:bg-muted/50'}`}
+                                onClick={() => setWorkflowActiveFile(i)}
+                             >
+                                <Folder className={`w-4 h-4 ${workflowActiveFile === i ? 'fill-current' : 'text-muted-foreground'}`} />
+                                <span className="text-xs font-medium flex-1">{folder}</span>
+                                {workflowActiveFile === i && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                             </div>
+                          ))}
+                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Step 2: Collaborate */}
-              <div className="workflow-step bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-purple-500/20 relative z-10 group-hover:scale-110 transition-transform">
-                  2
-                </div>
-                <h3 className="text-xl font-bold mb-3">Client Review</h3>
-                <p className="text-muted-foreground mb-6">
-                  Share secure links with clients. They can view progress, leave time-stamped comments, and approve cuts.
-                </p>
-
-                {/* Mockup: Video Player & Comment */}
-                <div className="bg-background/80 rounded-xl p-3 border border-border/50 shadow-sm relative overflow-hidden">
-                  <div className="aspect-video bg-muted rounded-lg mb-3 relative flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5" />
-                    <Play className="w-8 h-8 text-muted-foreground/30 fill-current" />
-
-                    {/* Comment Bubble */}
-                    <div className="workflow-user absolute bottom-2 right-2 bg-background/90 backdrop-blur border border-border/50 p-2 rounded-lg shadow-lg max-w-[120px]">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-4 h-4 rounded-full bg-purple-500" />
-                        <span className="text-[10px] font-bold">Client</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-muted-foreground/20 rounded mb-1" />
-                      <div className="h-1.5 w-2/3 bg-muted-foreground/20 rounded" />
-                    </div>
+                  
+                  {/* Center Dot */}
+                  <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-background border-2 border-blue-500 z-20 shadow-[0_0_0_4px_rgba(59,130,246,0.1)] hidden md:block">
+                     <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-20" />
                   </div>
-                  <div className="flex justify-between items-center px-1">
-                    <div className="h-2 w-24 bg-muted-foreground/20 rounded" />
-                    <div className="flex -space-x-2">
-                      <div className="workflow-user w-6 h-6 rounded-full bg-red-500 border-2 border-background" />
-                      <div className="workflow-user w-6 h-6 rounded-full bg-blue-500 border-2 border-background" />
-                    </div>
+
+                  <div className="order-1 md:order-2 pl-12 md:pl-0 hidden md:block opacity-20 pointer-events-none grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500">
+                     <div className="aspect-[4/3] bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-2xl border border-blue-500/20 p-4 transform rotate-3 group-hover:rotate-0 transition-transform">
+                        <div className="w-full h-full bg-background/50 backdrop-blur rounded-xl border border-white/10 shadow-inner flex items-center justify-center">
+                           <FolderKanban className="w-16 h-16 text-blue-500/50" />
+                        </div>
+                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Step 3: Get Paid */}
-              <div className="workflow-step md:col-span-2 lg:col-span-1 bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-6 sm:p-8 relative group hover:border-green-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white flex items-center justify-center mb-6 text-2xl font-bold shadow-lg shadow-green-500/20 relative z-10 group-hover:scale-110 transition-transform">
-                  3
+                {/* Step 2: Review */}
+                <div className="relative grid md:grid-cols-2 gap-8 md:gap-16 items-center group">
+                   <div className="md:order-1 relative hidden md:block opacity-20 pointer-events-none grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500">
+                      <div className="aspect-[4/3] bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl border border-purple-500/20 p-4 transform -rotate-3 group-hover:rotate-0 transition-transform">
+                        <div className="w-full h-full bg-background/50 backdrop-blur rounded-xl border border-white/10 shadow-inner flex items-center justify-center">
+                           <Play className="w-16 h-16 text-purple-500/50" />
+                        </div>
+                     </div>
+                   </div>
+
+                  {/* Center Dot */}
+                  <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-background border-2 border-purple-500 z-20 shadow-[0_0_0_4px_rgba(168,85,247,0.1)] hidden md:block">
+                     <div className="absolute inset-0 bg-purple-500 rounded-full animate-ping opacity-20" />
+                  </div>
+
+                  <div className="md:order-2 relative z-10 pl-12 md:pl-0">
+                    <h3 className="text-2xl font-bold mb-3 flex items-center gap-3 text-purple-500">
+                      <span className="md:hidden w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-sm font-bold shadow-lg shadow-purple-500/20">2</span>
+                      Review
+                    </h3>
+                    <p className="text-muted-foreground mb-6 max-w-sm">
+                       Share secure links. Clients leave time-stamped comments directly on the video.
+                    </p>
+
+                    {/* Minimal Video Player */}
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm w-full max-w-sm cursor-pointer group/player" onClick={() => setWorkflowVideoPlaying(!workflowVideoPlaying)}>
+                       <div className="aspect-video bg-muted relative flex items-center justify-center overflow-hidden">
+                          {workflowVideoPlaying ? (
+                             <div className="absolute inset-0 bg-black/90 flex items-center justify-center">
+                                <div className="w-full h-0.5 bg-purple-500/30 w-3/4 max-w-[200px] overflow-hidden rounded-full">
+                                   <div className="h-full bg-purple-500 w-1/3 animate-[loading_2s_linear_infinite]" />
+                                </div>
+                             </div>
+                          ) : (
+                             <>
+                                <div className="p-3 rounded-full bg-white/10 backdrop-blur group-hover/player:scale-110 transition-transform">
+                                   <Play className="w-6 h-6 text-white fill-current ml-0.5" />
+                                </div>
+                                <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] text-white">4k • 24fps</div>
+                             </>
+                          )}
+                       </div>
+                       <div className="p-3 bg-card flex items-center gap-3 border-t border-border/50">
+                          <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] text-purple-500 font-bold">CL</div>
+                          <div className="text-xs text-muted-foreground">"Can we cut this 2 frames earlier?"</div>
+                       </div>
+                    </div>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold mb-3">Get Paid</h3>
-                <p className="text-muted-foreground mb-6">
-                  Create professional invoices instantly. Accept payments via Razorpay directly through the portal.
-                </p>
 
-                {/* Mockup: Invoice Card */}
-                <div className="bg-background/80 rounded-xl p-4 border border-border/50 shadow-sm">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Amount Due</div>
-                      <div className="text-lg font-bold">₹45,000</div>
+                {/* Step 3: Pay */}
+                <div className="relative grid md:grid-cols-2 gap-8 md:gap-16 items-center group">
+                  <div className="md:text-right order-2 md:order-1 relative z-10 pl-12 md:pl-0">
+                    <h3 className="text-2xl font-bold mb-3 flex items-center md:justify-end gap-3 text-green-500">
+                      <span className="md:hidden w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold shadow-lg shadow-green-500/20">3</span>
+                      Get Paid
+                    </h3>
+                    <p className="text-muted-foreground mb-6 max-w-sm ml-auto">
+                      Automated invoicing with Razorpay integration. Get paid instantly upon approval.
+                    </p>
+
+                    {/* Minimal Invoice */}
+                    <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm inline-block w-full max-w-sm text-left relative">
+                       <div className="p-4">
+                          <div className="flex justify-between items-center mb-4">
+                             <div className="text-sm font-medium">Invoice #1024</div>
+                             <div className="text-sm font-bold text-green-600">₹45,000</div>
+                          </div>
+                          <button 
+                             className={`w-full py-2 rounded-lg text-xs font-semibold transition-all ${workflowPaymentStatus === 'paid' ? 'bg-green-100 text-green-700 cursor-default' : 'bg-primary text-primary-foreground hover:opacity-90'}`}
+                             onClick={() => setWorkflowPaymentStatus('paid')}
+                             disabled={workflowPaymentStatus === 'paid'}
+                          >
+                             {workflowPaymentStatus === 'paid' ? 'Paid via Razorpay' : 'Pay Now'}
+                          </button>
+                       </div>
+                       {workflowPaymentStatus === 'paid' && (
+                          <div className="absolute inset-0 bg-green-500/5 flex items-center justify-center animate-in fade-in">
+                             <CheckCircle2 className="w-8 h-8 text-green-600 drop-shadow-sm" />
+                          </div>
+                       )}
+                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/50 px-2 py-1 rounded w-fit mt-3 mx-auto md:mx-0">
+                          <Shield className="w-3 h-3" />
+                          <span className="font-medium">Secured by Razorpay</span>
+                       </div>
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs mb-1.5">
-                        <span className="text-muted-foreground">Status</span>
-                        <span className="text-green-500 font-medium">Processing</span>
-                      </div>
-                      <div className="w-full bg-muted/50 rounded-full h-2 overflow-hidden">
-                        <div className="workflow-payment bg-green-500 h-2 rounded-full w-full origin-left" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/50 p-2 rounded-lg">
-                      <Shield className="w-3 h-3" />
-                      Secured by Razorpay
-                    </div>
+
+                  {/* Center Dot */}
+                  <div className="absolute left-4 md:left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-background border-2 border-green-500 z-20 shadow-[0_0_0_4px_rgba(34,197,94,0.1)] hidden md:block">
+                     <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20" />
                   </div>
+
+                  <div className="order-1 md:order-2 pl-12 md:pl-0 hidden md:block opacity-20 pointer-events-none grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500">
+                     <div className="aspect-[4/3] bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-2xl border border-green-500/20 p-4 transform rotate-3 group-hover:rotate-0 transition-transform">
+                        <div className="w-full h-full bg-background/50 backdrop-blur rounded-xl border border-white/10 shadow-inner flex items-center justify-center">
+                           <Receipt className="w-16 h-16 text-green-500/50" />
+                        </div>
+                     </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -751,7 +1123,7 @@ const Landing = () => {
       <section id="pricing" ref={pricingRef} className="py-24 bg-muted/30 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Simple, transparent pricing</h2>
             <p className="text-muted-foreground text-lg">Start for free, upgrade as you grow.</p>
