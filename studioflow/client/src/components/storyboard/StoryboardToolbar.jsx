@@ -1,5 +1,5 @@
 import React from 'react';
-import { Type, Image as ImageIcon, StickyNote, Square } from 'lucide-react';
+import { Type, Image as ImageIcon, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ToolItem = ({ icon: Icon, label, colorClass, onDragStart, type, payload }) => (
@@ -26,7 +26,7 @@ export default function StoryboardToolbar() {
     console.log('Drag Start:', nodeType, payload);
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.setData('application/payload', JSON.stringify(payload));
-    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.effectAllowed = 'all';
   };
 
   return (
@@ -49,13 +49,6 @@ export default function StoryboardToolbar() {
         icon={ImageIcon} 
         label="Image" 
         type="image" 
-        onDragStart={onDragStart}
-      />
-      <div className="w-8 h-px bg-border my-1" />
-       <ToolItem 
-        icon={Square} 
-        label="Card" 
-        type="default" 
         onDragStart={onDragStart}
       />
     </div>

@@ -7,6 +7,7 @@ import {
     deleteScene,
     addSceneComment,
     createEdge, 
+    updateEdge,
     deleteEdge 
 } from '../controllers/storyboardController.js';
 
@@ -21,19 +22,20 @@ const checkFeatureFlag = (req, res, next) => {
 };
 
 router.use(verifyClerk);
-router.use(checkFeatureFlag);
+// router.use(checkFeatureFlag);
 
 // Storyboard
-router.get('/:projectId', getStoryboard);
+router.get('/:projectId/storyboard', getStoryboard);
 
 // Scenes
-router.post('/:projectId/scenes', createScene);
-router.patch('/:projectId/scenes/:sceneId', updateScene);
-router.delete('/:projectId/scenes/:sceneId', deleteScene);
-router.post('/:projectId/scenes/:sceneId/comments', addSceneComment);
+router.post('/:projectId/storyboard/scenes', createScene);
+router.patch('/:projectId/storyboard/scenes/:sceneId', updateScene);
+router.delete('/:projectId/storyboard/scenes/:sceneId', deleteScene);
+router.post('/:projectId/storyboard/scenes/:sceneId/comments', addSceneComment);
 
 // Edges
-router.post('/:projectId/edges', createEdge);
-router.delete('/:projectId/edges/:edgeId', deleteEdge);
+router.post('/:projectId/storyboard/edges', createEdge);
+router.patch('/:projectId/storyboard/edges/:edgeId', updateEdge);
+router.delete('/:projectId/storyboard/edges/:edgeId', deleteEdge);
 
 export default router;

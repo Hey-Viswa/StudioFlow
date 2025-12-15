@@ -94,7 +94,7 @@ export async function confirmUpload(projectId, confirmData, token) {
  * Complete upload flow: sign → upload → confirm
  */
 export async function uploadFile(projectId, file, tokenOrGetToken, options = {}) {
-  const { onProgress, onStateChange, isNewVersion, baseFileId, description, tags, signal } = options;
+  const { onProgress, onStateChange, isNewVersion, baseFileId, description, tags, signal, category } = options;
 
   // Helper to get token
   const resolveToken = async () => {
@@ -113,6 +113,7 @@ export async function uploadFile(projectId, file, tokenOrGetToken, options = {})
         size: file.size,
         isNewVersion,
         baseFileId,
+        category, // Pass category here
       },
       token
     );
@@ -163,8 +164,12 @@ export async function uploadFile(projectId, file, tokenOrGetToken, options = {})
  * Fetch all files for a project
  */
 export async function getProjectFiles(projectId, token, options = {}) {
-  const { status = 'active', includeArchived = false } = options;
+  const { status = 'active', includeArchived = false, category } = options;
   const params = new URLSearchParams({ status, includeArchived: includeArchived.toString() });
+  
+  if (category) {
+      params.append('category', category);
+  }
 
   const response = await fetch(`${API_BASE}/projects/${projectId}/files?${params}`, {
     headers: {

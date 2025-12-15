@@ -51,12 +51,16 @@ async function getProjectRole(projectId, userId) {
 export const signUpload = async (req, res) => {
   try {
     const { id: projectId } = req.params;
-    const { filename, contentType, size, isNewVersion, baseFileId } = req.body;
+    const { filename, contentType, size, isNewVersion, baseFileId, category = 'deliverable' } = req.body;
     const userId = req.userId;
 
     // Validation
     if (!filename || !contentType || !size) {
       return res.status(400).json({ error: 'Missing required fields: filename, contentType, size' });
+    }
+
+    if (!['deliverable', 'asset'].includes(category)) {
+        return res.status(400).json({ error: 'Invalid category. Must be "deliverable" or "asset"' });
     }
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -155,20 +159,22 @@ export const signUpload = async (req, res) => {
 
     // Auto-detect if file with same name exists (Implicit Versioning)
     if (!isNewVersion && !baseFileId) {
-      console.log(`🔍 Checking for existing versions of "${filename}" in project ${projectId}`);
+      // console.log(`🔍 Checking for existing versions of "${filename}" in project ${projectId}`);
+      // Only version against same category
       const existingFile = await ProjectFile.findOne({
         projectId,
         originalFilename: filename,
+        category, 
         status: { $ne: 'deleted' }
       }).sort({ version: -1 });
 
-      console.log(`🔍 Version Check Result:`, existingFile ? `Found Ver ${existingFile.version} (ID: ${existingFile._id})` : 'New File (Ver 1)');
+      // console.log(`🔍 Version Check Result:`, existingFile ? `Found Ver ${existingFile.version} (ID: ${existingFile._id})` : 'New File (Ver 1)');
 
       if (existingFile) {
         baseFileIdRef = existingFile.baseFileId || existingFile._id;
         // Always increment the version found
         version = existingFile.version + 1;
-        console.log(`♻️ Auto-detected duplicate filename. Creating Version ${version} of ${baseFileIdRef}`);
+        // console.log(`♻️ Auto-detected duplicate filename. Creating Version ${version} of ${baseFileIdRef}`);
       }
     } else if (isNewVersion && baseFileId) {
       version = await ProjectFile.getNextVersion(projectId, baseFileId);
@@ -199,6 +205,7 @@ export const signUpload = async (req, res) => {
       bucket,
       status: 'uploading',
       isFinal: true, // Mark as potential head version
+      category,
     });
 
     res.status(200).json({
@@ -474,7 +481,7 @@ export const getProjectFiles = async (req, res) => {
   try {
     const { id: projectId } = req.params;
     const userId = req.userId;
-    const { status = 'active', includeArchived = false } = req.query;
+    const { status = 'active', includeArchived = false, category } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ error: 'Invalid project ID' });
@@ -494,6 +501,11 @@ export const getProjectFiles = async (req, res) => {
     const query = { projectId };
     if (status) {
       query.status = includeArchived === 'true' ? { $in: ['active', 'archived'] } : status;
+    }
+    
+    // Filter by category if provided
+    if (category) {
+        query.category = category;
     }
 
     // For clients, only return files shared with them

@@ -1,12 +1,30 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { Handle, Position, NodeResizer } from 'reactflow';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { FileIcon, ImageIcon, VideoIcon, StickyNote } from 'lucide-react';
+import { FileIcon, ImageIcon, VideoIcon } from 'lucide-react';
 
-const SceneNode = ({ data, selected }) => {
-  const { type = 'note', label, content, mediaUrl, fileId, metadata, style } = data;
-  const isResizable = selected && (type === 'image' || type === 'video' || type === 'note');
+const SceneNode = ({ id, data, selected }) => {
+  const { type = 'note', label, content, metadata, updateNode, isLocked } = data;
+  const mediaUrl = data.mediaUrl || metadata?.mediaUrl;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(content || label || '');
+  
+  useEffect(() => {
+      setEditValue(content || label || '');
+  }, [content, label]);
+
+  const handleDoubleClick = () => {
+      if (isLocked) return;
+      if (updateNode) setIsEditing(true);
+  };
+
+  const handleBlur = () => {
+      setIsEditing(false);
+      if (updateNode && editValue !== (content || label)) {
+          updateNode(id, { content: editValue });
+      }
+  };
 
   const renderContent = () => {
     switch (type) {
@@ -44,47 +62,105 @@ const SceneNode = ({ data, selected }) => {
         );
       case 'note':
       default:
+        // Handle "scene" type as Text Block (transparent) or default Note
+        const isTextBlock = type === 'scene' || (metadata && metadata.type === 'text');
+        
         return (
-          <div className="p-4 h-full text-xl text-slate-800 whitespace-pre-wrap leading-tight" style={{ fontFamily: '"Patrick Hand", cursive' }}>
-            {content || label || 'New Note'}
+          <div 
+            className="h-full w-full"
+            onDoubleClick={handleDoubleClick}
+          >
+            {isEditing ? (
+                <textarea
+                    autoFocus
+                    className="w-full h-full bg-transparent resize-none outline-none p-4 text-xl text-slate-800 leading-tight font-patrick-hand"
+                    style={{ fontFamily: '"Patrick Hand", cursive' }}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={handleBlur}
+                    onKeyDown={(e) => { 
+                        e.stopPropagation(); 
+                        if (e.key === 'Escape') {
+                            setIsEditing(false);
+                            setEditValue(content || label || ''); // Revert
+                        }
+                    }} 
+                />
+            ) : (
+                <div className="p-4 h-full text-xl text-slate-800 whitespace-pre-wrap leading-tight" style={{ fontFamily: '"Patrick Hand", cursive' }}>
+                    {content || label || 'New Note'}
+                </div>
+            )}
           </div>
         );
     }
   };
 
   return (
-    <>
+    <> 
         <NodeResizer 
-            isVisible={selected} 
+            isVisible={selected && !isLocked} 
             minWidth={160} 
             minHeight={100}
             lineClassName="border-primary" 
             handleClassName="h-3 w-3 bg-white border-2 border-primary rounded"
+            onResizeEnd={(_, params) => {
+                if (updateNode) {
+                    updateNode(id, { dimensions: { width: params.width, height: params.height } });
+                }
+            }}
         />
-        <Card className={cn(
-            "shadow-md bg-white border-2 border-transparent transition-all h-full",
-            selected && "border-primary shadow-xl",
-            type === 'note' && "bg-yellow-50 border-yellow-200"
+        {isLocked && (
+            <div className="absolute -top-3 -right-3 z-50 bg-white border border-slate-200 rounded-full p-1 shadow-sm text-slate-400">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </div>
         )}
-        style={{ width: '100%', height: '100%' }} // ReactFlow controls dimensions via style prop on wrapper, so we fill it
+        <div className={cn(
+            "relative w-full h-full transition-all rounded-md group",
+            (type === 'default' || type === 'file') && "bg-white border-2 border-slate-200 shadow-sm",
+            type === 'note' && "bg-yellow-50 border-2 border-yellow-200 shadow-sm",
+            (type === 'image' || type === 'video') && "border-2 border-transparent",
+            (type === 'scene') && "bg-transparent border-2 border-transparent",
+            selected && "border-primary shadow-[0_0_0_2px_rgba(37,99,235,0.2)]",
+            isLocked && "opacity-90 grayscale-[0.2]"
+        )}
+        style={{ width: '100%', height: '100%' }}
         >
-        <Handle type="target" position={Position.Top} className="w-3 h-3 bg-slate-400" />
+        <Handle type="target" position={Position.Top} className={cn("w-4 h-4 -top-2 bg-slate-400 opacity-0 group-hover:opacity-100 transition-opacity z-50", selected && "opacity-100")} />
         
-        {(type !== 'note' && type !== 'image' && type !== 'video') && (
-            <CardHeader className="p-3 pb-0">
-                <CardTitle className="text-sm font-medium line-clamp-1 flex items-center gap-2">
-                    {type === 'file' && <FileIcon size={14} />}
-                    {label}
-                </CardTitle>
-            </CardHeader>
+        {(type === 'file' || type === 'default') && (
+            <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+                 {type === 'file' && <FileIcon size={14} className="text-slate-500" />}
+                 <div onDoubleClick={handleDoubleClick} className="flex-1 cursor-text font-medium text-sm text-slate-700 truncate">
+                        {isEditing ? (
+                             <input 
+                                autoFocus
+                                className="w-full bg-transparent outline-none border-b border-primary/50"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={handleBlur}
+                                onKeyDown={(e) => { 
+                                    e.stopPropagation(); 
+                                    if(e.key === 'Enter') handleBlur(); 
+                                    if (e.key === 'Escape') {
+                                        setIsEditing(false);
+                                        setEditValue(label || ''); // Revert
+                                    }
+                                }} 
+                             />
+                        ) : (
+                            label
+                        )}
+                </div>
+            </div>
         )}
 
-        <CardContent className={cn("p-3 h-full", (type === 'image' || type === 'video') && "p-0")}>
+        <div className={cn("w-full h-full", (type === 'file' || type === 'default') ? "p-3" : "p-0")}>
             {renderContent()}
-        </CardContent>
+        </div>
         
-        <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-slate-400" />
-        </Card>
+        <Handle type="source" position={Position.Bottom} className={cn("w-4 h-4 -bottom-2 bg-slate-400 opacity-0 group-hover:opacity-100 transition-opacity z-50", selected && "opacity-100")} />
+        </div>
     </>
   );
 };

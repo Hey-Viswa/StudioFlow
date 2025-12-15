@@ -142,6 +142,13 @@ const projectFileSchema = new mongoose.Schema({
     default: '',
   },
 
+  category: {
+    type: String,
+    enum: ['deliverable', 'asset'],
+    default: 'deliverable',
+    index: true,
+  },
+
   tags: [{
     type: String,
   }],

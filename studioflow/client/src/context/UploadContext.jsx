@@ -42,6 +42,7 @@ export const UploadProvider = ({ children }) => {
 
             await uploadFile(projectId, file, getToken, {
                 signal: controller.signal,
+                ...callbacks, // Spread callbacks/options to pass category, isNewVersion, etc.
                 onProgress: (percent) => {
                     setUploads((prev) =>
                         prev.map((u) =>

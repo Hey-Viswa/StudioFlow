@@ -18,13 +18,15 @@ export function FileUploadDropzone({
   onUploadComplete,
   onUploadError,
   maxSize = 500 * 1024 * 1024, // 500MB default
-  accept,
-  multiple = true,
+  category, // Accept category prop
+  tabs = ['all', 'image', 'video', 'audio', 'document'], // Default tabs
   className,
+  multiple = false,
+  accept
 }) {
   const { uploads: allUploads, startUpload, cancelUpload, retryUpload, removeUpload } = useUploads();
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(tabs[0]); // Default to first tab
   const fileInputRef = useRef(null);
 
   // Filter uploads for this project
@@ -96,18 +98,19 @@ export function FileUploadDropzone({
     for (const file of validFiles) {
       startUpload(file, projectId, {
         onComplete: onUploadComplete,
-        onError: onUploadError
+        onError: onUploadError,
+        category, // Pass category
       });
     }
   };
 
-
-
   return (
     <div className={cn('space-y-4', className)}>
-      {/* Filter Tabs */}
-      <div className="flex gap-2 pb-2 overflow-x-auto">
-        {['all', 'image', 'video', 'audio', 'document'].map((type) => (
+      {/* Filter Tabs - Only show if more than 1 option (meaning 'all' is not the only one, or if we want to show single tab?) */}
+      {/* Actually we probably want tabs to filter input types. */}
+      {tabs.length > 0 && (
+        <div className="flex gap-2 pb-2 overflow-x-auto">
+          {tabs.map((type) => (
           <Button
             key={type}
             variant={activeTab === type ? 'default' : 'outline'}
@@ -120,6 +123,7 @@ export function FileUploadDropzone({
           </Button>
         ))}
       </div>
+      )}
 
       {/* Drop Zone */}
       <Card

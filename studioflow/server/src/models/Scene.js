@@ -9,7 +9,7 @@ const SceneSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['note', 'image', 'file_ref', 'container', 'shape'],
+        enum: ['note', 'image', 'video', 'file', 'file_ref', 'container', 'shape', 'default', 'scene', 'text', 'arrow-annotation'],
         required: true,
         default: 'note'
     },
@@ -22,6 +22,19 @@ const SceneSchema = new mongoose.Schema({
     dimensions: {
         width: { type: Number, default: 200 },
         height: { type: Number, default: 150 }
+    },
+    zIndex: {
+        type: Number,
+        default: 1
+    },
+    isLocked: {
+        type: Boolean,
+        default: false
+    },
+    groupId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Scene',
+        default: null
     },
     // Content depends on type
     content: {
@@ -37,7 +50,10 @@ const SceneSchema = new mongoose.Schema({
     metadata: {
         color: { type: String, default: '#ffffff' },
         label: { type: String, default: '' },
-        tags: [String]
+        tags: [String],
+        mediaUrl: String,
+        mimeType: String,
+        extension: String
     },
     createdBy: {
         type: String, // Clerk ID
