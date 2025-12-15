@@ -465,27 +465,77 @@ const Landing = () => {
                   </p>
                 </div>
 
-                {/* Mockup: File List */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner overflow-hidden w-full h-[200px] flex flex-col">
-                  <div className="p-3 border-b border-border/50 flex items-center gap-2 bg-muted/20">
-                    <div className="w-2 h-2 rounded-full bg-red-500/50" />
-                    <div className="w-2 h-2 rounded-full bg-yellow-500/50" />
-                    <div className="w-2 h-2 rounded-full bg-green-500/50" />
+            {/* Card 1: Centralized Workspace (Wide) */}
+            <div className="feature-card feature-card-1 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
+              <div className="grid md:grid-cols-2 gap-8 h-full items-center">
+                <div className="relative z-10">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 text-blue-500">
+                    <FolderKanban className="w-6 h-6" />
                   </div>
-                  <div className="p-3 space-y-2.5 overflow-y-auto custom-scrollbar">
-                    {['Final_Cut_v2.mp4', 'Rough_Cut_v1.mp4', 'B-Roll_Assets.zip'].map((file, i) => (
-                      <div 
-                        key={i}
-                        className={`mockup-file flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${activeWorkspaceFile === i ? 'bg-blue-500/10 border-blue-500/30 shadow-sm scale-[1.02]' : 'bg-card border-border/40 hover:bg-muted/50'}`}
-                        onClick={() => setActiveWorkspaceFile(i)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className={`w-4 h-4 ${activeWorkspaceFile === i ? 'text-blue-500' : 'text-muted-foreground'}`} />
-                          <div className={`text-xs font-medium ${activeWorkspaceFile === i ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{file}</div>
-                        </div>
-                        {i === 0 && <div className="px-2 py-0.5 rounded-full bg-green-500/10 text-[10px] text-green-500 font-medium">Approved</div>}
-                      </div>
-                    ))}
+                  <h3 className="text-2xl font-bold mb-3 tracking-tight">Centralized Workspace</h3>
+                  <p className="text-muted-foreground text-lg">
+                    Keep every cut, asset, and version organized. Never lose a file again.
+                  </p>
+                </div>
+
+                {/* Mockup: File Manager UI */}
+                <div className="bg-background/80 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner overflow-hidden w-full min-h-[240px] flex flex-col relative">
+                  {/* Mock Window Header */}
+                  <div className="p-3 border-b border-border/50 flex items-center justify-between bg-muted/30">
+                     <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+                     </div>
+                     <div className="text-[10px] items-center gap-1.5 flex text-muted-foreground bg-background/50 px-2 py-0.5 rounded-md border border-border/20 shadow-sm">
+                        <Folder className="w-3 h-3" />
+                        <span>/ Project / Assets</span>
+                     </div>
+                     <div className="w-4" /> {/* Spacer */}
+                  </div>
+
+                  <div className="flex flex-1 overflow-hidden">
+                     {/* Mock Sidebar */}
+                     <div className="w-16 border-r border-border/50 bg-muted/10 hidden sm:flex flex-col items-center py-4 gap-4">
+                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500"><Folder className="w-4 h-4" /></div>
+                        <div className="p-2 rounded-lg text-muted-foreground hover:bg-muted"><Clock className="w-4 h-4" /></div>
+                        <div className="p-2 rounded-lg text-muted-foreground hover:bg-muted"><Users className="w-4 h-4" /></div>
+                     </div>
+
+                     {/* Main Content */}
+                     <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
+                        {[
+                           { name: 'Final_Cut_v2.mp4', size: '2.4 GB', date: 'Just now', type: 'video' },
+                           { name: 'Rough_Cut_v1.mp4', size: '1.8 GB', date: '2h ago', type: 'video' },
+                           { name: 'B-Roll_Assets.zip', size: '450 MB', date: 'Yesterday', type: 'zip' },
+                           { name: 'Audio_Mix_Master.wav', size: '120 MB', date: '2d ago', type: 'audio' },
+                        ].map((file, i) => (
+                           <div 
+                              key={i}
+                              className={`group/file flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${activeWorkspaceFile === i ? 'bg-blue-500/5 border-blue-500/30 shadow-sm' : 'bg-card/50 border-border/40 hover:bg-muted/50 hover:border-border/80'}`}
+                              onClick={() => setActiveWorkspaceFile(i)}
+                           >
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                 <div className={`p-2 rounded-lg ${activeWorkspaceFile === i ? 'bg-blue-500/20 text-blue-600' : 'bg-muted text-muted-foreground'}`}>
+                                    {file.type === 'video' ? <FileVideo className="w-4 h-4" /> : file.type === 'zip' ? <Folder className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                                 </div>
+                                 <div className="min-w-0">
+                                    <div className={`text-xs font-medium truncate ${activeWorkspaceFile === i ? 'text-blue-600' : 'text-foreground'}`}>{file.name}</div>
+                                    <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                       <span>{file.size}</span>
+                                       <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />
+                                       <span>{file.date}</span>
+                                    </div>
+                                 </div>
+                              </div>
+                              {activeWorkspaceFile === i && (
+                                 <div className="px-2 py-0.5 rounded-full bg-blue-500/10 text-[10px] text-blue-600 font-medium whitespace-nowrap animate-in fade-in zoom-in duration-300">
+                                    Selected
+                                 </div>
+                              )}
+                           </div>
+                        ))}
+                     </div>
                   </div>
                 </div>
               </div>
@@ -507,7 +557,10 @@ const Landing = () => {
                   <div className="mockup-comment flex items-start gap-3 mb-4">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0" />
                     <div className="flex-1 bg-background rounded-lg p-3 text-xs border border-border/50 shadow-sm relative">
-                      <p className="font-medium mb-1">Client</p>
+                      <div className="flex justify-between items-start mb-1">
+                         <p className="font-medium">Client</p>
+                         <span className="text-[9px] text-muted-foreground">10:42 AM</span>
+                      </div>
                       <p className="text-muted-foreground">{reviewStatus === 'approved' ? 'Looks perfect! Approved.' : 'Make the logo pop?'}</p>
                       {reviewStatus === 'approved' && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />}
                     </div>
@@ -636,30 +689,46 @@ const Landing = () => {
                   Stay on track. Assign tasks and monitor project progress.
                 </p>
 
-                {/* Mockup: Task List */}
-                <div className="bg-background/50 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-3 space-y-3 mt-auto">
+                {/* Mockup: Interactive Task List */}
+                <div className="bg-background/80 rounded-xl border border-border/50 backdrop-blur-sm shadow-inner p-4 flex flex-col gap-3 mt-auto">
                   {tasks.map((task) => (
                     <div 
                       key={task.id}
-                      className={`mockup-task flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 cursor-pointer ${task.done ? 'bg-background/30 border-border/40 opacity-50' : 'bg-card border-border/60 hover:border-pink-500/50 shadow-sm'}`}
+                      className={`group/task flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 cursor-pointer ${task.done ? 'bg-muted/30 border-border/40' : 'bg-card border-border/60 hover:border-pink-500/50 hover:shadow-sm'}`}
                       onClick={() => setTasks(tasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t))}
                     >
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${task.done ? 'bg-pink-500 border-pink-500' : 'border-pink-500/50'}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${task.done ? 'bg-pink-500 border-pink-500' : 'border-pink-500/50 bg-background'}`}>
                          {task.done && <Check className="w-3.5 h-3.5 text-white" />}
                       </div>
-                      <div className="flex-1">
-                        <div className={`text-sm font-medium transition-all ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.text}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium transition-all truncate ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.text}</div>
                         {!task.done && (
-                           <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                             <Clock className="w-3 h-3" /> {task.time}
+                           <div className="flex items-center gap-2 mt-1">
+                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${task.id === 1 ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                {task.id === 1 ? 'High' : 'Medium'}
+                             </span>
+                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                               <Clock className="w-3 h-3" /> {task.time}
+                             </div>
                            </div>
                         )}
                       </div>
+                      <div className={`w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-[8px] text-white flex items-center justify-center border-2 border-background shadow-sm ${task.done ? 'opacity-50' : ''}`}>
+                         {task.id === 1 ? 'JD' : 'AL'}
+                      </div>
                     </div>
                   ))}
-                   <div className="px-2 pt-1 pb-1">
-                      <div className="text-xs text-pink-500 font-medium cursor-pointer hover:underline flex items-center gap-1">
-                        <span>+</span> Add Task
+                  
+                  {/* Simulated Input */}
+                   <div className="relative mt-2">
+                      <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                         <span className="text-muted-foreground text-md">+</span>
+                      </div>
+                      <div className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-dashed border-border text-muted-foreground bg-muted/20 hover:bg-muted/40 transition-colors cursor-text">
+                         Add a new task...
+                      </div>
+                      <div className="absolute inset-y-0 right-2 flex items-center">
+                         <div className="w-5 h-5 rounded bg-muted flex items-center justify-center text-[10px] text-muted-foreground border border-border">↵</div>
                       </div>
                    </div>
                 </div>
