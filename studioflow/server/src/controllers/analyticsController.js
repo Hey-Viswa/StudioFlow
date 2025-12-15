@@ -9,7 +9,8 @@ import { getRedisClient } from '../config/redis.js';
 export const getOverview = async (req, res) => {
     try {
         const userId = req.userId;
-        console.log(`[Analytics] Request for overview. UserId: ${userId}`);
+        const { range = 'week' } = req.query; // 'day', 'week', 'month'
+        console.log(`[Analytics] Request for overview. UserId: ${userId}, Range: ${range}`);
 
         if (!userId) {
             console.error('[Analytics] Error: userId is missing from request object.');
@@ -18,39 +19,59 @@ export const getOverview = async (req, res) => {
 
         // 1. Feature Flag Check
         const isEnabled = await isFeatureEnabled('ANALYTICS_DASHBOARD');
-        console.log(`[Analytics] Feature Enabled: ${isEnabled}`);
         if (!isEnabled) {
             return res.status(403).json({ error: 'Analytics dashboard is currently disabled.' });
         }
 
+        // Determine Date Range
+        const now = new Date();
+        let startDate = new Date();
+        if (range === 'day') startDate.setHours(0, 0, 0, 0); // Today
+        else if (range === 'month') startDate.setDate(now.getDate() - 30);
+        else startDate.setDate(now.getDate() - 7); // Default 'week'
+
         // 2. Cache Check
         const redis = getRedisClient();
-        const cacheKey = `analytics:overview:${userId}`;
+        const cacheKey = `analytics:overview:${userId}:${range}`;
 
         if (redis) {
             const cachedData = await redis.get(cacheKey);
             if (cachedData) {
-                return res.status(200).json(JSON.parse(cachedData));
+               return res.status(200).json(JSON.parse(cachedData));
             }
         }
 
+        console.log(`[Analytics] Fetching data from ${startDate.toISOString()}...`);
+
         // 3. Aggregations (Executed in parallel)
-        console.log('[Analytics] Starting aggregations...');
         const [
             projectsCompleted,
             revisionsCount,
             paymentMetrics,
-            heatmap
+            heatmap,
+            timeline
         ] = await Promise.all([
             // Metric 1: Projects Completed
-            Project.countDocuments({ ownerId: userId, status: 'completed' }),
+            Project.countDocuments({ 
+                ownerId: userId, 
+                status: 'completed',
+                updatedAt: { $gte: startDate } 
+            }),
 
-            // Metric 2: Revisions Count (Tasks assigned by user that are revisions)
-            Task.countDocuments({ assignedBy: userId, isRevisionTask: true }),
+            // Metric 2: Revisions Count
+            Task.countDocuments({ 
+                assignedBy: userId, 
+                isRevisionTask: true,
+                createdAt: { $gte: startDate }
+            }),
 
-            // Metric 3, 4, 5: Payment Metrics (Response Time, Success Rate, Avg Value)
+            // Metric 3, 4, 5: Payment Metrics
             ProjectInvoice.aggregate([
-                { $match: { userId: userId, status: { $in: ['paid', 'overdue', 'failed'] } } },
+                { $match: { 
+                    userId: userId, 
+                    status: { $in: ['paid', 'overdue', 'failed'] },
+                    updatedAt: { $gte: startDate }
+                }},
                 {
                     $group: {
                         _id: null,
@@ -70,18 +91,19 @@ export const getOverview = async (req, res) => {
                 }
             ]),
 
-            // Metric 6: Weekly Activity Heatmap
+            // Metric 6: Activity Heatmap (Day of Week x Hour)
+            // This stays as "Weekly Pattern" even for Month view, to populate the Grid
             AuditLog.aggregate([
                 { 
                     $match: { 
                         userId: userId, 
-                        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
+                        createdAt: { $gte: startDate } 
                     } 
                 },
                 { 
                     $project: { 
-                        dayOfWeek: { $dayOfWeek: '$createdAt' }, // 1 (Sun) - 7 (Sat)
-                        hour: { $hour: '$createdAt' } // 0 - 23
+                        dayOfWeek: { $dayOfWeek: '$createdAt' }, 
+                        hour: { $hour: '$createdAt' }
                     } 
                 },
                 { 
@@ -98,8 +120,44 @@ export const getOverview = async (req, res) => {
                         count: 1
                     }
                 }
+            ]),
+
+            // Metric 7: Timeline (Time Series for Line Graph)
+            AuditLog.aggregate([
+                {
+                    $match: {
+                        userId: userId,
+                        createdAt: { $gte: startDate }
+                    }
+                },
+                {
+                    $group: {
+                        _id: range === 'day' 
+                            ? { hour: { $hour: '$createdAt' } } // Group by Hour for Day view
+                            : { 
+                                year: { $year: '$createdAt' },
+                                month: { $month: '$createdAt' },
+                                day: { $dayOfMonth: '$createdAt' } // Group by Date for Week/Month view
+                              },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } }
             ])
         ]);
+
+        // Process Timeline Data for Frontend
+        const processedTimeline = timeline.map(t => {
+            if (range === 'day') {
+                return { label: `${t._id.hour}:00`, count: t.count, sortKey: t._id.hour };
+            } else {
+                const dateStr = `${t._id.year}-${String(t._id.month).padStart(2, '0')}-${String(t._id.day).padStart(2, '0')}`;
+                return { label: dateStr, count: t.count, sortKey: dateStr };
+            }
+        });
+
+        // Fill in missing gaps for Timeline (Optional but good for UI)
+        // ... (Skipping complex gap filling for brevity, Frontend can handle gaps or distinct points)
 
         // Process Payment Metrics
         const paymentStats = paymentMetrics[0] || { totalInvoices: 0, paidInvoices: 0, totalPaidAmount: 0, avgResponseTime: 0 };
@@ -120,15 +178,17 @@ export const getOverview = async (req, res) => {
                 avgClientResponseTimeMs: Math.round(paymentStats.avgResponseTime || 0)
             },
             heatmap,
+            timeline: processedTimeline,
             meta: {
                 cached: false,
+                range,
                 generatedAt: new Date().toISOString()
             }
         };
 
-        // 4. Cache Result (TTL: 15 mins)
+        // 4. Cache Result (TTL: 5 mins for filtered)
         if (redis) {
-            await redis.setex(cacheKey, 900, JSON.stringify({ ...responsePayload, meta: { ...responsePayload.meta, cached: true } }));
+            await redis.setex(cacheKey, 300, JSON.stringify({ ...responsePayload, meta: { ...responsePayload.meta, cached: true } }));
         }
 
         console.log('[Analytics] Successfully generated report. Sending response.');

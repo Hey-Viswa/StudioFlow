@@ -1,7 +1,7 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@clerk/clerk-react';
+import { useSearchParams } from 'react-router-dom';
 import AnalyticsHeatmap from '@/components/analytics/AnalyticsHeatmap';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, TrendingUp, CheckCircle2, AlertCircle, RefreshCw, DollarSign, Clock } from 'lucide-react';
@@ -10,19 +10,48 @@ import { toast } from 'sonner';
 
 export default function AnalyticsDashboard() {
   const { getToken } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Get initial values from URL or defaults
+  const initialRange = searchParams.get('range') || 'week'; // 'day', 'week', 'month'
+  const initialView = searchParams.get('view') || 'heatmap'; // 'heatmap', 'line'
+
+  // We can keep local state for immediate UI feedback, or just derive from URL. 
+  // Deriving strictly from URL can cause latency if we wait for navigation.
+  // Using local state synced with URL is a common pattern for responsiveness.
+  const [range, setRangeState] = useState(initialRange);
+  const [viewMode, setViewModeState] = useState(initialView);
+  
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchAnalytics = async () => {
+  // Sync State Helpers
+  const setRange = (value) => {
+    setRangeState(value);
+    setSearchParams(prev => {
+      prev.set('range', value);
+      return prev;
+    }, { replace: true });
+  };
+
+  const setViewMode = (value) => {
+    setViewModeState(value);
+    setSearchParams(prev => {
+      prev.set('view', value);
+      return prev;
+    }, { replace: true });
+  };
+
+  const fetchAnalytics = async (selectedRange) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/analytics/overview', { getToken });
+      const response = await api.get(`/analytics/overview?range=${selectedRange}`, { getToken });
       setData(response);
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
-      // Check for 403 specifically (Feature Flag disabled)
+      // ... error handling
       if (err.message.includes('403') || err.message.includes('disabled')) {
         setError('Analytics dashboard is currently disabled by your administrator.');
       } else {
@@ -34,11 +63,20 @@ export default function AnalyticsDashboard() {
     }
   };
 
+  // Effect to handle URL changes (e.g. back button) and initial load
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    const rangeFromUrl = searchParams.get('range') || 'week';
+    const viewFromUrl = searchParams.get('view') || 'heatmap';
+    
+    // Sync local state if URL changed externally
+    if (rangeFromUrl !== range) setRangeState(rangeFromUrl);
+    if (viewFromUrl !== viewMode) setViewModeState(viewFromUrl);
 
-  if (loading) {
+    fetchAnalytics(rangeFromUrl);
+  }, [searchParams]); 
+
+  if (loading && !data) {
+    // ... loading state
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
          <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -47,26 +85,27 @@ export default function AnalyticsDashboard() {
     );
   }
 
+  // ... error state
   if (error) {
-    const isAccessDenied = error.includes('disabled') || error.includes('Access Denied');
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh] gap-4 p-8 text-center">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAccessDenied ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
-          <AlertCircle className="w-6 h-6" />
-        </div>
-        <h3 className="text-xl font-semibold">{isAccessDenied ? 'Access Restricted' : 'Unable to Load Data'}</h3>
-        <p className="text-muted-foreground max-w-md">
-          {error}
-        </p>
-        <Button onClick={fetchAnalytics} variant="outline">Try Again</Button>
-      </div>
-    );
+     const isAccessDenied = error.includes('disabled') || error.includes('Access Denied');
+     return (
+       <div className="flex flex-col items-center justify-center h-[50vh] gap-4 p-8 text-center">
+         <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAccessDenied ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
+           <AlertCircle className="w-6 h-6" />
+         </div>
+         <h3 className="text-xl font-semibold">{isAccessDenied ? 'Access Restricted' : 'Unable to Load Data'}</h3>
+         <p className="text-muted-foreground max-w-md">
+           {error}
+         </p>
+         <Button onClick={() => fetchAnalytics(range)} variant="outline">Try Again</Button>
+       </div>
+     );
   }
 
-  const { summary, heatmap, meta } = data || {};
+  const { summary, heatmap, timeline, meta } = data || {};
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Analytics Overview</h1>
@@ -121,15 +160,21 @@ export default function AnalyticsDashboard() {
       <Card className="border-border/50 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Activity Heatmap
-            <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">Last 7 Days</span>
+            Activity {range === 'day' ? 'Timeline' : 'Trends'}
           </CardTitle>
           <CardDescription>
-            Visualizing your active working hours based on system interactions.
+            Visualizing your active working hours ({range === 'today' ? 'today' : range === 'month' ? 'last 30 days' : 'last 7 days'}).
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AnalyticsHeatmap data={heatmap} />
+          <AnalyticsHeatmap 
+            data={heatmap} 
+            timeline={timeline}
+            range={range}
+            onRangeChange={setRange}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
           {heatmap && heatmap.length > 0 && (
              <div className="mt-6 pt-6 border-t border-border/50">
                <h4 className="text-sm font-semibold mb-2">Weekly Insight</h4>

@@ -232,7 +232,7 @@ const NotificationsPage = () => {
                 <ScrollArea className="h-[calc(100vh-280px)] pr-4">
                   <div className="p-2 md:p-4 space-y-8">
                     {notifications.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-24 text-center animate-in fade-in duration-500">
+                      <div className="flex flex-col items-center justify-center py-24 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center mb-6 ring-8 ring-muted/10">
                           <Inbox className="w-10 h-10 text-muted-foreground/50" />
                         </div>

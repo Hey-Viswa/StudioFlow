@@ -55,10 +55,21 @@ const SidebarHeader = ({ collapsed, setCollapsed, mobile }) => (
 
 const NavMain = ({ items, collapsed, mobile, isActivePath }) => {
     // Independent state for each collapsible item
-    const [openItems, setOpenItems] = useState({});
+    const [openItems, setOpenItems] = useState(() => {
+        try {
+            const saved = localStorage.getItem('sidebar-state');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    });
 
-    const toggle = (title) => {
-        setOpenItems(prev => ({ ...prev, [title]: !prev[title] }));
+    const toggle = (title, currentEffectiveState) => {
+        setOpenItems(prev => {
+            const newState = { ...prev, [title]: !currentEffectiveState };
+            localStorage.setItem('sidebar-state', JSON.stringify(newState));
+            return newState;
+        });
     };
 
     return (
@@ -69,7 +80,8 @@ const NavMain = ({ items, collapsed, mobile, isActivePath }) => {
             {items.map((item) => {
                 const active = isActivePath(item.url);
                 const isCollapsible = item.items && item.items.length > 0;
-                const isOpen = openItems[item.title] || (active && !openItems[item.title]); 
+                // Logic: Use explicit state if set, otherwise default to active (auto-open)
+                const isOpen = openItems[item.title] !== undefined ? openItems[item.title] : active;
 
                 if (collapsed && !mobile && isCollapsible) {
                     return (
@@ -116,7 +128,7 @@ const NavMain = ({ items, collapsed, mobile, isActivePath }) => {
                 // Top-level item click (mostly for toggling groups)
                 const handleItemClick = (e) => {
                     if (isCollapsible) {
-                         toggle(item.title);
+                         toggle(item.title, isOpen);
                     }
                     // No top-level storyboard item anymore, so removed that branch
                 };

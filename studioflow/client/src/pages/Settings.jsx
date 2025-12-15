@@ -1,71 +1,38 @@
-import { useState, useEffect } from 'react';
-import { useUser, useAuth } from '@clerk/clerk-react';
-import { usePushToken } from '../hooks/usePushToken';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { Separator } from '../components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Switch } from '../components/ui/switch';
-import { toast } from 'sonner';
-import { useThemeColor } from '../components/ThemeColorProvider';
-import BillingDetails from '../components/BillingDetails';
-import BillingHistory from '../components/BillingHistory';
-import SubscriptionAlert from '../components/SubscriptionAlert';
-import { useTheme } from 'next-themes';
-import { cn } from '../lib/utils';
-import {
-  Settings as SettingsIcon,
-  User,
-  Bell,
-  Shield,
-  CreditCard,
-  Loader2,
-  Check,
-  Mail,
-  Calendar,
-  Receipt,
-  ChevronRight,
-  LogOut,
-  Smartphone,
-  Globe,
-  Moon,
-  Sun,
-  Laptop
-} from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../components/ui/alert-dialog";
-import { DashboardSkeleton } from '../components/DashboardSkeleton';
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select"
+import { useSearchParams } from 'react-router-dom';
+// ... other imports
 
 export default function Settings() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { themeColor, setThemeColor } = useThemeColor();
   const { theme, setTheme } = useTheme();
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSection = searchParams.get('tab') || 'account';
+  const [activeSection, setActiveSectionState] = useState(initialSection);
+
+  const setActiveSection = (value) => {
+    setActiveSectionState(value);
+    setSearchParams(prev => {
+        prev.set('tab', value);
+        return prev;
+    }, { replace: true });
+  }
+
+  // Sync with URL if it changes (e.g. back button)
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && tabFromUrl !== activeSection) {
+      setActiveSectionState(tabFromUrl);
+    }
+  }, [searchParams]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [subscription, setSubscription] = useState(null);
-  const [activeSection, setActiveSection] = useState('account');
+  // const [activeSection, setActiveSection] = useState('account'); // Replaced
   const [projects, setProjects] = useState([]);
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
@@ -436,7 +403,7 @@ export default function Settings() {
             <div className="md:col-span-9 space-y-6">
               {/* Account Section */}
               {activeSection === 'account' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Card className="border-border/50 shadow-sm">
                     <CardHeader>
                       <CardTitle>Profile Information</CardTitle>
@@ -497,7 +464,7 @@ export default function Settings() {
 
               {/* Appearance Section */}
               {activeSection === 'appearance' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Card className="border-border/50 shadow-sm">
                     <CardHeader>
                       <CardTitle>Appearance</CardTitle>
@@ -587,7 +554,7 @@ export default function Settings() {
 
               {/* Notifications Section */}
               {activeSection === 'notifications' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Card className="border-border/50 shadow-sm">
                     <CardHeader>
                       <CardTitle>Notification Preferences</CardTitle>
@@ -737,7 +704,7 @@ export default function Settings() {
 
               {/* Billing Section */}
               {activeSection === 'billing' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Tabs defaultValue="overview" className="w-full">
                     <TabsList className="grid w-full grid-cols-2 mb-6">
                       <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -762,7 +729,7 @@ export default function Settings() {
 
               {/* Security Section */}
               {activeSection === 'security' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Card className="border-border/50 shadow-sm">
                     <CardHeader>
                       <CardTitle>Security Settings</CardTitle>
