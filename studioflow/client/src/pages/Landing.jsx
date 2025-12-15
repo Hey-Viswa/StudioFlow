@@ -1,7 +1,7 @@
 import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight, Zap, Shield, Globe, Move, Layers, MousePointer2, MessageSquare, FileText, Download, CheckCircle2, ListTodo, Clock, Eye, Lock, BarChart3, Bell, RefreshCw, History, Layout, Folder, FileVideo } from 'lucide-react';
+import { FolderKanban, Users, Receipt, Play, Check, Sparkles, ArrowRight, Zap, Shield, Globe, Move, Layers, MousePointer2, MessageSquare, FileText, Download, CheckCircle2, ListTodo, Clock, Eye, Lock, BarChart3, Bell, RefreshCw, History, Layout, Folder, FileVideo, Music } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { gsap } from 'gsap';
@@ -452,18 +452,6 @@ const Landing = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto md:auto-rows-[400px]">
-            {/* Card 1: Centralized Workspace (Wide) */}
-            <div className="feature-card feature-card-1 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
-              <div className="grid md:grid-cols-2 gap-8 h-full items-center">
-                <div className="relative z-10">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 text-blue-500">
-                    <FolderKanban className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3 tracking-tight">Centralized Workspace</h3>
-                  <p className="text-muted-foreground text-lg">
-                    Keep every cut, asset, and version organized. Never lose a file again.
-                  </p>
-                </div>
 
             {/* Card 1: Centralized Workspace (Wide) */}
             <div className="feature-card feature-card-1 md:col-span-2 lg:col-span-2 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group overflow-hidden relative h-full">
@@ -517,7 +505,7 @@ const Landing = () => {
                            >
                               <div className="flex items-center gap-3 overflow-hidden">
                                  <div className={`p-2 rounded-lg ${activeWorkspaceFile === i ? 'bg-blue-500/20 text-blue-600' : 'bg-muted text-muted-foreground'}`}>
-                                    {file.type === 'video' ? <FileVideo className="w-4 h-4" /> : file.type === 'zip' ? <Folder className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                                    {file.type === 'video' ? <FileVideo className="w-4 h-4" /> : file.type === 'zip' ? <Folder className="w-4 h-4" /> : file.type === 'audio' ? <Music className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                                  </div>
                                  <div className="min-w-0">
                                     <div className={`text-xs font-medium truncate ${activeWorkspaceFile === i ? 'text-blue-600' : 'text-foreground'}`}>{file.name}</div>
