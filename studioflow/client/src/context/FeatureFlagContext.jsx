@@ -8,7 +8,11 @@ export const FeatureFlagProvider = ({ children }) => {
   const [features, setFeatures] = useState(() => {
     try {
       const stored = localStorage.getItem('experimental-features');
-      return stored ? JSON.parse(stored) : { storyboard: false };
+      if (stored) return JSON.parse(stored);
+      
+      // Default from environment variable if not in local storage
+      const envEnableStoryboard = import.meta.env.VITE_ENABLE_STORYBOARD === 'true';
+      return { storyboard: envEnableStoryboard };
     } catch (e) {
       return { storyboard: false };
     }
