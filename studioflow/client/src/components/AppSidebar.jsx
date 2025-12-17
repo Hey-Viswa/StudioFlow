@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useReviewFeatureFlag } from '@/context/FeatureFlagContext';
 
 // --- Sub-Components ---
 
@@ -245,6 +246,8 @@ export function AppSidebar({ collapsed, setCollapsed, mobile, setMobileOpen }) {
   }
 
   // Data Mapping (Lifecycle Flow)
+  const { features } = useReviewFeatureFlag();
+
   const data = {
     user: user,
     navMain: [
@@ -255,11 +258,11 @@ export function AppSidebar({ collapsed, setCollapsed, mobile, setMobileOpen }) {
         items: [
            { title: 'Overview', url: '/dashboard' },
            { title: 'Projects', url: '/dashboard/projects' },
-           { 
+           ...(features?.storyboard ? [{ 
                title: 'Storyboard', 
                url: isProjectContext ? `/dashboard/projects/${currentProjectId}/storyboard` : '#',
                icon: CornerDownRight,
-           },
+           }] : []),
         ]
       },
       {

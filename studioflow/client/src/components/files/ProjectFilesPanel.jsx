@@ -30,10 +30,12 @@ import { ShareFileDialog } from './ShareFileDialog';
 import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
 import { ShowcaseConfigModal } from './ShowcaseConfigModal';
 import { toast } from 'sonner';
-import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard, Globe } from 'lucide-react';
+import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard, Globe, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useRazorpay from '@/hooks/useRazorpay';
 import api from '@/lib/api';
+
+import { useUploads } from '@/context/UploadContext';
 
 /**
  * ProjectFilesPanel Component
@@ -43,6 +45,7 @@ export function ProjectFilesPanel({ projectId, project }) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const { displayRazorpay } = useRazorpay();
+  const { startUpload } = useUploads(); // Get startUpload from context
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -52,6 +55,8 @@ export function ProjectFilesPanel({ projectId, project }) {
   const [showcaseDialog, setShowcaseDialog] = useState({ open: false, file: null });
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [processingPayment, setProcessingPayment] = useState(null); // invoiceId being paid
+  const versionInputRef = React.useRef(null);
+  const [versionTargetFile, setVersionTargetFile] = useState(null);
 
   // Get user's role in the project
   const rawRole = project?.userRole || ROLES.CLIENT;
@@ -106,6 +111,7 @@ export function ProjectFilesPanel({ projectId, project }) {
       const token = await getToken();
       const response = await getProjectFiles(projectId, token, {
         includeArchived: true, // Fetch all files including archived
+        category: 'deliverable', // Only show deliverables
       });
       setFiles(response.files || []);
     } catch (error) {
@@ -371,8 +377,44 @@ export function ProjectFilesPanel({ projectId, project }) {
     setShowcaseDialog({ open: true, file });
   };
 
+  const handleVersionUpload = (file) => {
+    setVersionTargetFile(file);
+    if (versionInputRef.current) {
+        versionInputRef.current.click();
+    }
+  };
+
+  const handleVersionFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !versionTargetFile) return;
+
+    // Reset input
+    e.target.value = '';
+
+    startUpload(file, projectId, {
+        isNewVersion: true,
+        baseFileId: versionTargetFile.fileId,
+        onComplete: () => {
+            fetchFiles();
+            toast.success('New version uploaded');
+        },
+        onError: (err) => {
+            toast.error(`Failed to upload version: ${err.message}`);
+        }
+    });
+
+    setVersionTargetFile(null);
+  };
+
   return (
     <div className="space-y-6">
+       {/* Hidden Input for Version Upload */}
+       <input 
+            type="file" 
+            ref={versionInputRef} 
+            className="hidden" 
+            onChange={handleVersionFileSelect} 
+       />
       {/* Upload Area - Owner Only */}
       {canManageFiles && (
         <FileUploadDropzone
@@ -456,6 +498,7 @@ export function ProjectFilesPanel({ projectId, project }) {
                       onApprove={handleApproval}
                       processingPayment={processingPayment}
                       onShowcase={handleShowcaseConfig}
+                      onUploadVersion={(file) => handleVersionUpload(file)}
                     />
                   ))}
                 </div>
@@ -527,7 +570,7 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, onUploadVersion, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
   const isPreviewable = file.mimeType.startsWith('image/') ||
     ['video/mp4', 'video/webm', 'video/ogg'].includes(file.mimeType) ||
     file.mimeType === 'application/pdf';
@@ -574,7 +617,15 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
 
           {file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
             file.mimeType.startsWith('video/') ? (
-              <video src={file.previewUrl} className="w-full h-full object-cover" />
+              <video 
+                src={`${file.previewUrl}#t=0.1`} 
+                className="w-full h-full object-cover" 
+                preload="metadata"
+                muted
+                playsInline
+                onMouseOver={e => e.target.play().catch(() => {})}
+                onMouseOut={e => { e.target.pause(); e.target.currentTime = 0.1; }}
+              />
             ) : (
               <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
             )
@@ -590,6 +641,12 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
             {/* Status Badges */}
             {isArchived && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Deleted</span>}
             {isShared && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1"><Share2 className="w-3 h-3" /> Shared</span>}
+            {/* Version Badge - always show if it exists */}
+            {file.version > 1 && (
+                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1 font-mono">
+                    v{file.version}
+                </span>
+            )}
 
             {/* Approval Status Badge */}
             {approvalStatus === 'pending_review' && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">In Review</span>}
@@ -599,12 +656,6 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
 
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
             <span>{formatFileSize(file.size)}</span>
-            {file.version > 1 && (
-              <span className="inline-flex items-center gap-1">
-                <History className="w-3 h-3" />
-                v{file.version}
-              </span>
-            )}
             <span>
               {new Date(file.createdAt).toLocaleDateString()}
             </span>
@@ -693,6 +744,10 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
                   {canDeleteAction && (
                     <>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onUploadVersion(file)}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload New Version
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => onDelete(file.fileId, file.filename)}
                         className="text-destructive focus:text-destructive"

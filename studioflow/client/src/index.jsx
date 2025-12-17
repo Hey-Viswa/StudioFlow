@@ -8,6 +8,7 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { ThemeProvider } from './components/theme-provider';
+import { FeatureFlagProvider } from './context/FeatureFlagContext';
 
 // Initialize Sentry FIRST (before React renders)
 initSentry();
@@ -90,11 +91,13 @@ root.render(
           },
         }}
       >
-        <HelmetProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <App />
-          </ThemeProvider>
-        </HelmetProvider>
+        <FeatureFlagProvider>
+          <HelmetProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+              <App />
+            </ThemeProvider>
+          </HelmetProvider>
+        </FeatureFlagProvider>
       </ClerkProvider>
     ) : (
       <MissingKey />

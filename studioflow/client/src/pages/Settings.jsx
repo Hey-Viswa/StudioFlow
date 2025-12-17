@@ -17,9 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-import { User, Globe, Bell, CreditCard, Shield, Settings as SettingsIcon, Check, Sun, Moon, Laptop, Mail, Calendar, Smartphone, LogOut, Loader2, ChevronRight } from "lucide-react";
+import { User, Globe, Bell, CreditCard, Shield, Settings as SettingsIcon, Check, Sun, Moon, Laptop, Mail, Calendar, Smartphone, LogOut, Loader2, ChevronRight, Beaker } from "lucide-react";
 
 import { usePushToken } from "../hooks/usePushToken";
+import { useReviewFeatureFlag } from "../context/FeatureFlagContext";
 import BillingDetails from "../components/BillingDetails";
 import BillingHistory from "../components/BillingHistory";
 import SubscriptionAlert from "../components/SubscriptionAlert";
@@ -30,6 +31,7 @@ export default function Settings() {
   const { getToken } = useAuth();
   const { themeColor, setThemeColor } = useThemeColor();
   const { theme, setTheme } = useTheme();
+  const { features, toggleFeature } = useReviewFeatureFlag();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSection = searchParams.get('tab') || 'account';
@@ -373,6 +375,7 @@ export default function Settings() {
     { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email & push alerts' },
     { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Plan & payment history' },
     { id: 'security', label: 'Security', icon: Shield, description: 'Password & 2FA' },
+    { id: 'experiments', label: 'Experiments', icon: Beaker, description: 'Try new features' },
   ];
 
   return (
@@ -836,6 +839,38 @@ export default function Settings() {
                             View All
                           </Button>
                         </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Experiments Section */}
+              {activeSection === 'experiments' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <Card className="border-border/50 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                      <CardTitle className="text-xl">Experimental Features</CardTitle>
+                      <CardDescription>Try out new features before they are released</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-6">
+                      <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card/50">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Beaker className="w-4 h-4 text-primary" />
+                            <Label className="text-base">Enable Storyboard</Label>
+                          </div>
+                          <p className="text-sm text-muted-foreground pl-6">
+                            Visualize your project flow with the experimental storyboard view.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={features.storyboard}
+                          onCheckedChange={() => {
+                            toggleFeature('storyboard');
+                            toast.success(`Storyboard ${!features.storyboard ? 'enabled' : 'disabled'} successfully`);
+                          }}
+                        />
                       </div>
                     </CardContent>
                   </Card>

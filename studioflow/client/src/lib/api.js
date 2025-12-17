@@ -1,9 +1,11 @@
 // API base URL configuration
 // Ensure we use the production URL if VITE_API_URL is missing or invalid (like '/')
 const envApiUrl = import.meta.env.VITE_API_URL;
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 export const API_BASE_URL = (envApiUrl && envApiUrl.startsWith('http'))
   ? envApiUrl
-  : 'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net/api';
+  : (isLocal ? 'http://localhost:5000/api' : 'https://studioflow-production-gjcfazechpafc7df.centralindia-01.azurewebsites.net/api');
 
 // Helper to construct full API URLs
 export const getApiUrl = (endpoint) => {

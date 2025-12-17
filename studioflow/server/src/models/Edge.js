@@ -35,6 +35,14 @@ const EdgeSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    zIndex: {
+        type: Number,
+        default: 0
+    },
+    isLocked: {
+        type: Boolean,
+        default: false
+    },
     createdBy: {
         type: String, // Clerk ID
         required: true

@@ -57,6 +57,7 @@ function ProtectedRoute({ children }) {
 import { UploadProvider } from './context/UploadContext';
 import { SocketProvider } from './context/SocketContext';
 import { usePushToken } from './hooks/usePushToken';
+import { useReviewFeatureFlag } from './context/FeatureFlagContext';
 import { onMessageListener } from './lib/firebase';
 import { useEffect } from 'react';
 
@@ -141,7 +142,9 @@ function App() {
                     <Route path="settings" element={<Settings />} />
                     <Route path="trash" element={<Trash />} />
                     <Route path="files" element={<AllFiles />} />
-                    <Route path="projects/:projectId/storyboard" element={<ProjectStoryboard />} />
+                    {useReviewFeatureFlag().features?.storyboard && (
+                      <Route path="projects/:projectId/storyboard" element={<ProjectStoryboard />} />
+                    )}
                     <Route path="analytics" element={<AnalyticsDashboard />} />
                   </Route>
 
