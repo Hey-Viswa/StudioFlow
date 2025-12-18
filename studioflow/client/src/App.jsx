@@ -7,7 +7,8 @@ import NetworkError from './pages/NetworkError';
 import { ThemeColorProvider } from './components/ThemeColorProvider';
 import NetworkStatusListener from './components/NetworkStatusListener';
 import CookieConsent from './components/CookieConsent';
-// import ShowcaseLandingPage from './pages/ShowcaseLandingPage';
+import SmartRedirect from './components/SmartRedirect';
+
 
 
 const Landing = lazy(() => import('./pages/Landing'));
@@ -41,7 +42,15 @@ const Compare = lazy(() => import('./pages/Compare'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 const ProjectStoryboard = lazy(() => import('./pages/ProjectStoryboard'));
 const ShowcaseLandingPage = lazy(() => import('./pages/ShowcaseLandingPage'));
+const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
 const AllFiles = lazy(() => import('./pages/AllFiles'));
+// Marketing / Phase 6.3
+const BlogPage = lazy(() => import('./pages/marketing/BlogPage'));
+const BlogPostPage = lazy(() => import('./pages/marketing/BlogPostPage'));
+const CreatorProfilePage = lazy(() => import('./pages/public/CreatorProfilePage'));
+const WriteBlogPage = lazy(() => import('./pages/marketing/WriteBlogPage'));
+// Widget is lazy loaded to avoid bundle impact if flag is off
+const FeedbackWidget = lazy(() => import('./components/marketing/FeedbackWidget'));
 
 function ProtectedRoute({ children }) {
   return (
@@ -80,6 +89,8 @@ function App() {
     return () => unsubscribe;
   }, []);
 
+  const enableMarketing = import.meta.env.VITE_ENABLE_MARKETING_TOOLS === 'true';
+
   return (
     <ErrorBoundary>
       <ThemeColorProvider defaultThemeColor="green" storageKey="vite-ui-theme-color">
@@ -92,7 +103,11 @@ function App() {
               <Suspense fallback={<div className="p-6 text-center text-muted-foreground">Loading...</div>}>
                 <Routes>
                   {/* ... routes ... */}
-                  <Route path="/" element={<Landing />} />
+                  <Route path="/" element={
+                    <SmartRedirect>
+                      <Landing />
+                    </SmartRedirect>
+                  } />
                   <Route path="/invite" element={<AcceptInvite />} />
                   <Route path="/pricing" element={<Pricing />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -110,6 +125,27 @@ function App() {
                   <Route path="/contact-us" element={<ContactUs />} /> {/* Alias for footer links */}
                   {/* Public Showcase Landing Page */}
                   <Route path="/showcase/:slug" element={<ShowcaseLandingPage />} />
+                  <Route path="/p/:username" element={<PortfolioPage />} />
+
+                  {/* Marketing / Blog */}
+                  {enableMarketing && (
+                    <>
+                      <Route path="/blog" element={<BlogPage />} />
+                      <Route path="/blog/:slug" element={<BlogPostPage />} />
+                      <Route path="/u/:username" element={<CreatorProfilePage />} />
+                      <Route path="/write" element={
+                        <ProtectedRoute>
+                          <WriteBlogPage />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/write/:slug" element={
+                        <ProtectedRoute>
+                          <WriteBlogPage />
+                        </ProtectedRoute>
+                      } />
+                      {/* /changelog could go here too */}
+                    </>
+                  )}
 
                   {/* Shared Files - Protected Route */}
                   <Route
@@ -150,6 +186,9 @@ function App() {
 
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+
+                {/* Global Marketing Widgets */}
+                {/* {enableMarketing && <FeedbackWidget />} */}
               </Suspense>
             </Router>
           </SocketProvider>

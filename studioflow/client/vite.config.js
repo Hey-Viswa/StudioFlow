@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react()], // Restart trigger: 12345
   envDir: path.resolve(__dirname, '..', '..'),
   resolve: {
     alias: {

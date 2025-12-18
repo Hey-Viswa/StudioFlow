@@ -1,4 +1,5 @@
 import './src/config/env.js';
+// Restart trigger for env load
 import dotenv from 'dotenv';
 import express from 'express'; // server-main
 import cors from 'cors';
@@ -30,6 +31,7 @@ import analyticsRoutes from './src/routes/analyticsRoutes.js';
 import showcaseRoutes from './src/routes/showcaseRoutes.js';
 import storyboardRoutes from './src/routes/storyboard.js';
 import { getSharedFile } from './src/controllers/fileSharing.js';
+import { generateSitemap } from './src/controllers/sitemapController.js';
 import verifyClerk from './src/middlewares/verifyClerkJWKS.js';
 import { startSubscriptionChecker } from './src/jobs/subscriptionChecker.js';
 import { initializeCleanupScheduler } from './src/jobs/fileCleanup.js';
@@ -234,6 +236,8 @@ app.get('/api/test-auth', async (req, res) => {
     }
 });
 
+app.get('/sitemap.xml', generateSitemap);
+app.use('/api/auth', authRoutes); // Fix: Mount auth routes for Profile/Login
 app.use('/api/protected', protectedRoute);
 app.get('/api/projects/files/shared/:shareToken', getSharedFile); // Public shared file access (no verifyClerk)
 app.use('/api/dashboard', dashboardRoutes); // Dashboard analytics routes
@@ -256,6 +260,17 @@ app.use('/api/audit', auditRoutes); // Audit/Activity logs
 app.use('/api/analytics', analyticsRoutes); // Analytics Dashboard
 app.use('/api/showcase', showcaseRoutes); // Client Showcase/Portfolio
 app.use('/api/projects', storyboardRoutes); // Storyboard routes (mounted at /api/projects/:projectId/storyboard ideally, or just /api/projects for internal logic)
+
+import marketingRoutes from './src/routes/marketingRoutes.js';
+import profileRoutes from './src/routes/profileRoutes.js';
+import responseRoutes from './src/routes/responseRoutes.js';
+import blogInteractionRoutes from './src/routes/blogInteractions.js';
+
+app.use('/api', marketingRoutes); // Mounts /api/leads, /api/feedback, /api/content
+app.use('/api', profileRoutes); // Mounts /api/u/:username, /api/me/profile
+app.use('/api', responseRoutes); // Mounts /api/:contentId/responses
+app.use('/api', blogInteractionRoutes); // Mounts /api/clap, /api/comment, /api/feed
+
 
 
 // Sentry Error Handler moved to setupExpressErrorHandler if needed, but integration handles it.

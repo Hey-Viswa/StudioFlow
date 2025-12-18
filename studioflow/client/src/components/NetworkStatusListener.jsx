@@ -25,12 +25,12 @@ export default function NetworkStatusListener() {
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-        window.addEventListener('api-network-error', handleApiError);
+        // window.addEventListener('api-network-error', handleApiError); // Removed: Let individual components handle API errors via Toast
 
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
-            window.removeEventListener('api-network-error', handleApiError);
+            // window.removeEventListener('api-network-error', handleApiError);
         };
     }, []);
 

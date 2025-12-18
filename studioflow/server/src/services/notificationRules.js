@@ -56,6 +56,11 @@ export const NotificationRulesService = {
                 }
                 break;
 
+            case 'blog.published':
+                // Notify all followers of the author, or all users if no followers
+                recipients = await this.getBlogNotificationRecipients(resource.authorId);
+                break;
+
             default:
                 console.warn(`Unknown event type for recipient calculation: ${eventType}`);
                 return [];
@@ -104,6 +109,37 @@ export const NotificationRulesService = {
         }
 
         return recipients;
+    },
+
+    /**
+     * Get recipients for blog post notifications
+     * Returns all followers of the author
+     * @param {string} authorId - The blog post author's user ID
+     * @returns {Promise<Array>} List of recipient objects
+     */
+    async getBlogNotificationRecipients(authorId) {
+        try {
+            // Import Follow model
+            const Follow = (await import('../models/Follow.js')).default;
+            
+            // Get all users who follow this author
+            const followers = await Follow.find({ followingId: authorId }).lean();
+            
+            if (followers.length > 0) {
+                console.log(`📢 Found ${followers.length} followers for blog notification`);
+                return followers.map(f => ({
+                    userId: f.followerId,
+                    role: 'follower'
+                }));
+            }
+            
+            // If no followers, return empty (don't spam everyone)
+            console.log(`📢 No followers found for author ${authorId}, no notifications sent`);
+            return [];
+        } catch (error) {
+            console.error('Error getting blog notification recipients:', error);
+            return [];
+        }
     },
 
     /**

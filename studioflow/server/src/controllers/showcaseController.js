@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import ShowcaseItem from '../models/ShowcaseItem.js';
 import ProjectFile from '../models/ProjectFile.js';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import { isFeatureEnabled } from '../utils/featureFlags.js';
 
@@ -50,7 +51,7 @@ export const publishShowcaseItem = async (req, res) => {
         // Ownership check (Project Owner only)
         const project = await Project.findById(file.projectId);
         if (!project || String(project.ownerId) !== userId) {
-            return res.status(403).json({ error: 'Only project owner can publish to showcase' });
+            return res.status(403).json({ error: `Only project owner can publish. Owner: ${project?.ownerId} User: ${userId}` });
         }
 
         // 3. Validation: File must be Approved/Content Final
@@ -215,5 +216,125 @@ export const getShowcasePreview = async (req, res) => {
         if (!res.headersSent) {
             res.status(500).send('Preview Error');
         }
+    }
+};
+
+export const getPortfolio = async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        // 1. Find User by Username (Case insensitive)
+        const user = await User.findOne({ 
+            'publicProfile.username': username,
+            'publicProfile.isEnabled': true
+        }).select('name avatarUrl publicProfile');
+
+        if (!user) {
+            return res.status(404).json({ error: 'Portfolio not found' });
+        }
+
+        // 2. Find Published Items for this User
+        // We need to find projects owned by this user, then items.
+        // Actually, ShowcaseItem stores `publishedBy` (userId string) or `projectId`. 
+        // `publishedBy` is Clerk ID usually? Let's check User model. User._id is ObjectId, User.clerkUserId is String.
+        // Project.ownerId is String (Clerk ID).
+        // ShowcaseItem.publishedBy is String (Clerk ID).
+        
+        // We need the User's Clerk ID to query ShowcaseItem.publishedBy
+        const items = await ShowcaseItem.find({ 
+            publishedBy: user.clerkUserId,
+            isPublished: true 
+        })
+        .sort({ publishedAt: -1 })
+        .populate('projectId', 'title')
+        .select('title description slug previewUrl thumbnailUrl tags publishedAt projectId')
+        .lean();
+
+        res.status(200).json({
+            profile: {
+                displayName: user.publicProfile.displayName || user.name,
+                bio: user.publicProfile.bio,
+                avatarUrl: user.publicProfile.avatarUrl || user.avatarUrl, // user.avatarUrl might not exist on root, check User schema? No, it's not on root in the schema I viewed. User has `name`, `email`. Avatar usually comes from Clerk or `publicProfile`. 
+                // Wait, Userjs line 24 didn't show avatar. It must be in publicProfile or we rely on Clerk.
+                // We will use publicProfile.avatarUrl.
+                socialLinks: user.publicProfile.socialLinks,
+                theme: user.publicProfile.theme
+            },
+            items
+        });
+
+    } catch (error) {
+        console.error('Portfolio fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch portfolio' });
+    }
+};
+
+export const unpublishShowcaseItem = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { slug } = req.body;
+
+        const item = await ShowcaseItem.findOne({ slug });
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        // Ownership Check
+        // item.publishedBy matches userId (Clerk ID)
+        if (item.publishedBy !== userId) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        item.isPublished = false;
+        await item.save();
+
+        res.status(200).json({ success: true, message: 'Unpublished successfully' });
+
+    } catch (error) {
+        console.error('Unpublish error:', error);
+        res.status(500).json({ error: 'Failed to unpublish' });
+    }
+};
+
+export const getShowcaseStatus = async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        // Check if there is a published item for this file
+        // We look for originalFileId. BUT ProjectFile.fileId is a string, ProjectFile._id is ObjectId.
+        // showcaseItem.originalFileId is ObjectId ref.
+        // req.params.fileId is likely the ProjectFile._id? 
+        // Let's verify what the frontend passes. Usually it passes fileId (string) or _id.
+        // In ShowcaseConfigModal, it passes file.fileId (string) to publish.
+        // But publishShowcaseItem looks up ProjectFile by { fileId: req.body.fileId }.
+        // So we should do the same here.
+        
+        const file = await ProjectFile.findOne({ fileId: fileId });
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const item = await ShowcaseItem.findOne({ originalFileId: file._id });
+
+        // Invoice Check
+        const unpaidCount = await ProjectInvoice.countDocuments({
+            projectId: file.projectId,
+            status: { $in: ['pending', 'overdue', 'partially_paid', 'draft', 'sent'] }
+        });
+        const hasUnpaidInvoices = unpaidCount > 0;
+        
+        if (item && item.isPublished) {
+            return res.status(200).json({ 
+                isPublished: true, 
+                slug: item.slug,
+                publishedAt: item.publishedAt,
+                hasUnpaidInvoices
+            });
+        }
+        
+        return res.status(200).json({ isPublished: false, hasUnpaidInvoices });
+
+    } catch (error) {
+        console.error('Status check error:', error);
+        res.status(500).json({ error: 'Failed to check status' });
     }
 };

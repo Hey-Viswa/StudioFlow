@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +60,11 @@ export default function ShowcaseLandingPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 font-sans selection:bg-purple-500/30">
+      <Helmet>
+        <title>{item ? `${item.title} | StudioFlow Showcase` : 'StudioFlow Showcase'}</title>
+        <meta name="description" content={item?.description || 'View this project on StudioFlow.'} />
+        {item?.previewUrl && <meta property="og:image" content={item.previewUrl} />}
+      </Helmet>
       
       {/* Header */}
       <header className="border-b border-neutral-900 bg-neutral-950/80 backdrop-blur fixed top-0 w-full z-10">

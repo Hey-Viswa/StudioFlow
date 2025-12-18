@@ -28,7 +28,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FileUploadDropzone } from './FileUploadDropzone';
 import { ShareFileDialog } from './ShareFileDialog';
 import { ManageSharedFilesDialog } from './ManageSharedFilesDialog';
-import { ShowcaseConfigModal } from './ShowcaseConfigModal';
+import ShowcasePublishModal from '@/components/showcase/ShowcasePublishModal';
 import { toast } from 'sonner';
 import { Download, MoreVertical, Trash2, Eye, History, RefreshCw, Archive, ArchiveRestore, Share2, Users, Lock, CreditCard, Globe, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -553,15 +553,11 @@ export function ProjectFilesPanel({ projectId, project }) {
         onUpdate={handleManageSharingUpdate}
       />
       
-      {/* Showcase Config Dialog */}
-      <ShowcaseConfigModal
-        open={showcaseDialog.open}
-        onOpenChange={(open) => setShowcaseDialog({ ...showcaseDialog, open: open })}
-        projectId={projectId}
+      {/* Showcase Publish Dialog */}
+      <ShowcasePublishModal
+        isOpen={showcaseDialog.open}
+        onClose={() => setShowcaseDialog({ ...showcaseDialog, open: false })}
         file={showcaseDialog.file}
-        onPublishComplete={(data) => {
-            console.log('Published:', data);
-        }}
       />
     </div>
   );

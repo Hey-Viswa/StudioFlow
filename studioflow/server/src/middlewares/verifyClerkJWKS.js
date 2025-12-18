@@ -45,6 +45,10 @@ export default async function verifyClerk(req, res, next) {
 
         // Check Authorization header first (Bearer token)
         const authHeader = req.headers.authorization;
+        if (process.env.NODE_ENV !== 'production') {
+             console.log('🔍 VerifyClerk: Auth Header:', authHeader ? 'Present' : 'Missing');
+        }
+
         if (authHeader && authHeader.startsWith('Bearer ')) {
             sessionToken = authHeader.substring(7);
         }

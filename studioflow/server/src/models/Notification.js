@@ -17,12 +17,12 @@ const NotificationSchema = new mongoose.Schema({
   },
   resourceType: {
     type: String,
-    enum: ['project', 'task', 'comment', 'invoice', 'file'],
+    enum: ['project', 'task', 'comment', 'invoice', 'file', 'blog'],
     required: true
   },
   type: {
     type: String,
-    enum: ['mention', 'assigned', 'status_change', 'comment_created', 'file_uploaded', 'invoice_created', 'invoice_paid', 'project_needs_revision', 'project_finalized', 'ownership_transfer_request', 'ownership_transfer_accepted', 'project_updated'],
+    enum: ['mention', 'assigned', 'status_change', 'comment_created', 'file_uploaded', 'invoice_created', 'invoice_paid', 'project_needs_revision', 'project_finalized', 'ownership_transfer_request', 'ownership_transfer_accepted', 'project_updated', 'blog_published', 'new_follower'],
     required: true
   },
   title: {

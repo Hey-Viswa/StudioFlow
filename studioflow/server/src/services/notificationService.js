@@ -95,7 +95,9 @@ export const createNotification = async ({
       link,
       data: { metadata, url: link }, // Map to 'data' field in schema
       isRead: false, // Schema uses isRead, not read
-      category
+      category,
+      priority,
+      idempotencyKey
     });
 
     console.log(`✅ Notification persisted: ${notification._id} for user ${userId}`);
@@ -549,7 +551,9 @@ export const processNotificationEvent = async (type, data, actorId) => {
         'file.uploaded': 'file_uploaded',
         'invoice.created': 'invoice_created',
         'invoice.paid': 'invoice_paid',
-        'project.updated': 'project_updated'
+        'project.updated': 'project_updated',
+        'blog.published': 'blog_published',
+        'user.followed': 'new_follower'
       };
 
       const modelType = typeMapping[type] || 'mention'; // Default fallback
@@ -560,7 +564,8 @@ export const processNotificationEvent = async (type, data, actorId) => {
         'task': 'action',
         'project': 'info',
         'invoice': 'urgent',
-        'file': 'info'
+        'file': 'info',
+        'blog': 'info'
       };
       const modelCategory = categoryMapping[data.category] || 'info';
 

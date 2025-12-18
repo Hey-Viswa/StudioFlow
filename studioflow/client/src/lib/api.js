@@ -26,19 +26,27 @@ const handleFetch = async (url, options) => {
     const response = await fetch(url, options);
 
     if (!response.ok) {
-      if (response.status >= 500) {
-        // Dispatch event instead of hard navigation to preserve state
-        window.dispatchEvent(new Event('api-network-error'));
-        throw new Error(`Server Error: ${response.statusText}`);
+      let errorMessage = response.statusText;
+      try {
+        const errorBody = await response.json();
+        errorMessage = errorBody.error || errorBody.message || response.statusText;
+      } catch (e) {
+        // Ignore JSON parse error, stick to statusText
       }
-      throw new Error(`API Error: ${response.statusText}`);
+
+      if (response.status >= 500) {
+        // window.dispatchEvent(new Event('api-network-error')); // Removed: Don't trigger global overlay
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
   } catch (error) {
     // Check if it's a network error (TypeError is often thrown for network issues)
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      window.dispatchEvent(new Event('api-network-error'));
+      console.error("Network Error Detected");
+      // window.dispatchEvent(new Event('api-network-error')); // Removed
     }
     throw error;
   }
@@ -121,7 +129,7 @@ const api = {
 
   delete: async (endpoint, options = {}) => {
     const url = getApiUrl(endpoint);
-    const { getToken: tokenGetter, ...fetchOptions } = options;
+    const { getToken: tokenGetter, body, ...fetchOptions } = options;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -139,6 +147,7 @@ const api = {
       ...fetchOptions,
       method: 'DELETE',
       headers,
+      body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
     });
   },
 

@@ -32,7 +32,7 @@ const SidebarHeader = ({ collapsed, setCollapsed, mobile }) => (
         collapsed ? "justify-center" : "justify-between"
     )}>
          {(!collapsed || mobile) && (
-            <Link to="/" className="flex items-center gap-2 overflow-hidden transition-all duration-300">
+            <Link to="/?noredirect=true" className="flex items-center gap-2 overflow-hidden transition-all duration-300">
                 {/* Expanded: Full Logo */}
                 <img src="/studioflowlogo.svg" alt="StudioFlow" className="h-8 w-auto hidden dark:block" />
                 <img src="/studioflow-black.svg" alt="StudioFlow" className="h-8 w-auto block dark:hidden" />
@@ -284,7 +284,15 @@ export function AppSidebar({ collapsed, setCollapsed, mobile, setMobileOpen }) {
               { title: 'Trash', url: '/dashboard/trash' },
               { title: 'Settings', url: '/dashboard/settings' },
           ]
-      }
+      },
+      ...(import.meta.env.VITE_ENABLE_MARKETING_TOOLS === 'true' ? [{
+          title: 'Resources',
+          url: '#',
+          icon: Map, 
+          items: [
+              { title: 'Blog', url: '/blog' },
+          ]
+      }] : [])
     ]
   }
 

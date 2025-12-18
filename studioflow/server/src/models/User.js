@@ -208,7 +208,45 @@ const UserSchema = new mongoose.Schema({
             type: Date,
             default: Date.now
         }
-    }]
+    }],
+    // Public Profile Settings (Phase 6.2)
+    publicProfile: {
+        isEnabled: {
+            type: Boolean,
+            default: false
+        },
+        username: {
+            type: String,
+            unique: true,
+            sparse: true, // Allows null/undefined to be duplicated (i.e., many users without username)
+            trim: true,
+            lowercase: true,
+            match: [/^[a-z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'],
+            minlength: [3, 'Username must be at least 3 characters'],
+            maxlength: [30, 'Username cannot exceed 30 characters']
+        },
+        displayName: {
+            type: String,
+            maxlength: 50
+        },
+        bio: {
+            type: String,
+            maxlength: 160
+        },
+        avatarUrl: String,
+        socialLinks: {
+            website: String,
+            twitter: String,
+            linkedin: String,
+            instagram: String,
+            behance: String,
+            dribbble: String
+        },
+        theme: {
+            type: String,
+            default: 'light'
+        }
+    }
 }, {
     timestamps: true,
     toJSON: {

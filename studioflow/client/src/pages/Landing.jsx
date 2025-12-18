@@ -279,6 +279,14 @@ const Landing = () => {
                   {item}
                 </button>
               ))}
+              {import.meta.env.VITE_ENABLE_MARKETING_TOOLS === 'true' && (
+                <Link
+                  to="/blog"
+                  className="px-4 py-1.5 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-background/50 transition-all duration-300"
+                >
+                  Blog
+                </Link>
+              )}
             </div>
 
             {/* Auth Buttons */}

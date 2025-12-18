@@ -260,11 +260,56 @@ export async function getUserProfile(req, res) {
                 email: req.user.email,
                 name: req.user.name,
                 role: req.user.role,
-                subscription: req.user.subscription
+                subscription: req.user.subscription,
+                publicProfile: req.user.publicProfile || {}
             }
         });
+
     } catch (error) {
         console.error('Get profile error:', error);
         return res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+}
+
+export async function updatePublicProfile(req, res) {
+    try {
+        const { username, displayName, bio, website, twitter, linkedin, instagram, theme, isEnabled } = req.body;
+        
+        const user = req.user; // From verifyClerk
+
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Update fields if provided
+        if (isEnabled !== undefined) user.publicProfile.isEnabled = isEnabled;
+        if (username !== undefined) user.publicProfile.username = username;
+        if (displayName !== undefined) user.publicProfile.displayName = displayName;
+        if (bio !== undefined) user.publicProfile.bio = bio;
+        if (theme !== undefined) user.publicProfile.theme = theme;
+        
+        // Social Links
+        if (!user.publicProfile.socialLinks) user.publicProfile.socialLinks = {};
+        if (website !== undefined) user.publicProfile.socialLinks.website = website;
+        if (twitter !== undefined) user.publicProfile.socialLinks.twitter = twitter;
+        if (linkedin !== undefined) user.publicProfile.socialLinks.linkedin = linkedin;
+        if (instagram !== undefined) user.publicProfile.socialLinks.instagram = instagram;
+
+        // Validate Username uniqueness if changed
+        if (username && username !== user.publicProfile.username) {
+             const existing = await User.findOne({ 'publicProfile.username': username });
+             if (existing && String(existing._id) !== String(user._id)) {
+                 return res.status(409).json({ error: 'Username already taken' });
+             }
+        }
+
+        await user.save();
+
+        res.json({ success: true, publicProfile: user.publicProfile });
+
+    } catch (error) {
+        console.error('Update profile error:', error);
+        if (error.code === 11000) {
+             return res.status(409).json({ error: 'Username already taken' });
+        }
+        res.status(500).json({ error: 'Failed to update profile' });
     }
 }

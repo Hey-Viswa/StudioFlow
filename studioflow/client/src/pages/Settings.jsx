@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useThemeColor } from "../components/ThemeColorProvider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +17,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 
-import { User, Globe, Bell, CreditCard, Shield, Settings as SettingsIcon, Check, Sun, Moon, Laptop, Mail, Calendar, Smartphone, LogOut, Loader2, ChevronRight, Beaker } from "lucide-react";
+import { User, Globe, Bell, CreditCard, Shield, Settings as SettingsIcon, Check, Sun, Moon, Laptop, Mail, Calendar, Smartphone, LogOut, Loader2, ChevronRight, Beaker, Layout, Palette } from "lucide-react";
 
 import { usePushToken } from "../hooks/usePushToken";
 import { useReviewFeatureFlag } from "../context/FeatureFlagContext";
@@ -25,6 +27,7 @@ import BillingDetails from "../components/BillingDetails";
 import BillingHistory from "../components/BillingHistory";
 import SubscriptionAlert from "../components/SubscriptionAlert";
 import { DashboardSkeleton } from "../components/DashboardSkeleton";
+import PublicProfileSettings from "../components/marketing/PublicProfileSettings";
 
 export default function Settings() {
   const { user } = useUser();
@@ -58,6 +61,7 @@ export default function Settings() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [subscription, setSubscription] = useState(null);
+
   // const [activeSection, setActiveSection] = useState('account'); // Replaced
   const [projects, setProjects] = useState([]);
   const [preferences, setPreferences] = useState({
@@ -124,6 +128,8 @@ export default function Settings() {
       console.error('Failed to fetch prefs', error);
     }
   };
+
+
 
   const fetchSubscription = async () => {
     try {
@@ -371,7 +377,8 @@ export default function Settings() {
 
   const navItems = [
     { id: 'account', label: 'Account', icon: User, description: 'Profile & personal details' },
-    { id: 'appearance', label: 'Appearance', icon: Globe, description: 'Theme & display settings' },
+    { id: 'public-profile', label: 'Public Profile', icon: Globe, description: 'Portfolio & showcase' },
+    { id: 'appearance', label: 'Appearance', icon: Palette, description: 'Theme & display settings' },
     { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email & push alerts' },
     { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Plan & payment history' },
     { id: 'security', label: 'Security', icon: Shield, description: 'Password & 2FA' },
@@ -510,6 +517,13 @@ export default function Settings() {
                       </div>
                     </CardContent>
                   </Card>
+                </div>
+              )}
+
+              {/* Public Profile Section */}
+              {activeSection === 'public-profile' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <PublicProfileSettings />
                 </div>
               )}
 
