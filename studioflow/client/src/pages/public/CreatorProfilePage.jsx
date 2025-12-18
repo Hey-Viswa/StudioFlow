@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useAuth } from '@clerk/clerk-react';
 import { useParams } from 'react-router-dom';
 import api from '@/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 const CreatorProfilePage = () => {
     const { username } = useParams();
     const { user } = useUser();
+    const { getToken } = useAuth();
     const [profile, setProfile] = useState(null);
     const [posts, setPosts] = useState([]);
     const [showcaseItems, setShowcaseItems] = useState([]);
@@ -25,8 +26,8 @@ const CreatorProfilePage = () => {
         const fetchProfileData = async () => {
             setLoading(true);
             try {
-                // Fetch Profile
-                const profileData = await api.get(`/u/${username}`);
+                // Fetch Profile with optional auth to get follow status
+                const profileData = await api.get(`/u/${username}`, { getToken });
                 setProfile(profileData);
 
                 // Fetch Posts (Stories)
@@ -88,7 +89,10 @@ const CreatorProfilePage = () => {
                 <div className="max-w-4xl mx-auto px-6 py-12 md:py-16">
                     <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 text-center md:text-left">
                         <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background shadow-lg">
-                            <AvatarImage src={profile.avatarUrl} alt={profile.displayName} />
+                            <AvatarImage 
+                                src={profile.avatarUrl || (user?.id === profile.userId ? user?.imageUrl : undefined)} 
+                                alt={profile.displayName} 
+                            />
                             <AvatarFallback>{profile.username[0]?.toUpperCase()}</AvatarFallback>
                         </Avatar>
                         
@@ -96,6 +100,9 @@ const CreatorProfilePage = () => {
                             <div>
                                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{profile.displayName || profile.username}</h1>
                                 <p className="text-muted-foreground text-lg">@{profile.username}</p>
+                                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground font-medium">
+                                    <span>{profile.followersCount?.toLocaleString() || 0} Followers</span>
+                                </div>
                             </div>
                             
                             {profile.bio && (
@@ -109,7 +116,10 @@ const CreatorProfilePage = () => {
                                     <Button variant="outline" className="rounded-full px-6">Edit Profile</Button>
                                 </Link>
                             ) : (
-                                <FollowButton targetUsername={profile.username} />
+                                <FollowButton 
+                                    targetUsername={profile.username} 
+                                    initialIsFollowing={profile.isFollowing} // Pass initial state
+                                />
                             )}
                         </div>
                     </div>

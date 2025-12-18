@@ -20,7 +20,7 @@ export const marketingApi = {
     return api.get(`/content/${type}`);
   },
 
-  getPostBySlug: async (type, slug) => {
-    return api.get(`/content/${type}/${slug}`);
+  getPostBySlug: async (type, slug, tokenGetter) => {
+    return api.get(`/content/${type}/${slug}`, { getToken: tokenGetter });
   }
 };

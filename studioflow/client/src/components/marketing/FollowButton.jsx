@@ -4,11 +4,15 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
-const FollowButton = ({ targetUsername, className }) => {
+const FollowButton = ({ targetUsername, className, initialIsFollowing = false }) => {
     const { isSignedIn, getToken } = useAuth();
     const { user } = useUser();
-    const [isFollowing, setIsFollowing] = useState(false);
+    const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        setIsFollowing(initialIsFollowing);
+    }, [initialIsFollowing]);
 
     // Initial check (mocked for now as we might need a specific endpoint to check status efficiently or pass it in)
     // For MVP, we won't check on load to save API calls, or we assume the parent passed it.
@@ -27,7 +31,7 @@ const FollowButton = ({ targetUsername, className }) => {
             // Optimistic update
             setIsFollowing(prev => !prev);
             
-            const data = await api.post(`/api/u/${targetUsername}/follow`, {}, { getToken });
+            const data = await api.post(`/u/${targetUsername}/follow`, {}, { getToken });
             
             // Sync with server result
             setIsFollowing(data.following);

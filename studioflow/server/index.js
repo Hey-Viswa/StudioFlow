@@ -153,7 +153,7 @@ app.use(express.json({
 
 // Rate Limiter Middleware (20 req/sec per IP)
 const rateLimiter = new RateLimiterMemory({
-    points: 20,
+    points: 50,
     duration: 1,
 });
 

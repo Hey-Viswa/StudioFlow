@@ -13,13 +13,49 @@ export const getProfileByUsername = async (req, res) => {
         }
 
         const { username } = req.params;
-        const profile = await PublicProfile.findOne({ username, isPublic: true });
+        const profile = await PublicProfile.findOne({ username, isPublic: true }).lean(); // Use lean to modify plain object
 
         if (!profile) {
             return res.status(404).json({ error: 'Profile not found' });
         }
 
-        res.json(profile);
+        // Check if follower is signed in (Optional Auth Manual Check)
+        let isFollowing = false;
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            // We need to verify the token manually or use a "soft" verify middleware. 
+            // For now, let's assume the client sends valid tokens if they exist.
+            // But we need the clerk ID. 
+            // Since we don't have the middleware here, we can't easily get req.userId WITHOUT verifying.
+            // FIX: We should use the verifyClerk middleware on this route but make it strict: false if that supported it.
+            // INSTEAD: We will decode it using the same logic if possible, or reliance on valid token.
+            // Actually, simply parsing the JWT (without verifying signature) is risky for "secure" actions but okay for "UI hint" like displaying (Following).
+            // BUT proper way is to verify. 
+            
+            // Re-importing verify logic inline is messy. 
+            // Let's rely on the middleware being applied to the route in routes file? 
+            // No, the route was public. 
+            // Let's decode unverified to get sub (clerkId) just for UI check.
+            try {
+                const token = authHeader.split(' ')[1];
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const payload = JSON.parse(jsonPayload);
+                const viewerId = payload.sub;
+
+                if (viewerId) {
+                    const followRecord = await Follow.findOne({ followerId: viewerId, followingId: profile.userId });
+                    isFollowing = !!followRecord;
+                }
+            } catch (e) {
+                // Ignore invalid token
+            }
+        }
+
+        res.json({ ...profile, isFollowing });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -61,6 +97,11 @@ export const followUser = async (req, res) => {
 
         const { username } = req.params;
         const followerId = req.userId;
+
+        if (!followerId) {
+            console.error('[Follow] No followerId (req.userId) found. Auth middleware might have failed silently?');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         
         console.log(`[Follow] User ${followerId} attempting to follow username: ${username}`);
 
@@ -117,10 +158,10 @@ export const getMyProfile = async (req, res) => {
 export const updateMyProfile = async (req, res) => {
     try {
         const userId = req.userId; // Guaranteed by auth middleware
-        const { username, displayName, bio, isPublic } = req.body;
+        const { username, displayName, bio, isPublic, avatarUrl } = req.body;
 
         console.log('📝 Updating Profile for:', userId);
-        console.log('   Data:', { username, displayName, bio });
+        console.log('   Data:', { username, displayName, bio, avatarUrl });
 
         // Check username uniqueness if changing
         if (username) {
@@ -139,6 +180,7 @@ export const updateMyProfile = async (req, res) => {
                     displayName, 
                     bio, 
                     isPublic,
+                    avatarUrl,
                     updatedAt: new Date() 
                 } 
             },

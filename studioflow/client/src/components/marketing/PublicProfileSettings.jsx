@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 
 const PublicProfileSettings = () => {
     const { getToken } = useAuth();
+    const { user } = useUser(); // Get User from Clerk
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     
@@ -47,7 +48,8 @@ const PublicProfileSettings = () => {
                 username,
                 displayName,
                 bio,
-                isPublic
+                isPublic,
+                avatarUrl: user?.imageUrl // Sync Avatar URL from Clerk
             }, { getToken });
             toast.success('Profile updated');
         } catch (error) {

@@ -25,7 +25,7 @@ const BlogPostPage = () => {
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const data = await marketingApi.getPostBySlug('blog', slug);
+        const data = await marketingApi.getPostBySlug('blog', slug, getToken);
         setPost(data);
         
         // Check bookmark status if signed in
@@ -185,7 +185,11 @@ const BlogPostPage = () => {
                     <span>·</span>
                     <span>4 min read</span>
                     {post.authorProfile && (
-                        <FollowButton targetUsername={post.authorProfile.username} className="ml-2 h-6 px-3 text-xs" />
+                        <FollowButton 
+                            targetUsername={post.authorProfile.username} 
+                            className="ml-2 h-6 px-3 text-xs" 
+                            initialIsFollowing={post.authorProfile.isFollowing}
+                        />
                     )}
                   </div>
               </div>
@@ -258,7 +262,11 @@ const BlogPostPage = () => {
                   <p className="text-muted-foreground mt-2 line-clamp-2">{post.authorProfile.bio}</p>
                 )}
               </div>
-              <FollowButton targetUsername={post.authorProfile.username} className="shrink-0" />
+              <FollowButton 
+                  targetUsername={post.authorProfile.username} 
+                  className="shrink-0" 
+                  initialIsFollowing={post.authorProfile.isFollowing}
+              />
             </div>
           </div>
         )}
