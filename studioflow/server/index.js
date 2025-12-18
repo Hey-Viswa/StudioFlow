@@ -266,7 +266,7 @@ import profileRoutes from './src/routes/profileRoutes.js';
 import responseRoutes from './src/routes/responseRoutes.js';
 import blogInteractionRoutes from './src/routes/blogInteractions.js';
 
-app.use('/api', marketingRoutes); // Mounts /api/leads, /api/feedback, /api/content
+app.use('/api/marketing', marketingRoutes); // Mounts /api/marketing/leads, /api/marketing/content
 app.use('/api', profileRoutes); // Mounts /api/u/:username, /api/me/profile
 app.use('/api', responseRoutes); // Mounts /api/:contentId/responses
 app.use('/api', blogInteractionRoutes); // Mounts /api/clap, /api/comment, /api/feed

@@ -1,10 +1,9 @@
 import Lead from '../models/Lead.js';
 import Feedback from '../models/Feedback.js';
 import Follow from '../models/Follow.js';
-import Content from '../models/Content.js';
+import { checkFeature } from '../middleware/checkFeature.js';
 import PublicProfile from '../models/PublicProfile.js';
-import { fanOutOnPublish } from '../services/feedService.js';
-import { triggerNotification } from '../services/notificationService.js';
+import Content from '../models/Content.js';
 import { nanoid } from 'nanoid';
 
 // --- Leads ---
@@ -146,12 +145,13 @@ export const getContentBySlug = async (req, res) => {
         }
 
         // Check for Follow status with Optional Auth
+        let isFollowing = false;
         if (post.authorProfile) {
-            let isFollowing = false;
             const authHeader = req.headers.authorization;
             if (authHeader && authHeader.startsWith('Bearer ')) {
                 try {
                     const token = authHeader.split(' ')[1];
+                    // Simple JWT decode to get 'sub' (Clerk User ID)
                     const base64Url = token.split('.')[1];
                     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
                     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
@@ -161,31 +161,25 @@ export const getContentBySlug = async (req, res) => {
                     const viewerId = payload.sub;
 
                     if (viewerId) {
-                        // Needed to import Follow model at the top. I will add the import in a separate step or just assume it is there?
-                        // It is NOT imported in this file. I need to add the import.
-                        // I will add the import in a subsequent tool call to be safe.
-                        // Wait, I can't import inside the function. I need to add import to the top of the file using a separate replace_content.
-                        // I will do that first. 
-                        // Actually, I'll assume I can use mongoose.model('Follow') or just add the import first. 
-                        // Let's use mongoose.model('Follow') so I don't have to scroll to top, OR better, I will add the import first.
-                        // But I need to return here.
-                        
-                        // Proceeding with logic assuming 'Follow' is imported or I will use dynamic import/mongoose.model
-                        // const Follow = mongoose.model('Follow'); // Risk if not registered
-                        // I'll stick to adding import at the top in next step.
-                        
-                        // BUT wait, I can't leave this broken.
-                        // let's do the import addition FIRST. I'll cancel this replacement and do import first.
-                        // Actually, I can do checking here using a global or just simply... 
-                        // Let's add the import to the existing list at line 2.
+                        // Check if viewer follows the author
+                        const follow = await Follow.findOne({
+                            followerId: viewerId,
+                            followingId: post.userId 
+                        });
+                        isFollowing = !!follow;
                     }
                 } catch (e) {
-                   // ignore
+                   // ignore auth errors for public content
                 }
             }
         }
-        
-        // RE-WRITING THIS BLOCK to be safer. I'll cancel and do imports first.
+
+        // Return the post with isFollowing flag
+        const postData = post.toObject();
+        postData.isFollowing = isFollowing;
+
+        res.json(postData);
+
     } catch (error) {
         console.error('Get Post Error:', error);
         res.status(500).json({ error: 'Server Error' });

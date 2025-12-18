@@ -188,7 +188,7 @@ const BlogPostPage = () => {
                         <FollowButton 
                             targetUsername={post.authorProfile.username} 
                             className="ml-2 h-6 px-3 text-xs" 
-                            initialIsFollowing={post.authorProfile.isFollowing}
+                            initialIsFollowing={post.isFollowing}
                         />
                     )}
                   </div>
