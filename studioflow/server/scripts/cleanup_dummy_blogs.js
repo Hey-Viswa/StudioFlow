@@ -7,16 +7,20 @@ import Content from '../src/models/Content.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the root .env file
-// Assuming script is in studioflow/server/scripts/
-// Root .env is in D:/School/StudioFlow/.env => ../../../.env
-dotenv.config({ path: path.join(__dirname, '../../../.env') });
+// Load environment variables
+const envPath = path.join(__dirname, '../../../.env');
+const result = dotenv.config({ path: envPath });
+
+if (result.error) {
+  dotenv.config(); // Fallback to default
+}
 
 const cleanupBlogs = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI;
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    
     if (!mongoUri) {
-      console.error('❌ MONGODB_URI is missing in .env');
+      console.error('❌ MONGODB_URI or MONGO_URI is missing in environment variables');
       process.exit(1);
     }
 
