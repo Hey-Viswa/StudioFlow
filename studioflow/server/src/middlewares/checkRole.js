@@ -29,3 +29,5 @@ export const requireOwner = checkRole(['owner']);
 export const requireAdmin = checkRole(['owner', 'admin']);
 export const requireTeam = checkRole(['owner', 'admin', 'member']);
 export const requireClient = checkRole(['client']);
+// Admin-only guard for privileged routes
+export const requireStrictAdmin = checkRole(['admin']);

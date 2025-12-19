@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '../ui/button';
 import { CreditCard, Loader2, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { loadRazorpayScript } from '../../lib/razorpayCheckout';
+import { loadRazorpayScript, getRazorpayKey } from '../../lib/razorpayCheckout';
 
 export default function PayInvoiceButton({ invoice, onPaymentSuccess, className }) {
   const [processing, setProcessing] = useState(false);
@@ -12,7 +12,7 @@ export default function PayInvoiceButton({ invoice, onPaymentSuccess, className 
 
     try {
       // Check if Razorpay is configured
-      const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const razorpayKeyId = getRazorpayKey();
       
       if (!razorpayKeyId) {
         toast.error('Payment gateway not configured', {

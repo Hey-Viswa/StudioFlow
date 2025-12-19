@@ -35,6 +35,7 @@ import { useThemeColor } from '../components/ThemeColorProvider';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import BillingHistory from '../components/BillingHistory';
+import { getRazorpayKey } from '@/lib/razorpayCheckout';
 
 const STATUS_META = {
   trial: {
@@ -243,7 +244,7 @@ export default function Subscription() {
         throw new Error('Failed to load payment gateway');
       }
 
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const razorpayKey = getRazorpayKey();
       if (!razorpayKey) {
         throw new Error('Payment gateway not configured');
       }
@@ -354,7 +355,10 @@ export default function Subscription() {
         const scriptLoaded = await loadRazorpayScript();
         if (!scriptLoaded) throw new Error('Failed to load payment gateway');
 
-        const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+        const razorpayKey = getRazorpayKey();
+        if (!razorpayKey) {
+          throw new Error('Payment gateway not configured');
+        }
         const options = {
           key: razorpayKey,
           amount: Math.round(data.amount * 100),

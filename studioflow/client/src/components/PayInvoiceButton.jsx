@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { CreditCard, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createPaymentOrder, verifyPayment } from '../lib/projectInvoiceApi';
+import { getRazorpayKey } from '../lib/razorpayCheckout';
 
 export default function PayInvoiceButton({ invoice, onPaymentSuccess }) {
   const { getToken } = useAuth();
@@ -37,9 +38,16 @@ export default function PayInvoiceButton({ invoice, onPaymentSuccess }) {
         getToken
       );
 
+      const razorpayKey = getRazorpayKey();
+      if (!razorpayKey) {
+        toast.error('Payment gateway not configured');
+        setProcessing(false);
+        return;
+      }
+
       // Initialize Razorpay
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        const options = {
+          key: razorpayKey,
         amount: amount * 100, // Convert to paise
         currency: currency,
         name: 'StudioFlow',

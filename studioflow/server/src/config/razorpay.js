@@ -1,4 +1,5 @@
 import Razorpay from 'razorpay';
+import './razorpayEnv.js';
 
 // Initialize Razorpay instance
 let razorpayInstance = null;

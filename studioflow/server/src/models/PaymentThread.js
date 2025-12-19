@@ -29,7 +29,7 @@ const PaymentThreadSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['draft', 'pending', 'paid', 'cancelled', 'refunded', 'partially_refunded'],
+        enum: ['draft', 'pending', 'paid', 'cancelled', 'refunded', 'partially_refunded', 'route_failed'],
         default: 'draft',
         index: true
     },
@@ -45,6 +45,18 @@ const PaymentThreadSchema = new mongoose.Schema({
     invoiceId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ProjectInvoice',
+        default: null
+    },
+    // Payment rail discriminator to keep legacy defaults intact
+    paymentRail: {
+        type: String,
+        enum: ['v1', 'v2'],
+        default: 'v1',
+        index: true
+    },
+    // Route transfer tracking (v2 only); nullable to avoid breaking existing records
+    routeTransferId: {
+        type: String,
         default: null
     },
     paidAt: {

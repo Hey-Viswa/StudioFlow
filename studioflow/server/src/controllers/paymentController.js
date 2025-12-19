@@ -1,4 +1,5 @@
 import Razorpay from 'razorpay';
+import '../config/razorpayEnv.js';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import ProcessedWebhook from '../models/ProcessedWebhook.js';

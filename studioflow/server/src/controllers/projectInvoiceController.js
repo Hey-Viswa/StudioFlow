@@ -14,6 +14,8 @@ import { logAudit } from '../services/auditService.js';
 import { isFeatureEnabled } from '../utils/featureFlags.js';
 import ProjectBillingConfig from '../models/ProjectBillingConfig.js';
 import TimeEntry from '../models/TimeEntry.js';
+import { resolvePaymentContext } from '../services/PaymentContextResolver.js';
+import User from '../models/User.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -57,6 +59,31 @@ async function ensureInvoiceProject(invoice) {
   }
 
   return invoice;
+}
+
+async function updateProjectStatusAfterPayment(projectId) {
+  if (!projectId) return;
+
+  try {
+    const project = await Project.findById(projectId);
+
+    if (!project) return;
+    if (['archived', 'needs-revision', 'finalized'].includes(project.status)) return;
+
+    const wasOnHold = project.status === 'on-hold';
+
+    if (wasOnHold) {
+      project.status = 'active';
+    }
+
+    if (typeof project.updateStatusBasedOnProgress === 'function') {
+      await project.updateStatusBasedOnProgress();
+    }
+
+    await project.save();
+  } catch (err) {
+    console.warn('⚠️  Failed to update project status after payment:', err.message);
+  }
 }
 
 const TERMINAL_STATUSES = new Set(['paid', 'cancelled']);
@@ -1206,6 +1233,27 @@ export const createPaymentOrder = async (req, res) => {
       return res.status(400).json({ error: 'Invoice is immutable and cannot be paid' });
     }
 
+    // Prevent legacy rail when Route is eligible
+    try {
+      const ownerId = invoice.userId || invoice.payeeUserId;
+      const owner = ownerId ? await User.findById(ownerId) : null;
+      const decision = resolvePaymentContext({ invoice, owner });
+      if (decision.rail === 'v2') {
+        await logAudit({
+          userId,
+          action: 'payment_v1_blocked_route_eligible',
+          resourceType: 'invoice',
+          resourceId: invoiceId,
+          details: { reason: decision.reason },
+          status: 'failure',
+          req
+        });
+        return res.status(409).json({ error: 'Invoice eligible for Route payments; use v2 endpoint', reason: decision.reason });
+      }
+    } catch (resolverErr) {
+      console.warn('⚠️ Payment resolver failed, allowing v1 as fallback:', resolverErr.message);
+    }
+
     // Safe Project ID extraction
     const projectIdStr = invoice.projectId && invoice.projectId._id
       ? invoice.projectId._id.toString()
@@ -1401,6 +1449,8 @@ export const verifyProjectInvoicePayment = async (req, res) => {
 
     console.log('✓ Invoice marked as paid');
 
+    await updateProjectStatusAfterPayment(invoice.projectId);
+
     // Notify invoice creator about payment
     try {
       await createNotificationWithIdempotency({
@@ -1588,6 +1638,8 @@ async function handlePaymentCaptured(payment, timestamp) {
 
     invoice.razorpayPaymentId = payment.id;
     await invoice.save();
+
+    await updateProjectStatusAfterPayment(invoice.projectId);
 
     // Create Entitlement for Client
     if (invoice.client.userId && targetStatus === 'paid') {

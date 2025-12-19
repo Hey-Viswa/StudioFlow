@@ -58,6 +58,12 @@ export default function Settings() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rzpLoading, setRzpLoading] = useState(true);
+  const [rzpSaving, setRzpSaving] = useState(false);
+  const [rzpLinkedAccountId, setRzpLinkedAccountId] = useState('');
+  const [rzpKeyId, setRzpKeyId] = useState('');
+  const [rzpKeySecret, setRzpKeySecret] = useState('');
+  const [rzpMeta, setRzpMeta] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [subscription, setSubscription] = useState(null);
@@ -77,7 +83,7 @@ export default function Settings() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchSubscription(), fetchPreferences(), fetchProjects()]);
+      await Promise.all([fetchSubscription(), fetchPreferences(), fetchProjects(), fetchRazorpayMeta()]);
       setLoading(false);
     };
     loadData();
@@ -147,6 +153,19 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
+    }
+  };
+
+  const fetchRazorpayMeta = async () => {
+    try {
+      const data = await api.get('payments/v2/owner/credentials', { getToken });
+      setRzpMeta(data || null);
+      if (data?.linkedAccountId) setRzpLinkedAccountId(data.linkedAccountId);
+      if (data?.keyIdMasked) setRzpKeyId('');
+    } catch (error) {
+      console.error('Failed to load Razorpay credentials meta', error);
+    } finally {
+      setRzpLoading(false);
     }
   };
 
@@ -372,6 +391,39 @@ export default function Settings() {
       console.error(error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveRazorpaySettings = async () => {
+    if (!rzpLinkedAccountId) {
+      toast.error('Linked Account ID is required');
+      return;
+    }
+    if ((rzpKeyId && !rzpKeySecret) || (!rzpKeyId && rzpKeySecret)) {
+      toast.error('Provide both Key ID and Key Secret, or leave both empty');
+      return;
+    }
+
+    setRzpSaving(true);
+    try {
+      const payload = { linkedAccountId: rzpLinkedAccountId.trim() };
+      if (rzpKeyId && rzpKeySecret) {
+        payload.keyId = rzpKeyId.trim();
+        payload.keySecret = rzpKeySecret.trim();
+      }
+
+      const result = await api.post('payments/v2/owner/credentials', payload, { getToken });
+      setRzpMeta(result || null);
+      setRzpLinkedAccountId(result?.linkedAccountId || rzpLinkedAccountId);
+      setRzpKeyId('');
+      // Never keep secrets in memory after submit
+      setRzpKeySecret('');
+      toast.success('Razorpay settings saved securely');
+    } catch (error) {
+      console.error('Failed to save Razorpay settings', error);
+      toast.error('Failed to save Razorpay settings', { description: error.message });
+    } finally {
+      setRzpSaving(false);
     }
   };
 
@@ -784,6 +836,115 @@ export default function Settings() {
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
+                      <Card className="border-border/50 shadow-sm overflow-hidden">
+                        <CardHeader className="bg-muted/10 border-b border-border/50 pb-4">
+                          <CardTitle className="text-xl">Razorpay Route (Owner Payouts)</CardTitle>
+                          <CardDescription>
+                            Store your linked account ID (required). Key ID/Secret are optional and stored encrypted; the secret is never shown again.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4 pt-6">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="rzp-linked">Linked Account ID *</Label>
+                              <Input
+                                id="rzp-linked"
+                                placeholder="rzp_acc_..."
+                                value={rzpLinkedAccountId}
+                                onChange={(e) => setRzpLinkedAccountId(e.target.value)}
+                                disabled={rzpSaving || rzpLoading}
+                              />
+                              <p className="text-xs text-muted-foreground">Required for Route; must be active in Razorpay Dashboard.</p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="rzp-keyid">Key ID (optional)</Label>
+                              <Input
+                                id="rzp-keyid"
+                                placeholder="rzp_test_xxx"
+                                value={rzpKeyId}
+                                onChange={(e) => setRzpKeyId(e.target.value)}
+                                disabled={rzpSaving || rzpLoading}
+                              />
+                              <p className="text-xs text-muted-foreground">Only needed if you require owner-specific API auth; otherwise leave blank.</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="rzp-secret">Key Secret (optional)</Label>
+                            <Input
+                              id="rzp-secret"
+                              type="password"
+                              placeholder="Enter once; not stored in UI"
+                              value={rzpKeySecret}
+                              onChange={(e) => setRzpKeySecret(e.target.value)}
+                              disabled={rzpSaving || rzpLoading}
+                            />
+                            <p className="text-xs text-muted-foreground">Never displayed after save. Do not share or reuse secrets.</p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <div>
+                              <span className="font-medium text-foreground">Stored:</span>{' '}
+                              {rzpMeta?.linkedAccountId ? rzpMeta.linkedAccountId : 'None'}
+                            </div>
+                            <div className="h-4 w-px bg-border" />
+                            <div>
+                              <span className="font-medium text-foreground">Key:</span>{' '}
+                              {rzpMeta?.keyIdMasked || 'Not provided'}
+                            </div>
+                            <div className="h-4 w-px bg-border" />
+                            <div>
+                              <span className="font-medium text-foreground">Fingerprint:</span>{' '}
+                              {rzpMeta?.fingerprint || '—'}
+                            </div>
+                            <div className="h-4 w-px bg-border" />
+                            <div>
+                              <span className="font-medium text-foreground">Rotated:</span>{' '}
+                              {rzpMeta?.rotatedAt ? new Date(rzpMeta.rotatedAt).toLocaleString() : '—'}
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-foreground">Secure Preview</span>
+                              <Badge variant="outline">Masked</Badge>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <div className="flex flex-col">
+                                <span className="text-xs uppercase tracking-wide">Linked Account</span>
+                                <span className="font-medium text-foreground break-all">{rzpMeta?.linkedAccountId || '—'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs uppercase tracking-wide">Key (masked)</span>
+                                <span className="font-medium text-foreground">{rzpMeta?.keyIdMasked || '—'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs uppercase tracking-wide">Fingerprint</span>
+                                <span className="font-medium text-foreground">{rzpMeta?.fingerprint || '—'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs uppercase tracking-wide">Last Rotation</span>
+                                <span className="font-medium text-foreground">{rzpMeta?.rotatedAt ? new Date(rzpMeta.rotatedAt).toLocaleString() : '—'}</span>
+                              </div>
+                            </div>
+                            <p className="text-xs">Secrets are encrypted at rest and never shown after save. Use a new secret to rotate.</p>
+                          </div>
+
+                          <div className="pt-2 flex justify-end">
+                            <Button onClick={saveRazorpaySettings} disabled={rzpSaving || rzpLoading} className="min-w-[160px]">
+                              {rzpSaving ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Saving securely...
+                                </>
+                              ) : (
+                                'Save Razorpay Settings'
+                              )}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+
                       <BillingDetails
                         subscription={subscription}
                         onCancel={handleCancelSubscription}

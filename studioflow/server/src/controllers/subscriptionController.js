@@ -1,4 +1,6 @@
 import Razorpay from 'razorpay';
+import '../config/razorpayEnv.js';
+import { isUsingTestRazorpayKeys } from '../config/razorpayEnv.js';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
@@ -56,6 +58,17 @@ try {
 }
 
 // Subscription plans configuration
+const TEST_PRO_PLAN_FALLBACK = 'plan_RcTPS7s2l9ku5N';
+const TEST_STUDIO_PLAN_FALLBACK = 'plan_RcTPuLbBYG9E8N';
+
+const PRO_PLAN_ID = isUsingTestRazorpayKeys
+  ? (process.env.RAZORPAY_PRO_PLAN_ID_TEST || TEST_PRO_PLAN_FALLBACK)
+  : (process.env.RAZORPAY_PRO_PLAN_ID || TEST_PRO_PLAN_FALLBACK);
+
+const STUDIO_PLAN_ID = isUsingTestRazorpayKeys
+  ? (process.env.RAZORPAY_STUDIO_PLAN_ID_TEST || TEST_STUDIO_PLAN_FALLBACK)
+  : (process.env.RAZORPAY_STUDIO_PLAN_ID || TEST_STUDIO_PLAN_FALLBACK);
+
 const SUBSCRIPTION_PLANS = {
   free: {
     id: 'free',
@@ -79,7 +92,7 @@ const SUBSCRIPTION_PLANS = {
     price: 1, // ₹100/month
     currency: 'INR',
     trialDays: 0, // No trial
-    razorpayPlanId: process.env.RAZORPAY_PRO_PLAN_ID || 'plan_RcTPS7s2l9ku5N',
+    razorpayPlanId: PRO_PLAN_ID,
     features: {
       maxProjects: 50,
       maxMembers: 5,
@@ -98,7 +111,7 @@ const SUBSCRIPTION_PLANS = {
     price: 2, // ₹499/month
     currency: 'INR',
     trialDays: 0, // No trial
-    razorpayPlanId: process.env.RAZORPAY_STUDIO_PLAN_ID || 'plan_RcTPuLbBYG9E8N',
+    razorpayPlanId: STUDIO_PLAN_ID,
     features: {
       maxProjects: 100,
       maxMembers: -1, // Unlimited
@@ -162,6 +175,63 @@ export const getCurrentSubscription = async (req, res) => {
       } else if (['created', 'pending'].includes(user.subscription.status) && user.subscription.plan !== 'free') {
         console.log('⏳ Subscription in progress (within grace period) - Waiting for payment confirmation');
         // Do NOT downgrade yet, let the UI show "Processing" or keep current access
+      }
+
+      // SAFETY NET: If we have a Razorpay subscription id but local status is not active, reconcile with Razorpay
+      const hasGatewaySubscription = Boolean(user.subscription.razorpaySubscriptionId);
+      // Also reconcile when plan is still free but a gateway subscription exists (missed verify/webhook)
+      const needsGatewayReconcile = hasGatewaySubscription && (
+        user.subscription.status !== 'active' ||
+        user.subscription.status === 'cancelled' ||
+        user.subscription.plan === 'free'
+      );
+
+      if (needsGatewayReconcile && razorpay) {
+        try {
+          console.log('🔍 Reconciling subscription from Razorpay...');
+          const rpSub = await razorpay.subscriptions.fetch(user.subscription.razorpaySubscriptionId);
+          console.log('  Razorpay status:', rpSub.status);
+
+          if (rpSub.status === 'active') {
+            // Decide plan from notes or plan_id mapping
+            let reconciledPlan = rpSub.notes?.plan;
+            if (!reconciledPlan) {
+              if (rpSub.plan_id === process.env.RAZORPAY_PRO_PLAN_ID || rpSub.plan_id === process.env.RAZORPAY_PRO_PLAN_ID_TEST || rpSub.plan_id === TEST_PRO_PLAN_FALLBACK) {
+                reconciledPlan = 'pro';
+              } else if (rpSub.plan_id === process.env.RAZORPAY_STUDIO_PLAN_ID || rpSub.plan_id === process.env.RAZORPAY_STUDIO_PLAN_ID_TEST || rpSub.plan_id === TEST_STUDIO_PLAN_FALLBACK) {
+                reconciledPlan = 'studio';
+              }
+            }
+
+            const targetPlan = reconciledPlan || user.subscription.plan || 'pro';
+
+            try {
+              const newStatus = SubscriptionStateMachine.transition(user.subscription.status, 'active');
+              user.subscription.status = newStatus;
+            } catch (transitionError) {
+              console.warn('⚠️  Transition failed during reconcile, forcing active:', transitionError.message);
+              user.subscription.status = 'active';
+            }
+
+            user.subscription.plan = targetPlan;
+            user.subscription.subscriptionStartDate = new Date(rpSub.start_at * 1000);
+            if (rpSub.current_end) {
+              user.subscription.subscriptionEndDate = new Date(rpSub.current_end * 1000);
+            } else if (rpSub.end_at) {
+              user.subscription.subscriptionEndDate = new Date(rpSub.end_at * 1000);
+            }
+            user.subscription.autoRenew = rpSub.status === 'active';
+            await user.save();
+
+            console.log('✅ Reconciled subscription from Razorpay');
+            console.log('  Plan:', user.subscription.plan);
+            console.log('  Status:', user.subscription.status);
+          } else {
+            console.log('ℹ️  Razorpay subscription not active; skipping reconcile');
+          }
+        } catch (reconcileError) {
+          console.error('⚠️  Razorpay reconcile failed:', reconcileError.message);
+        }
       }
 
       // SELF-HEALING: Check if user is on Free plan but has a valid Paid Invoice active
@@ -266,12 +336,20 @@ export const createSubscription = async (req, res) => {
 
     const plan = SUBSCRIPTION_PLANS[planId];
 
-    if (!plan.razorpayPlanId) {
-      console.error('❌ Razorpay plan ID not configured for:', planId);
-      return res.status(400).json({ error: 'Plan configuration error' });
+    // Enforce test-mode plan IDs even if live IDs are present in env
+    if (isUsingTestRazorpayKeys) {
+      plan.razorpayPlanId = planId === 'pro' ? TEST_PRO_PLAN_FALLBACK : TEST_STUDIO_PLAN_FALLBACK;
     }
 
-    console.log('✓ Using Razorpay Plan ID:', plan.razorpayPlanId);
+    if (!plan.razorpayPlanId) {
+      console.error('❌ Razorpay plan ID not configured for:', planId);
+      if (isUsingTestRazorpayKeys) {
+        console.error('❌ Missing test mode plan ID env (RAZORPAY_PRO_PLAN_ID_TEST or RAZORPAY_STUDIO_PLAN_ID_TEST)');
+      }
+      return res.status(400).json({ error: 'Plan configuration error: missing plan_id' });
+    }
+
+    console.log('✓ Using Razorpay Plan ID:', plan.razorpayPlanId, 'Mode:', isUsingTestRazorpayKeys ? 'TEST' : 'LIVE');
 
     // Get or create user
     let user = await User.findOne({ clerkUserId: userId });
@@ -424,17 +502,19 @@ export const createSubscription = async (req, res) => {
         currency: plan.currency
       });
     } catch (subscriptionError) {
-      console.error('❌ Error creating Razorpay subscription:', subscriptionError);
-      console.error('Subscription Error Details:', subscriptionError.error || subscriptionError);
+      console.error('❌ Error creating Razorpay subscription:', subscriptionError.message || subscriptionError);
+      console.error('Subscription Error Details:', subscriptionError.error?.description || 'No description');
+      if (subscriptionError.stack) console.error(subscriptionError.stack);
       return res.status(500).json({
         error: 'Failed to create subscription',
-        details: subscriptionError.error?.description || subscriptionError.message
+        details: subscriptionError.error?.description || subscriptionError.message || 'Subscription creation failed'
       });
     }
   } catch (error) {
     console.error('=== CREATE SUBSCRIPTION FAILED ===');
-    console.error('❌ Unexpected error:', error);
-    console.error('Stack trace:', error.stack);
+    console.error('❌ Unexpected error:', error.message || error);
+    if (error.error?.description) console.error('Error description:', error.error.description);
+    if (error.stack) console.error('Stack trace:', error.stack);
     res.status(500).json({
       error: 'Failed to create subscription',
       details: error.message
@@ -1580,6 +1660,15 @@ export const getBillingHistory = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Legacy safety: older users may not have a subscription object populated
+    if (!user.subscription) {
+      user.subscription = { plan: 'free', status: 'inactive' };
+    }
+    if (!user.subscription.plan) user.subscription.plan = 'free';
+    if (!user.subscription.status) user.subscription.status = 'inactive';
+
+    const subscription = user.subscription;
+
     const gatewayAvailable = Boolean(razorpay);
 
     const billingHistory = {
@@ -1593,25 +1682,25 @@ export const getBillingHistory = async (req, res) => {
 
     // Use local subscription data as a fallback for display when gateway is unavailable
     const populateLocalSubscription = () => {
-      const planConfig = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
+      const planConfig = SUBSCRIPTION_PLANS[subscription.plan] || SUBSCRIPTION_PLANS.free;
       billingHistory.currentSubscription = {
-        id: user.subscription.razorpaySubscriptionId || 'local-only',
+        id: subscription.razorpaySubscriptionId || 'local-only',
         plan: planConfig.name,
         amount: planConfig.price,
-        status: user.subscription.status,
-        startDate: user.subscription.subscriptionStartDate,
-        currentPeriodStart: user.subscription.subscriptionStartDate,
-        currentPeriodEnd: user.subscription.subscriptionEndDate,
-        endDate: user.subscription.subscriptionEndDate,
-        chargeAt: user.subscription.subscriptionEndDate,
+        status: subscription.status,
+        startDate: subscription.subscriptionStartDate,
+        currentPeriodStart: subscription.subscriptionStartDate,
+        currentPeriodEnd: subscription.subscriptionEndDate,
+        endDate: subscription.subscriptionEndDate,
+        chargeAt: subscription.subscriptionEndDate,
         totalCount: null,
         paidCount: null,
         remainingCount: null
       };
 
-      if (user.subscription.subscriptionEndDate) {
+      if (subscription.subscriptionEndDate) {
         billingHistory.nextPayment = {
-          date: new Date(user.subscription.subscriptionEndDate),
+          date: new Date(subscription.subscriptionEndDate),
           amount: planConfig.price,
           plan: planConfig.name
         };
@@ -1646,36 +1735,36 @@ export const getBillingHistory = async (req, res) => {
     }
 
     // Get current subscription details
-    if (user.subscription.razorpaySubscriptionId) {
+    if (subscription.razorpaySubscriptionId) {
       try {
-        const subscription = await razorpay.subscriptions.fetch(
-          user.subscription.razorpaySubscriptionId
+        const subscriptionDetails = await razorpay.subscriptions.fetch(
+          subscription.razorpaySubscriptionId
         );
 
-        const currentPlan = SUBSCRIPTION_PLANS[user.subscription.plan] || SUBSCRIPTION_PLANS.free;
+        const currentPlan = SUBSCRIPTION_PLANS[subscription.plan] || SUBSCRIPTION_PLANS.free;
 
         billingHistory.currentSubscription = {
-          id: subscription.id,
+          id: subscriptionDetails.id,
           plan: currentPlan.name,
           amount: currentPlan.price,
-          status: subscription.status,
-          startDate: new Date(subscription.start_at * 1000),
-          currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : null,
-          currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null,
-          endDate: subscription.end_at ? new Date(subscription.end_at * 1000) : null,
-          chargeAt: subscription.charge_at ? new Date(subscription.charge_at * 1000) : null,
-          totalCount: subscription.total_count,
-          paidCount: subscription.paid_count,
-          remainingCount: subscription.remaining_count
+          status: subscriptionDetails.status,
+          startDate: new Date(subscriptionDetails.start_at * 1000),
+          currentPeriodStart: subscriptionDetails.current_start ? new Date(subscriptionDetails.current_start * 1000) : null,
+          currentPeriodEnd: subscriptionDetails.current_end ? new Date(subscriptionDetails.current_end * 1000) : null,
+          endDate: subscriptionDetails.end_at ? new Date(subscriptionDetails.end_at * 1000) : null,
+          chargeAt: subscriptionDetails.charge_at ? new Date(subscriptionDetails.charge_at * 1000) : null,
+          totalCount: subscriptionDetails.total_count,
+          paidCount: subscriptionDetails.paid_count,
+          remainingCount: subscriptionDetails.remaining_count
         };
 
         // Calculate subscription count (how many times renewed)
-        billingHistory.subscriptionCount = subscription.paid_count || 0;
+        billingHistory.subscriptionCount = subscriptionDetails.paid_count || 0;
 
         // Next payment info
-        if (subscription.status === 'active' && subscription.charge_at) {
+        if (subscriptionDetails.status === 'active' && subscriptionDetails.charge_at) {
           billingHistory.nextPayment = {
-            date: new Date(subscription.charge_at * 1000),
+            date: new Date(subscriptionDetails.charge_at * 1000),
             amount: currentPlan.price,
             plan: currentPlan.name
           };
@@ -1687,20 +1776,20 @@ export const getBillingHistory = async (req, res) => {
 
     // Fetch payment history from Razorpay
     // Prefer fetching by Customer ID to get full history across all subscriptions
-    if (user.subscription.razorpayCustomerId || user.subscription.razorpaySubscriptionId) {
+    if (subscription.razorpayCustomerId || subscription.razorpaySubscriptionId) {
       try {
         let payments;
 
-        if (user.subscription.razorpayCustomerId) {
-          console.log(`🔍 Fetching payments for Customer ID: ${user.subscription.razorpayCustomerId}`);
+        if (subscription.razorpayCustomerId) {
+          console.log(`🔍 Fetching payments for Customer ID: ${subscription.razorpayCustomerId}`);
           payments = await razorpay.payments.all({
-            'customer_id': user.subscription.razorpayCustomerId,
+            'customer_id': subscription.razorpayCustomerId,
             count: 100
           });
         } else {
-          console.log(`🔍 Fetching payments for Subscription ID: ${user.subscription.razorpaySubscriptionId}`);
+          console.log(`🔍 Fetching payments for Subscription ID: ${subscription.razorpaySubscriptionId}`);
           payments = await razorpay.payments.all({
-            subscription_id: user.subscription.razorpaySubscriptionId,
+            subscription_id: subscription.razorpaySubscriptionId,
             count: 100
           });
         }
@@ -1712,12 +1801,12 @@ export const getBillingHistory = async (req, res) => {
           // SAFETY FILTER: Ensure payments actually belong to this user
           const filteredPayments = payments.items.filter(p => {
             // 1. Match by Customer ID (Strongest link for full history)
-            if (user.subscription.razorpayCustomerId && p.customer_id === user.subscription.razorpayCustomerId) {
+            if (subscription.razorpayCustomerId && p.customer_id === subscription.razorpayCustomerId) {
               return true;
             }
 
             // 2. Match by Subscription ID (Current)
-            if (p.subscription_id && p.subscription_id === user.subscription.razorpaySubscriptionId) {
+            if (p.subscription_id && p.subscription_id === subscription.razorpaySubscriptionId) {
               return true;
             }
 
@@ -1738,6 +1827,100 @@ export const getBillingHistory = async (req, res) => {
 
           if (filteredPayments.length !== payments.items.length) {
             console.warn(`⚠️  Razorpay returned ${payments.items.length} payments, but only ${filteredPayments.length} match subscription ${user.subscription.razorpaySubscriptionId}`);
+          }
+
+          // If we never stored the subscription ID but payments reference one, recover it
+          let discoveredSubId = filteredPayments.find(p => p.subscription_id)?.subscription_id;
+
+          // Fallback: If subscription_id is missing on payments but invoices are present, try to fetch one invoice to get its subscription_id
+          if (!discoveredSubId) {
+            const invoicePayment = filteredPayments.find(p => p.invoice_id);
+            if (invoicePayment) {
+              try {
+                const rpInvoice = await razorpay.invoices.fetch(invoicePayment.invoice_id);
+                if (rpInvoice?.subscription_id) {
+                  discoveredSubId = rpInvoice.subscription_id;
+                  console.log(`🔄 Recovered subscription ID from invoice ${invoicePayment.invoice_id}: ${discoveredSubId}`);
+                }
+              } catch (invFetchError) {
+                console.error('⚠️  Failed to fetch invoice for subscription recovery:', invFetchError.message);
+              }
+            }
+          }
+
+          if (!subscription.razorpaySubscriptionId && discoveredSubId) {
+            console.log(`🔄 Recovering missing subscription ID from payments: ${discoveredSubId}`);
+            try {
+              subscription.razorpaySubscriptionId = discoveredSubId;
+
+              // Attempt to fetch subscription details to restore plan/status/dates and response payload
+              try {
+                const rpSub = await razorpay.subscriptions.fetch(discoveredSubId);
+                let restoredPlan = rpSub.notes?.plan;
+
+                if (!restoredPlan) {
+                  if (rpSub.plan_id === process.env.RAZORPAY_PRO_PLAN_ID || rpSub.plan_id === process.env.RAZORPAY_PRO_PLAN_ID_TEST || rpSub.plan_id === TEST_PRO_PLAN_FALLBACK) {
+                    restoredPlan = 'pro';
+                  } else if (rpSub.plan_id === process.env.RAZORPAY_STUDIO_PLAN_ID || rpSub.plan_id === process.env.RAZORPAY_STUDIO_PLAN_ID_TEST || rpSub.plan_id === TEST_STUDIO_PLAN_FALLBACK) {
+                    restoredPlan = 'studio';
+                  }
+                }
+
+                if (restoredPlan) {
+                  subscription.plan = restoredPlan;
+                }
+
+                try {
+                  const newStatus = SubscriptionStateMachine.transition(subscription.status || 'pending', 'active');
+                  subscription.status = newStatus;
+                } catch (transitionError) {
+                  console.warn('⚠️  Transition failed during payment recovery, forcing active:', transitionError.message);
+                  subscription.status = 'active';
+                }
+
+                subscription.subscriptionStartDate = rpSub.start_at ? new Date(rpSub.start_at * 1000) : subscription.subscriptionStartDate;
+                if (rpSub.current_end) {
+                  subscription.subscriptionEndDate = new Date(rpSub.current_end * 1000);
+                } else if (rpSub.end_at) {
+                  subscription.subscriptionEndDate = new Date(rpSub.end_at * 1000);
+                }
+                subscription.autoRenew = rpSub.status === 'active';
+
+                // Populate response currentSubscription now that we have gateway data
+                const planConfig = SUBSCRIPTION_PLANS[subscription.plan] || SUBSCRIPTION_PLANS.free;
+                billingHistory.currentSubscription = {
+                  id: rpSub.id,
+                  plan: planConfig.name,
+                  amount: planConfig.price,
+                  status: rpSub.status,
+                  startDate: rpSub.start_at ? new Date(rpSub.start_at * 1000) : null,
+                  currentPeriodStart: rpSub.current_start ? new Date(rpSub.current_start * 1000) : null,
+                  currentPeriodEnd: rpSub.current_end ? new Date(rpSub.current_end * 1000) : null,
+                  endDate: rpSub.end_at ? new Date(rpSub.end_at * 1000) : null,
+                  chargeAt: rpSub.charge_at ? new Date(rpSub.charge_at * 1000) : null,
+                  totalCount: rpSub.total_count,
+                  paidCount: rpSub.paid_count,
+                  remainingCount: rpSub.remaining_count
+                };
+
+                billingHistory.subscriptionCount = rpSub.paid_count || 0;
+                if (rpSub.status === 'active' && rpSub.charge_at) {
+                  billingHistory.nextPayment = {
+                    date: new Date(rpSub.charge_at * 1000),
+                    amount: planConfig.price,
+                    plan: planConfig.name
+                  };
+                }
+
+              } catch (rpFetchError) {
+                console.error('⚠️  Failed to fetch recovered subscription:', rpFetchError.message);
+              }
+
+              await user.save();
+              console.log('✅ Subscription ID and details recovered from payments');
+            } catch (recoverError) {
+              console.error('⚠️  Failed to recover subscription from payments:', recoverError.message);
+            }
           }
 
           billingHistory.paymentHistory = filteredPayments.map(payment => ({

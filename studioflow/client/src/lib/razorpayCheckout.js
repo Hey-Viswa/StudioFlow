@@ -9,6 +9,14 @@
  * @param {Function} options.onFailure - Failure callback
  * @param {Object} options.prefill - Prefill data
  */
+export const getRazorpayKey = () => {
+  const useTest = import.meta.env.VITE_RAZORPAY_ENV === 'test';
+  if (useTest) {
+    return import.meta.env.VITE_RAZORPAY_KEY_ID_TEST || import.meta.env.VITE_RAZORPAY_KEY_ID;
+  }
+  return import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.VITE_RAZORPAY_KEY_ID_TEST;
+};
+
 export const openRazorpayCheckout = ({
   orderId,
   amount,
@@ -18,8 +26,15 @@ export const openRazorpayCheckout = ({
   onFailure,
   prefill = {}
 }) => {
+  const key = getRazorpayKey();
+
+  if (!key) {
+    onFailure?.({ message: 'Payment gateway not configured' });
+    return;
+  }
+
   const options = {
-    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    key,
     amount: amount * 100, // Convert to paise
     currency: currency,
     name: 'StudioFlow',

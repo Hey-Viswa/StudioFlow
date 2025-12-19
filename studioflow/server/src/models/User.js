@@ -175,6 +175,21 @@ const UserSchema = new mongoose.Schema({
             default: null
         }
     },
+    // Payment rail readiness (defaults keep legacy behavior unchanged)
+    paymentProfile: {
+        razorpayLinkedAccountId: {
+            type: String,
+            default: null
+        },
+        isRouteReady: {
+            type: Boolean,
+            default: false
+        },
+        enableV2: {
+            type: Boolean,
+            default: false
+        }
+    },
     // Cached stats for performance
     stats: {
         totalProjects: {

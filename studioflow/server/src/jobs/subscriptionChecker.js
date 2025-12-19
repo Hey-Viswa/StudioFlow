@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
 import Razorpay from 'razorpay';
+import '../config/razorpayEnv.js';
 
 // Initialize Razorpay
 let razorpay = null;

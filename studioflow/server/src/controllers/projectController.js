@@ -1076,11 +1076,13 @@ export const updateProject = async (req, res) => {
     // Save will trigger pre-save middleware that auto-calculates progress
     await project.save();
 
+    const safeTasks = Array.isArray(project.tasks) ? project.tasks : [];
+
     console.log('✅ Project updated successfully:', {
       progress: project.progress,
       status: project.status,
-      completedTasks: project.tasks.filter(t => t.status === 'completed').length,
-      totalTasks: project.tasks.length
+      completedTasks: safeTasks.filter(t => t.status === 'completed').length,
+      totalTasks: safeTasks.length
     });
 
     // Clear cache for all project members (support decoupled ProjectMember store)

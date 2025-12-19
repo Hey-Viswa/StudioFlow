@@ -1,4 +1,5 @@
 import './src/config/env.js';
+import './src/config/razorpayEnv.js';
 // Restart trigger for env load
 import dotenv from 'dotenv';
 import express from 'express'; // server-main
@@ -13,11 +14,13 @@ import protectedRoute from './src/routes/protected.js';
 import projectRoutes from './src/routes/projects.js';
 import inviteRoutes from './src/routes/invites.js';
 import paymentRoutes from './src/routes/payment.js';
+import paymentsV2Routes from './src/routes/paymentsV2.js';
 import taskCommentRoutes from './src/routes/taskComment.js';
 import trashRoutes from './src/routes/trash.js';
 import subscriptionRoutes from './src/routes/subscriptions.js';
 import invoiceRoutes from './src/routes/invoices.js';
 import contactRoutes from './src/routes/contact.js';
+import adminRoutes from './src/routes/admin.js';
 import notificationRoutes from './src/routes/notifications.js';
 import clerkWebhookRoutes from './src/routes/clerkWebhook.js';
 import projectInvoiceRoutes from './src/routes/projectInvoices.js';
@@ -246,10 +249,12 @@ app.use('/api/projects/:id/files', fileRoutes); // File management routes
 app.use('/api/projects', taskCommentRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api', paymentsV2Routes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/subscription-invoices', invoiceRoutes); // Changed: subscription invoices now at /api/subscription-invoices
 app.use('/api/contact', contactRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes); // Notification system
 app.use('/api/clerk', clerkWebhookRoutes); // Clerk webhooks
 app.use('/api', projectInvoiceRoutes); // Project invoice routes
