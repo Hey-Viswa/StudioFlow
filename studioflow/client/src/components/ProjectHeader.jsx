@@ -35,7 +35,9 @@ export default function ProjectHeader({
     userRole,
     onInvite,
     onEdit,
-    onTransferOwnership
+    onTransferOwnership,
+    onApproveFinal,
+    onRequestRevision
 }) {
     const navigate = useNavigate();
     const isOwner = userRole === 'owner';
