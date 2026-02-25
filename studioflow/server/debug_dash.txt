@@ -918,3 +918,9 @@
 {"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
 {"time":"2026-02-25T14:43:59.084Z","userId":"user_34sgVHJ0GKdbcrfDAz3AMu9E6HV","ownedLen":3,"memberLen":3,"fetchedInvoicesLen":2}
 {"msg":"FILTERED","ownerInvoicesLen":2,"clientInvoicesLen":0}
+{"time":"2026-02-25T15:32:26.198Z","userId":"user_354FRnhKJfncnN5fRYlemdRXWH3","ownedLen":0,"memberLen":2,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":0,"clientInvoicesLen":1}
+{"time":"2026-02-25T15:32:44.961Z","userId":"user_354FRnhKJfncnN5fRYlemdRXWH3","ownedLen":0,"memberLen":2,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":0,"clientInvoicesLen":1}
+{"time":"2026-02-25T15:32:45.522Z","userId":"user_354FRnhKJfncnN5fRYlemdRXWH3","ownedLen":0,"memberLen":2,"fetchedInvoicesLen":2}
+{"msg":"FILTERED","ownerInvoicesLen":0,"clientInvoicesLen":1}
