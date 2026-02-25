@@ -43,9 +43,12 @@ export const getProjectActivity = async (req, res) => {
 
     // 2. Fetch Logs
     // Filter out 'view' actions to keep the log clean, unless specifically requested
-    const query = { 
-        projectId,
-        action: { $ne: 'comment.view' } // Don't show "User viewed comments" in the activity feed
+    const query = {
+      $or: [
+        { projectId },
+        { resourceType: 'project', resourceId: projectId }
+      ],
+      action: { $ne: 'comment.view' } // Don't show "User viewed comments" in the activity feed
     };
 
     const total = await AuditLog.countDocuments(query);
@@ -58,7 +61,7 @@ export const getProjectActivity = async (req, res) => {
     // 3. Fetch User Details
     // Collect all unique user IDs from the logs
     const userIds = [...new Set(logs.map(log => log.userId))];
-    
+
     // Fetch users from local DB
     const users = await User.find({ clerkUserId: { $in: userIds } })
       .select('clerkUserId name email')

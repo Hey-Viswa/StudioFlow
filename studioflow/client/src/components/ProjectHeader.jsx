@@ -24,7 +24,9 @@ import {
     Share2,
     Archive,
     Trash2,
-    Crown
+    Crown,
+    CheckCircle,
+    RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -103,6 +105,18 @@ export default function ProjectHeader({
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                    {onApproveFinal && (
+                        <Button onClick={onApproveFinal} size="sm" className="hidden sm:flex bg-emerald-600 hover:bg-emerald-700 text-white">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Approve Final
+                        </Button>
+                    )}
+                    {onRequestRevision && (
+                        <Button onClick={onRequestRevision} variant="outline" size="sm" className="hidden sm:flex border-orange-500/50 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20">
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Request Revision
+                        </Button>
+                    )}
                     {isOwner && (
                         <Button onClick={onInvite} size="sm" className="hidden sm:flex">
                             <Share2 className="w-4 h-4 mr-2" />

@@ -2,6 +2,7 @@ import Project from '../models/Project.js';
 import { createClerkClient } from '@clerk/backend';
 import { clearUserCache } from '../middlewares/cache.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+import { taskQueue } from '../queues/automationQueue.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -443,6 +444,40 @@ export const createComment = async (req, res) => {
       });
     } catch (notifError) {
       console.error('Failed to trigger comment notification:', notifError);
+    }
+
+    // Trigger Task Automation if keywords are present
+    try {
+      const standardKeywords = ['#bug', '#todo', '#critical', '#urgent', '#high', '#medium', '#low'];
+      const lowerText = text.toLowerCase();
+      const hasKeyword = standardKeywords.some(k => lowerText.includes(k));
+
+      if (hasKeyword) {
+        console.log(`🤖 Comment contains automation keywords, queuing task creation...`);
+
+        const payload = {
+          commentId: createdComment._id.toString(),
+          projectId: projectId.toString(),
+          content: text,
+          userId: userId,
+          link: `/dashboard/projects/${projectId}?tab=tasks`
+        };
+
+        // If Redis queue is disabled, we must process it directly
+        if (process.env.ENABLE_REDIS_QUEUE !== 'true') {
+          console.log('🤖 Redis Queue is disabled. Processing task automation directly.');
+          // Dynamic import to avoid circular dependency issues at the top level
+          const automationService = (await import('../services/automationService.js')).default;
+          await automationService.processTaskAutomation(payload);
+        } else {
+          await taskQueue.add('process-comment', payload, {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 }
+          });
+        }
+      }
+    } catch (autoError) {
+      console.error('Failed to queue or process task automation:', autoError);
     }
 
     res.status(201).json({

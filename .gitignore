@@ -130,3 +130,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .vercel
+.codersinflow
+.vscode
+.venv
+.codex
+out
+*.vsix
+.claude
+CLAUDE.md
+.git
+*.tmp
+__pycache__
+*.pyc
+.github

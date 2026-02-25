@@ -382,7 +382,7 @@ export default function ProjectDetail() {
         brief: editForm.brief,
         status: editForm.status,
         progress: editForm.progress,
-        dueDate: editForm.dueDate || null 
+        dueDate: editForm.dueDate || null
       };
 
       const response = await api.put(`/projects/${projectId}`, updateData, { getToken });
@@ -457,8 +457,8 @@ export default function ProjectDetail() {
     try {
       const token = await getToken();
       await api.patch(`/projects/${projectId}`, {
-          status: 'completed',
-          finalizedAt: new Date().toISOString()
+        status: 'completed',
+        finalizedAt: new Date().toISOString()
       }, { getToken });
 
       toast.success('Project approved successfully! 🎉');
@@ -594,6 +594,8 @@ export default function ProjectDetail() {
         onInvite={project.userRole === 'owner' ? () => setActiveTab('team') : null}
         onEdit={startEditing}
         onTransferOwnership={() => setShowTransferModal(true)}
+        onRequestRevision={() => setShowRevisionModal(true)}
+        onApproveFinal={() => setShowApproveModal(true)}
       />
 
       {/* ... (Stats Section) ... */}
@@ -628,9 +630,9 @@ export default function ProjectDetail() {
             <Activity className="h-4 w-4" /> Activity
           </TabsTrigger>
 
-           {/* Feature Flagged Storyboard */}
+          {/* Feature Flagged Storyboard */}
 
-           {/* Feature Flagged Storyboard - Enabled by default for testing */}
+          {/* Feature Flagged Storyboard - Enabled by default for testing */}
 
 
           <div className="flex-1 min-w-4" />

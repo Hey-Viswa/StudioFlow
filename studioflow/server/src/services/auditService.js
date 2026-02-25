@@ -42,7 +42,10 @@ export const logAudit = async ({
         }
 
         // Extract projectId from details if available
-        const projectId = details.projectId || null;
+        let projectId = details.projectId || null;
+        if (!projectId && resourceType === 'project') {
+            projectId = resourceId;
+        }
 
         await AuditLog.create({
             userId,

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { toast } from 'sonner'
 import { useProjectSocket } from './useSocket'
+import { uploadFile } from '../lib/api/files'
 
 export function useComments(projectId) {
   const { getToken } = useAuth()
@@ -99,20 +100,23 @@ export function useComments(projectId) {
 
       let uploadedAttachments = [];
       if (data.files && data.files.length > 0) {
-        const formData = new FormData();
-        data.files.forEach(file => formData.append('files', file));
-
-        const uploadResponse = await fetch(`${apiUrl}/upload`, {
-          method: 'POST',
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : ''
-          },
-          body: formData
-        });
-
-        if (!uploadResponse.ok) throw new Error('Failed to upload files');
-        const uploadResult = await uploadResponse.json();
-        uploadedAttachments = uploadResult.files;
+        for (const file of data.files) {
+          try {
+            const result = await uploadFile(projectId, file, token, { category: 'comment_attachment' });
+            uploadedAttachments.push({
+              name: file.name,
+              size: file.size,
+              type: file.type || 'application/octet-stream',
+              url: result.downloadUrl || result.previewUrl,
+              fileId: result.fileId,
+              key: result.storageKey
+            });
+          } catch (uploadError) {
+            console.error('File upload failed for', file.name, uploadError);
+            toast.error(`Failed to upload ${file.name}`);
+            throw uploadError;
+          }
+        }
       }
 
       const commentData = {

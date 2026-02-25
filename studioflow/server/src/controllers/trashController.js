@@ -3,6 +3,7 @@ import Trash from '../models/Trash.js';
 import ProjectInvoice from '../models/ProjectInvoice.js';
 import DeletedInvoice from '../models/DeletedInvoice.js';
 import ProjectFile from '../models/ProjectFile.js';
+import { clearUserCache } from '../middlewares/cache.js';
 import { createClerkClient } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
@@ -193,6 +194,9 @@ export const restoreProject = async (req, res) => {
       });
       console.log('📡 Socket.IO: Emitted project-created event (restore) globally');
     }
+
+    // Clear the user cache to ensure the restored project appears on the dashboard immediately
+    clearUserCache(userId);
 
     res.json({
       message: 'Project restored successfully',
