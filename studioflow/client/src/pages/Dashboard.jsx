@@ -4,6 +4,14 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { LayoutDashboard, FolderKanban, Users, Receipt, Settings, Menu, X, Home, Plus, Loader2, ArrowRight, Search, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
@@ -21,6 +29,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [revisionPreviewOpen, setRevisionPreviewOpen] = useState(false);
+  const [selectedRevisionProject, setSelectedRevisionProject] = useState(null);
 
   // KPI State
   const [kpiStats, setKpiStats] = useState({
@@ -136,6 +146,12 @@ export default function Dashboard() {
     { icon: Receipt, label: 'Invoices', active: false },
     { icon: Settings, label: 'Settings', active: false },
   ];
+
+  const openRevisionPreview = (project, event) => {
+    event.stopPropagation();
+    setSelectedRevisionProject(project);
+    setRevisionPreviewOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -331,6 +347,24 @@ export default function Dashboard() {
                           <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed">
                             {project.brief || 'No description provided'}
                           </p>
+                          {project.status === 'needs-revision' && project.userRole === 'owner' && project.revisionNotes && (
+                            <div className="mt-3 p-2.5 rounded-md border border-red-500/30 bg-red-500/10">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] uppercase tracking-wide text-red-300 font-semibold">Revision Reason</p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] border-red-300/50 text-red-200 hover:bg-red-500/20"
+                                  onClick={(event) => openRevisionPreview(project, event)}
+                                >
+                                  Preview
+                                </Button>
+                              </div>
+                              <p className="text-xs text-red-100/90 line-clamp-3 mt-1 whitespace-pre-wrap">
+                                {project.revisionNotes}
+                              </p>
+                            </div>
+                          )}
                         </CardHeader>
 
                         <CardContent className="space-y-3">
@@ -358,6 +392,37 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <Dialog open={revisionPreviewOpen} onOpenChange={setRevisionPreviewOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Revision Request Reason</DialogTitle>
+                  <DialogDescription>
+                    {selectedRevisionProject?.title
+                      ? `Full revision note for ${selectedRevisionProject.title}.`
+                      : 'Full revision note.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="rounded-md border bg-muted/30 p-4 max-h-[50vh] overflow-y-auto">
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                    {selectedRevisionProject?.revisionNotes || 'No revision reason provided.'}
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedRevisionProject?._id) {
+                        navigate(`/dashboard/projects/${selectedRevisionProject._id}?tab=comments`);
+                      }
+                    }}
+                    disabled={!selectedRevisionProject?._id}
+                  >
+                    Open Project Comments
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </main>
       </div>

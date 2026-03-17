@@ -45,6 +45,23 @@ import { cn } from '../lib/utils';
 import { useInvoices } from '../hooks/useInvoices';
 import { getBillingConfig } from '../api/billingApi';
 
+const toLatestVersionFiles = (files = []) => {
+  const byBase = new Map();
+
+  files.forEach((file) => {
+    const baseKey = file.baseFileId || file._id;
+    const current = byBase.get(baseKey);
+    const currentVersion = current?.version || 1;
+    const fileVersion = file?.version || 1;
+
+    if (!current || fileVersion > currentVersion) {
+      byBase.set(baseKey, file);
+    }
+  });
+
+  return Array.from(byBase.values());
+};
+
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -148,7 +165,7 @@ const fetchProjectFiles = async (projectId) => {
   try {
     setLoadingFiles(true);
     const response = await api.get(`/projects/${projectId}/files`, { getToken });
-    setProjectFiles(response.files || []);
+    setProjectFiles(toLatestVersionFiles(response.files || []));
   } catch (error) {
     console.error('Failed to fetch project files:', error);
   } finally {
@@ -443,7 +460,7 @@ return (
                                   htmlFor={`file-${file._id}`}
                                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 truncate"
                                 >
-                                  {file.originalFilename}
+                                  {file.originalFilename}{file.version > 1 ? ` (v${file.version})` : ''}
                                 </label>
                               </div>
                             ))
