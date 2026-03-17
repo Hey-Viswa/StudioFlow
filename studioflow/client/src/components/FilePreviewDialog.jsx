@@ -10,6 +10,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }) {
   const isImage = file.mimeType?.startsWith('image/');
   const isVideo = file.mimeType?.startsWith('video/');
   const isPDF = file.mimeType === 'application/pdf';
+  const previewSource = file.previewUrl || file.url;
 
   // For dashboard preview, we might not want to show a download button at all
   // unless specific conditions are met (which the user said "not downloadable" in dashboard).
@@ -20,7 +21,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }) {
       return (
         <div className="flex items-center justify-center p-4 bg-black/5 min-h-[300px] rounded-lg">
           <img 
-            src={file.url || file.previewUrl} 
+            src={previewSource} 
             alt={file.filename} 
             className="max-w-full max-h-[80vh] object-contain shadow-sm" 
           />
@@ -32,7 +33,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }) {
       return (
          <div className="flex items-center justify-center p-4 bg-black/5 min-h-[300px] rounded-lg">
           <video 
-            src={file.url || file.previewUrl} 
+            src={previewSource} 
             controls 
             className="max-w-full max-h-[80vh] rounded-lg shadow-sm"
           >
@@ -46,7 +47,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }) {
        return (
         <div className="w-full h-[80vh] bg-muted rounded-lg overflow-hidden">
           <iframe 
-            src={`${file.url || file.previewUrl}#toolbar=0`} 
+            src={`${previewSource}#toolbar=0`} 
             className="w-full h-full border-0" 
             title={file.filename}
           />

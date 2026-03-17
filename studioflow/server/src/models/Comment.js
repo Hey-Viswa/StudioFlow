@@ -47,9 +47,13 @@ const CommentSchema = new mongoose.Schema({
         default: () => new Map()
     },
     attachments: [{
+        fileId: String,
         filename: String,
         url: String,
+        previewUrl: String,
         mimeType: String,
+        type: String,
+        key: String,
         size: Number
     }],
     mentions: [{

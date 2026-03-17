@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { FilePreviewDialog } from '@/components/FilePreviewDialog';
-import { formatFileSize } from '@/lib/api/files';
+import { formatFileSize, getFileDetails } from '@/lib/api/files';
 import { toast } from 'sonner';
 
 export default function AllFiles() {
@@ -97,17 +97,23 @@ export default function AllFiles() {
 
   const handleDownload = async (file) => {
     try {
-        if (file.url) {
-            window.open(file.url, '_blank');
-        } else {
-             // Fallback if no direct URL (e.g. strict RBAC or no cached URL)
-             // We can use the project specific download logic if needed, 
-             // but `recent-files` usually returns signed URLs.
-             toast.error("Download link unavailable");
+        const token = await getToken();
+        const response = await getFileDetails(file.projectId, file.fileId, token);
+
+        if (!response?.downloadUrl) {
+          toast.error('Download link unavailable');
+          return;
         }
+
+        const link = document.createElement('a');
+        link.href = response.downloadUrl;
+        link.download = file.filename || 'download';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     } catch (e) {
         console.error(e);
-        toast.error("Failed to download");
+        toast.error(e?.message || 'Failed to download');
     }
   };
 
