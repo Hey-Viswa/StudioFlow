@@ -417,10 +417,16 @@ export const createComment = async (req, res) => {
     // Emit Socket.IO event for real-time comments
     const io = req.app.get('io');
     if (io) {
-      io.to(`project-${projectId}`).emit('comment-added', {
+      const payload = {
         projectId,
         comment: createdComment
-      });
+      };
+
+      // New room + event format
+      io.to(`project:${projectId}`).emit('comment:added', payload);
+      // Legacy room + event format
+      io.to(`project-${projectId}`).emit('comment:added', payload);
+      io.to(`project-${projectId}`).emit('comment-added', payload);
     }
 
     // Trigger Notification via Queue

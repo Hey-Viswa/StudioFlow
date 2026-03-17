@@ -233,6 +233,7 @@ export const getRecentFiles = async (req, res) => {
     const processedFiles = await Promise.all(visibleFiles.map(async (file) => {
       let url = null;
       let previewUrl = null;
+      let urlError = null;
 
       // Priority 1: Use storageKey if available (S3/R2)
       if (file.storageKey) {
@@ -246,11 +247,13 @@ export const getRecentFiles = async (req, res) => {
           });
         } catch (err) {
           console.warn(`Failed to generate signed URL for file ${file._id}:`, err.message);
+          urlError = err?.name || 'SIGNED_URL_FAILED';
         }
       }
 
-      // Priority 2: Use stored URL (Local uploads or external links)
-      if (!url && file.url) {
+      // Priority 2: Use stored URL only for legacy/non-storageKey records.
+      // Do not fall back for storage-backed files, or client may hit raw private S3 URL.
+      if (!url && !file.storageKey && file.url) {
         url = file.url;
       }
 
@@ -259,7 +262,7 @@ export const getRecentFiles = async (req, res) => {
         previewUrl = url;
       }
 
-      return { ...file, url, previewUrl };
+      return { ...file, url, previewUrl, urlError };
     }));
 
     res.status(200).json({ files: processedFiles });

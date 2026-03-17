@@ -117,6 +117,19 @@ export default function ProjectHeader({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                            {onRequestRevision && (
+                                <DropdownMenuItem onClick={onRequestRevision}>
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Request Revision
+                                </DropdownMenuItem>
+                            )}
+                            {onApproveFinal && (
+                                <DropdownMenuItem onClick={onApproveFinal}>
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Approve Final
+                                </DropdownMenuItem>
+                            )}
+                            {(onRequestRevision || onApproveFinal) && <DropdownMenuSeparator />}
                             <DropdownMenuItem onClick={() => navigate(`/dashboard/projects/${project._id}?tab=team`)}>
                                 <Users className="w-4 h-4 mr-2" />
                                 Team Members
