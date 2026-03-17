@@ -1,11 +1,13 @@
 import Project from '../models/Project.js';
 import Comment from '../models/Comment.js';
+import ProjectFile from '../models/ProjectFile.js';
+import storageAdapter from '../utils/storageAdapter.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
 import ProjectMember from '../models/ProjectMember.js';
 import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { logAudit } from '../services/auditService.js';
 import { taskQueue } from '../queues/automationQueue.js';
-import featureFlags from '../config/featureFlags.js';
+// Removed unused feature flags import
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
@@ -29,6 +31,21 @@ async function getProjectRole(projectId, userId) {
   });
 
   return { role: membership?.role || null, project };
+}
+
+function extractStorageKeyFromAttachment(att) {
+  if (!att) return null;
+  if (att.key && typeof att.key === 'string') return att.key;
+  if (!att.url || typeof att.url !== 'string') return null;
+
+  try {
+    const parsed = new URL(att.url);
+    // Signed URLs include object key in pathname. Strip leading slash.
+    const pathKey = parsed.pathname?.replace(/^\//, '');
+    return pathKey || null;
+  } catch {
+    return null;
+  }
 }
 
 export const getComments = async (req, res) => {
@@ -62,8 +79,70 @@ export const getComments = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Convert reactions Map to object and fix attachment URLs
-    const formattedComments = comments.map(comment => {
+    const allAttachments = comments.flatMap((c) => Array.isArray(c.attachments) ? c.attachments : []);
+    const fileIds = [...new Set(allAttachments.map((a) => a?.fileId).filter(Boolean))];
+    const storageKeys = [...new Set(allAttachments.map((a) => extractStorageKeyFromAttachment(a)).filter(Boolean))];
+
+    const projectFiles = (fileIds.length > 0 || storageKeys.length > 0)
+      ? await ProjectFile.find({
+          projectId,
+          status: { $ne: 'deleted' },
+          $or: [
+            ...(fileIds.length > 0 ? [{ fileId: { $in: fileIds } }] : []),
+            ...(storageKeys.length > 0 ? [{ storageKey: { $in: storageKeys } }] : [])
+          ]
+        })
+          .select('fileId storageKey filename originalFilename mimeType size')
+          .lean()
+      : [];
+
+    const fileMap = new Map(projectFiles.map((f) => [f.fileId, f]));
+    const keyMap = new Map(projectFiles.map((f) => [f.storageKey, f]));
+
+    // Convert reactions map and normalize/regenerate attachment URLs
+    const formattedComments = await Promise.all(comments.map(async (comment) => {
+      if (comment.attachments && comment.attachments.length > 0) {
+        const resolvedAttachments = await Promise.all(comment.attachments.map(async (att) => {
+          const extractedKey = extractStorageKeyFromAttachment(att);
+          const fileRecord = (att?.fileId ? fileMap.get(att.fileId) : null) || (extractedKey ? keyMap.get(extractedKey) : null);
+          let previewUrl = att.previewUrl || null;
+          let url = att.url || null;
+
+          if (fileRecord?.storageKey) {
+            try {
+              const signed = await storageAdapter.getSignedDownloadUrl(fileRecord.storageKey, {
+                filename: fileRecord.originalFilename || fileRecord.filename,
+                forceDownload: false,
+                contentType: fileRecord.mimeType,
+                ttl: 3600
+              });
+              previewUrl = signed;
+              url = signed;
+            } catch (err) {
+              // Keep existing fields if re-signing fails.
+            }
+          }
+
+          if (process.env.NODE_ENV === 'production' && url && url.includes('localhost:5000')) {
+            url = url.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio');
+          }
+
+          return {
+            fileId: att.fileId || null,
+            filename: att.filename || att.name || fileRecord?.filename || 'Attachment',
+            name: att.name || att.filename || fileRecord?.filename || 'Attachment',
+            mimeType: att.mimeType || att.type || fileRecord?.mimeType || 'application/octet-stream',
+            type: att.type || att.mimeType || fileRecord?.mimeType || 'application/octet-stream',
+            size: att.size || fileRecord?.size || 0,
+            key: att.key || extractedKey || null,
+            url,
+            previewUrl
+          };
+        }));
+
+        comment.attachments = resolvedAttachments;
+      }
+
       // Fix attachment URLs in production (replace localhost with production domain)
       if (process.env.NODE_ENV === 'production' && comment.attachments && comment.attachments.length > 0) {
         comment.attachments = comment.attachments.map(att => {
@@ -81,7 +160,7 @@ export const getComments = async (req, res) => {
         ...comment,
         reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
       };
-    });
+    }));
 
     // Log audit event
     await logAudit({
@@ -111,9 +190,23 @@ export const addComment = async (req, res) => {
     const userId = req.userId;
     const userName = req.userName || '';
     const userEmail = req.userEmail || '';
+    const normalizedText = typeof text === 'string' ? text.trim() : '';
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments.map((att) => ({
+          fileId: att?.fileId || null,
+          filename: att?.filename || att?.name || 'Attachment',
+          url: att?.url || null,
+          previewUrl: att?.previewUrl || null,
+          mimeType: att?.mimeType || att?.type || 'application/octet-stream',
+          type: att?.type || att?.mimeType || 'application/octet-stream',
+          size: att?.size || 0,
+          key: att?.key || null,
+        }))
+      : [];
+    const hasAttachments = normalizedAttachments.length > 0;
 
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: 'Comment text is required' });
+    if (!normalizedText && !hasAttachments) {
+      return res.status(400).json({ error: 'Comment text or attachment is required' });
     }
 
     const project = await Project.findById(projectId).select('ownerId settings stats');
@@ -157,11 +250,11 @@ export const addComment = async (req, res) => {
       userId,
       userName,
       userEmail,
-      content: text.trim(),
+      content: normalizedText || 'Attachment',
       parentId: parentId || null,
       clientGeneratedId: clientGeneratedId || null,
       reactions: new Map(),
-      attachments: attachments || [],
+      attachments: normalizedAttachments,
       mentions: mentions || [],
       createdAt: new Date()
     });
@@ -210,9 +303,11 @@ export const addComment = async (req, res) => {
           projectId,
           commentId: commentObj._id,
           commenterName: userName,
-          text: text,
+          text: normalizedText,
           title: '💬 New Comment', // Worker will override if mentioned
-          message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+          message: normalizedText
+            ? `${userName} commented: ${normalizedText.substring(0, 100)}${normalizedText.length > 100 ? '...' : ''}`
+            : `${userName} added an attachment`,
           link: `/dashboard/projects/${projectId}?tab=comments`,
           priority: 'medium', // Worker will override if mentioned
           category: 'comment',
@@ -224,16 +319,16 @@ export const addComment = async (req, res) => {
       console.error('Error sending comment notifications:', notifError);
     }
 
-    const automationService = (await import('../services/automationService.js')).default;
-
     // --- AUTOMATION HOOK: Task Creation ---
     // Enqueue job for async process OR run direct if queue disabled/err
-    // Gated by Feature Flag
-    if (featureFlags.isEnabled('phase3.taskAutomations')) {
+    // Always run for explicit task tags to keep #todo/#bug reliable in production.
+    const lowerText = normalizedText.toLowerCase();
+    const hasTaskTag = lowerText.includes('#todo') || lowerText.includes('#bug');
+    if (hasTaskTag) {
       const automationPayload = {
         commentId: newComment._id,
         projectId,
-        content: text,
+        content: normalizedText,
         userId,
         link: `/dashboard/projects/${projectId}?tab=comments`
       };
@@ -261,6 +356,7 @@ export const addComment = async (req, res) => {
           // Direct execution fallback
           // console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
           try {
+            const automationService = (await import('../services/automationService.js')).default;
             await automationService.processTaskAutomation(automationPayload);
             // console.log('SB_DEBUG: Direct automation finished successfully');
           } catch (directErr) {

@@ -37,10 +37,10 @@ export const SocketProvider = ({ children }) => {
             // Force WebSocket to avoid Azure App Service polling/sticky session issues
             transports: ['websocket'],
             withCredentials: true,
-            timeout: 20000,
+            timeout: 8000,
             reconnection: true,
             reconnectionAttempts: 10,
-            reconnectionDelay: 1000,
+            reconnectionDelay: 500,
             path: '/socket.io/'
         });
 

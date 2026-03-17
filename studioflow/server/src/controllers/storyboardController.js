@@ -2,16 +2,29 @@ import Storyboard from '../models/Storyboard.js';
 import Scene from '../models/Scene.js';
 import Edge from '../models/Edge.js';
 import Project from '../models/Project.js';
+import ProjectMember from '../models/ProjectMember.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
 import { emitToProject } from '../config/socket.js';
 
-// Helper to check write permissions
-const canEdit = async (project, userId) => {
-    // Owners can edit
-    if (project.isOwner(userId)) return true;
-    
-    // Team members can edit, Clients cannot
-    const role = await project.getUserRole(userId);
-    return role === 'owner' || role === 'editor' || role === 'member'; 
+const getProjectAccess = async (projectId, userId) => {
+    const project = await Project.findById(projectId).select('ownerId settings');
+    if (!project) return { project: null, role: null };
+
+    if (String(project.ownerId) === String(userId)) {
+        return { project, role: ROLES.OWNER };
+    }
+
+    const membership = await ProjectMember.findOne({
+        projectId,
+        userId,
+        status: { $ne: 'inactive' }
+    }).select('role');
+
+    return { project, role: membership?.role || null };
+};
+
+const canEdit = (role) => {
+    return checkPermission(role, PERMISSIONS.PROJECT_UPDATE);
 };
 
 // Get Storyboard (Create if not exists)
@@ -20,12 +33,13 @@ export const getStoryboard = async (req, res) => {
         const { projectId } = req.params;
         const userId = req.userId;
 
-        const project = await Project.findById(projectId);
+        const { project, role } = await getProjectAccess(projectId, userId);
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
         // Check access
-        const isMember = await project.isMember(userId);
-        if (!isMember) return res.status(403).json({ error: 'Access denied' });
+        if (!checkPermission(role, PERMISSIONS.PROJECT_VIEW)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
 
         let storyboard = await Storyboard.findOne({ projectId });
 
@@ -46,9 +60,8 @@ export const getStoryboard = async (req, res) => {
             Edge.find({ storyboardId: storyboard._id })
         ]);
 
-        const role = await project.getUserRole(userId);
         const permissions = {
-            canEdit: role !== 'client',
+            canEdit: canEdit(role),
             canComment: true
         };
 
@@ -72,10 +85,10 @@ export const createScene = async (req, res) => {
         const userId = req.userId;
         const sceneData = req.body;
 
-        const project = await Project.findById(projectId);
+        const { project, role } = await getProjectAccess(projectId, userId);
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
-        if (!(await canEdit(project, userId))) {
+        if (!canEdit(role)) {
             return res.status(403).json({ error: 'Clients cannot edit storyboard' });
         }
 
@@ -106,22 +119,18 @@ export const updateScene = async (req, res) => {
         const userId = req.userId;
         const updates = req.body;
 
-        const project = await Project.findById(projectId);
+        const { project, role } = await getProjectAccess(projectId, userId);
         if (!project) return res.status(404).json({ error: 'Project not found' });
 
-        if (!(await canEdit(project, userId))) {
+        if (!canEdit(role)) {
             return res.status(403).json({ error: 'Clients cannot edit storyboard' });
         }
 
-        // Last-write-wins: simply update the fields
-        const updatedScene = await Scene.findOneAndUpdate(
-            { _id: sceneId },
-            { 
-                ...updates,
-                updatedBy: userId 
-            },
-            { new: true }
-        );
+        const storyboard = await Storyboard.findOne({ projectId }).select('_id');
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        const scene = await Scene.findOne({ _id: sceneId, storyboardId: storyboard._id });
+        if (!scene) return res.status(404).json({ error: 'Scene not found' });
 
         if (!updatedScene) return res.status(404).json({ error: 'Scene not found' });
 
@@ -141,9 +150,21 @@ export const deleteScene = async (req, res) => {
         const { projectId, sceneId } = req.params;
         const userId = req.userId;
 
-        const project = await Project.findById(projectId);
-        if (!(await canEdit(project, userId))) {
+        const { project, role } = await getProjectAccess(projectId, userId);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!canEdit(role)) {
             return res.status(403).json({ error: 'Clients cannot edit storyboard' });
+        }
+
+        const storyboard = await Storyboard.findOne({ projectId }).select('_id');
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        const scene = await Scene.findOne({ _id: sceneId, storyboardId: storyboard._id });
+        if (!scene) return res.status(404).json({ error: 'Scene not found' });
+
+        if (scene.isLocked) {
+            return res.status(403).json({ error: 'Scene is locked' });
         }
 
         // Delete scene
@@ -183,13 +204,16 @@ export const addSceneComment = async (req, res) => {
         const { content } = req.body;
 
         // Verify project membership (Clients included)
-        const project = await Project.findById(projectId);
-        if (!project || !(await project.isMember(userId))) {
+        const { project, role } = await getProjectAccess(projectId, userId);
+        if (!project || !checkPermission(role, PERMISSIONS.PROJECT_VIEW)) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
         // Add comment embedded
-        const scene = await Scene.findById(sceneId);
+        const storyboard = await Storyboard.findOne({ projectId }).select('_id');
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        const scene = await Scene.findOne({ _id: sceneId, storyboardId: storyboard._id });
         if (!scene) return res.status(404).json({ error: 'Scene not found' });
 
         // Mock user name lookup (in real app, use User model or Auth metadata)
@@ -222,12 +246,28 @@ export const createEdge = async (req, res) => {
         const userId = req.userId;
         const edgeData = req.body;
 
-        const project = await Project.findById(projectId);
-        if (!(await canEdit(project, userId))) {
+        const { project, role } = await getProjectAccess(projectId, userId);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!canEdit(role)) {
             return res.status(403).json({ error: 'Clients cannot edit storyboard' });
         }
 
         const storyboard = await Storyboard.findOne({ projectId });
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        if (!edgeData?.sourceId || !edgeData?.targetId) {
+            return res.status(400).json({ error: 'sourceId and targetId are required' });
+        }
+
+        const [sourceScene, targetScene] = await Promise.all([
+            Scene.findOne({ _id: edgeData.sourceId, storyboardId: storyboard._id }).select('_id'),
+            Scene.findOne({ _id: edgeData.targetId, storyboardId: storyboard._id }).select('_id')
+        ]);
+
+        if (!sourceScene || !targetScene) {
+            return res.status(400).json({ error: 'Cannot connect scenes that do not exist in this storyboard' });
+        }
         
         const newEdge = await Edge.create({
             ...edgeData,
@@ -244,15 +284,63 @@ export const createEdge = async (req, res) => {
     }
 };
 
+// Update Edge
+export const updateEdge = async (req, res) => {
+    try {
+        const { projectId, edgeId } = req.params;
+        const userId = req.userId;
+        const updates = req.body;
+
+        const { project, role } = await getProjectAccess(projectId, userId);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!canEdit(role)) {
+            return res.status(403).json({ error: 'Clients cannot edit storyboard' });
+        }
+
+        const storyboard = await Storyboard.findOne({ projectId }).select('_id');
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        const edge = await Edge.findOne({ _id: edgeId, storyboardId: storyboard._id });
+        if (!edge) return res.status(404).json({ error: 'Edge not found' });
+
+        if (edge.isLocked && updates.isLocked === undefined) {
+             return res.status(403).json({ error: 'Edge is locked' });
+        }
+
+        Object.assign(edge, updates);
+        const updatedEdge = await edge.save();
+
+        emitToProject(projectId, 'storyboard', 'edge:update', updatedEdge);
+
+        res.json(updatedEdge);
+    } catch (error) {
+        console.error('updateEdge error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 // Delete Edge
 export const deleteEdge = async (req, res) => {
     try {
         const { projectId, edgeId } = req.params;
         const userId = req.userId;
 
-        const project = await Project.findById(projectId);
-        if (!(await canEdit(project, userId))) {
+        const { project, role } = await getProjectAccess(projectId, userId);
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        if (!canEdit(role)) {
             return res.status(403).json({ error: 'Clients cannot edit storyboard' });
+        }
+
+        const storyboard = await Storyboard.findOne({ projectId }).select('_id');
+        if (!storyboard) return res.status(404).json({ error: 'Storyboard not initialized' });
+
+        const edge = await Edge.findOne({ _id: edgeId, storyboardId: storyboard._id });
+        if (!edge) return res.status(404).json({ error: 'Edge not found' });
+
+        if (edge.isLocked) {
+             return res.status(403).json({ error: 'Edge is locked' });
         }
 
         await Edge.deleteOne({ _id: edgeId });

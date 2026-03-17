@@ -82,6 +82,11 @@ const ProjectSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  revisionNotes: {
+    type: String,
+    default: '',
+    maxlength: [500, 'Revision notes must be 500 characters or less']
+  },
   // Cached counters
   stats: {
     fileCount: {

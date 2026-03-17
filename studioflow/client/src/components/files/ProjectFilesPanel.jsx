@@ -527,7 +527,8 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, onUploadVersion, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+  const [thumbnailLoadFailed, setThumbnailLoadFailed] = useState(false);
   const isPreviewable = file.mimeType.startsWith('image/') ||
     ['video/mp4', 'video/webm', 'video/ogg'].includes(file.mimeType) ||
     file.mimeType === 'application/pdf';
@@ -572,11 +573,25 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
             </div>
           )}
 
-          {file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
+          {!thumbnailLoadFailed && file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
             file.mimeType.startsWith('video/') ? (
-              <video src={file.previewUrl} className="w-full h-full object-cover" />
+              <video 
+                src={`${file.previewUrl}#t=0.1`} 
+                className="w-full h-full object-cover" 
+                preload="metadata"
+                muted
+                playsInline
+                onError={() => setThumbnailLoadFailed(true)}
+                onMouseOver={e => e.target.play().catch(() => {})}
+                onMouseOut={e => { e.target.pause(); e.target.currentTime = 0.1; }}
+              />
             ) : (
-              <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
+              <img
+                src={file.previewUrl}
+                alt={file.filename}
+                className="w-full h-full object-cover"
+                onError={() => setThumbnailLoadFailed(true)}
+              />
             )
           ) : (
             <div className="text-2xl">{getFileIcon(file.mimeType)}</div>

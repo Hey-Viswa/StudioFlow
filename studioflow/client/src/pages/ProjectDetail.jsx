@@ -428,6 +428,12 @@ export default function ProjectDetail() {
   };
 
   const requestRevision = async () => {
+    const currentRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+    if (currentRole !== 'client') {
+      toast.error('Only clients can request revisions');
+      return;
+    }
+
     if (!revisionNotes.trim()) {
       toast.error('Please provide revision notes');
       return;
@@ -454,6 +460,17 @@ export default function ProjectDetail() {
   };
 
   const approveFinal = async () => {
+    const currentRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+    if (currentRole !== 'owner') {
+      toast.error('Only the project owner can approve final');
+      return;
+    }
+
+    if (project?.status !== 'needs-revision') {
+      toast.error('Approval is only available after a revision request');
+      return;
+    }
+
     try {
       const token = await getToken();
       await api.patch(`/projects/${projectId}`, {
@@ -574,12 +591,16 @@ export default function ProjectDetail() {
 
   const isOwner = project?.ownerId === userId || project?.userRole === 'owner';
   const userRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+  const canRequestRevision = userRole === 'client';
+  const canApproveFinal = userRole === 'owner' && project?.status === 'needs-revision';
 
   const taskStats = project?.stats?.tasks || {
     total: 0,
     completed: 0,
     pending: 0
   };
+
+  const revisionReason = project?.revisionNotes?.trim();
 
   const invoiceStats = project?.invoiceStats || {
     pendingCount: 0,
@@ -594,7 +615,28 @@ export default function ProjectDetail() {
         onInvite={project.userRole === 'owner' ? () => setActiveTab('team') : null}
         onEdit={startEditing}
         onTransferOwnership={() => setShowTransferModal(true)}
+        onRequestRevision={canRequestRevision ? () => setShowRevisionModal(true) : null}
+        onApproveFinal={canApproveFinal ? () => setShowApproveModal(true) : null}
       />
+
+      {isOwner && project.status === 'needs-revision' && revisionReason && (
+        <Card className="border-orange-500/40 bg-orange-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-orange-600">
+              <RefreshCw className="h-4 w-4" />
+              Revision Requested
+            </CardTitle>
+            <CardDescription>
+              Reason shared by the client for this revision request.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+              {revisionReason}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ... (Stats Section) ... */}
       <ProjectStats
@@ -863,7 +905,7 @@ export default function ProjectDetail() {
       )}
 
       {/* Request Revision Modal */}
-      {showRevisionModal && (
+      {canRequestRevision && showRevisionModal && (
         <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
           <DialogContent className="max-w-md bg-card border-border">
             <DialogHeader>
@@ -921,7 +963,7 @@ export default function ProjectDetail() {
       )}
 
       {/* Approve Final Modal */}
-      {showApproveModal && (
+      {canApproveFinal && showApproveModal && (
         <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
           <DialogContent className="max-w-md bg-card border-border">
             <DialogHeader>
@@ -943,6 +985,16 @@ export default function ProjectDetail() {
                   By approving, you confirm that all requirements have been met and the project is complete.
                 </p>
               </div>
+              {isOwner && project?.status === 'needs-revision' && revisionReason && (
+                <div className="mt-4 p-4 rounded-lg bg-orange-500/5 border border-orange-500/30 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">
+                    Revision Reason
+                  </p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                    {revisionReason}
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button

@@ -2,19 +2,100 @@ import React, { memo } from 'react';
 import { Handle, Position, NodeResizer } from 'reactflow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { FileIcon, ImageIcon, VideoIcon, StickyNote } from 'lucide-react';
+import { FileIcon, ImageIcon, VideoIcon } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
+import { getFilePreviewUrl } from '@/lib/api/files';
+import { useParams } from 'react-router-dom';
 
-const SceneNode = ({ data, selected }) => {
-  const { type = 'note', label, content, mediaUrl, fileId, metadata, style } = data;
-  const isResizable = selected && (type === 'image' || type === 'video' || type === 'note');
+const SceneNode = ({ id, data, selected }) => {
+  const { type = 'note', label, content, metadata, updateNode, isLocked } = data;
+  const mediaUrl = data.mediaUrl || metadata?.mediaUrl;
+  const fileId = data.fileId || metadata?.fileId;
+  const params = useParams();
+  const projectId = data.projectId || params.projectId || params.id;
+  const { getToken } = useAuth();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(content || label || '');
+  const [resolvedMediaUrl, setResolvedMediaUrl] = useState(mediaUrl || null);
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const [retried, setRetried] = useState(false);
+  
+  useEffect(() => {
+      setEditValue(content || label || '');
+  }, [content, label]);
+
+    useEffect(() => {
+      setResolvedMediaUrl(mediaUrl || null);
+      setMediaFailed(false);
+      setRetried(false);
+    }, [mediaUrl, fileId]);
+
+    useEffect(() => {
+      const shouldResolve = (type === 'image' || type === 'video') && !!fileId && !!projectId && !resolvedMediaUrl;
+      if (!shouldResolve) return;
+
+      let cancelled = false;
+      const resolvePreview = async () => {
+        try {
+          const token = await getToken();
+          const result = await getFilePreviewUrl(projectId, fileId, token);
+          if (!cancelled && result?.previewUrl) {
+            setResolvedMediaUrl(result.previewUrl);
+            setMediaFailed(false);
+          }
+        } catch (e) {
+          if (!cancelled) {
+            setMediaFailed(true);
+          }
+        }
+      };
+
+      resolvePreview();
+      return () => { cancelled = true; };
+    }, [type, fileId, projectId, resolvedMediaUrl, getToken]);
+
+    const refreshPreviewOnce = async () => {
+      if (retried || !fileId || !projectId) {
+        setMediaFailed(true);
+        return;
+      }
+
+      setRetried(true);
+      try {
+        const token = await getToken();
+        const result = await getFilePreviewUrl(projectId, fileId, token);
+        if (result?.previewUrl) {
+          setResolvedMediaUrl(result.previewUrl);
+          setMediaFailed(false);
+          return;
+        }
+      } catch (e) {
+        // no-op
+      }
+
+      setMediaFailed(true);
+    };
+
+  const handleDoubleClick = () => {
+      if (isLocked) return;
+      if (updateNode) setIsEditing(true);
+  };
+
+  const handleBlur = () => {
+      setIsEditing(false);
+      if (updateNode && editValue !== (content || label)) {
+          updateNode(id, { content: editValue });
+      }
+  };
 
   const renderContent = () => {
     switch (type) {
       case 'image':
         return (
           <div className="relative w-full h-full min-h-[100px] bg-slate-100 rounded-md overflow-hidden flex items-center justify-center">
-            {mediaUrl ? (
-              <img src={mediaUrl} alt={label} className="w-full h-full object-cover" />
+            {!mediaFailed && resolvedMediaUrl ? (
+              <img src={resolvedMediaUrl} alt={label} className="w-full h-full object-cover" onError={refreshPreviewOnce} />
             ) : (
               <ImageIcon className="w-10 h-10 text-slate-400" />
             )}
@@ -23,8 +104,8 @@ const SceneNode = ({ data, selected }) => {
       case 'video':
         return (
             <div className="relative w-full h-full min-h-[100px] bg-slate-900 rounded-md overflow-hidden flex items-center justify-center group">
-              {mediaUrl ? (
-                <video src={mediaUrl} className="w-full h-full object-cover" controls />
+              {!mediaFailed && resolvedMediaUrl ? (
+                <video src={resolvedMediaUrl} className="w-full h-full object-cover" controls onError={refreshPreviewOnce} />
               ) : (
                 <VideoIcon className="w-10 h-10 text-slate-400" />
               )}
