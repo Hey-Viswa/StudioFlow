@@ -48,6 +48,23 @@ import { newInvoiceSchema, defaultInvoiceValues } from '../../lib/validations/in
 import InvoiceItemRow from './InvoiceItemRow';
 import { cn } from '../../lib/utils';
 
+const toLatestVersionFiles = (files = []) => {
+  const byBase = new Map();
+
+  files.forEach((file) => {
+    const baseKey = file.baseFileId || file._id;
+    const current = byBase.get(baseKey);
+    const currentVersion = current?.version || 1;
+    const fileVersion = file?.version || 1;
+
+    if (!current || fileVersion > currentVersion) {
+      byBase.set(baseKey, file);
+    }
+  });
+
+  return Array.from(byBase.values());
+};
+
 export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -124,7 +141,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
     try {
       setLoadingFiles(true);
       const response = await api.get(`/projects/${projectId}/files`, { getToken });
-      setProjectFiles(response.files || []);
+      setProjectFiles(toLatestVersionFiles(response.files || []));
     } catch (error) {
       console.error('Failed to fetch project files:', error);
       // Don't show error toast to avoid clutter, just log it
@@ -421,7 +438,7 @@ export default function NewInvoiceModal({ isOpen, onClose, onSuccess }) {
                                     htmlFor={`file-${file._id}`}
                                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 truncate"
                                   >
-                                    {file.originalFilename}
+                                    {file.originalFilename}{file.version > 1 ? ` (v${file.version})` : ''}
                                   </label>
                                 </div>
                               ))
