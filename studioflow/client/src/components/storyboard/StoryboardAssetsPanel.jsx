@@ -19,6 +19,9 @@ import { toast } from 'sonner';
 export default function StoryboardAssetsPanel({ projectId }) {
   const { getToken } = useAuth();
   const [files, setFiles] = useState([]);
+  const [thumbnailSrcById, setThumbnailSrcById] = useState({});
+  const [thumbnailFailedById, setThumbnailFailedById] = useState({});
+  const [thumbnailRetryById, setThumbnailRetryById] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -30,7 +33,19 @@ export default function StoryboardAssetsPanel({ projectId }) {
       const token = await getToken();
       // Only fetch assets for storyboard
       const response = await getProjectFiles(projectId, token, { category: 'asset' });
-      setFiles(response.files || []);
+      const nextFiles = response.files || [];
+      setFiles(nextFiles);
+
+      // Initialize thumbnail source map from API response for fast first paint
+      const initialThumbs = {};
+      nextFiles.forEach((file) => {
+        if (file?.fileId && file?.previewUrl) {
+          initialThumbs[file.fileId] = file.previewUrl;
+        }
+      });
+      setThumbnailSrcById(initialThumbs);
+      setThumbnailFailedById({});
+      setThumbnailRetryById({});
     } catch (error) {
       console.error('Failed to fetch files:', error);
       toast.error('Failed to load assets');
@@ -48,7 +63,7 @@ export default function StoryboardAssetsPanel({ projectId }) {
   const handleDragStart = (event, file) => {
     // Set data for drop
     let type = 'file';
-    let mediaUrl = file.previewUrl;
+    let mediaUrl = thumbnailSrcById[file.fileId] || file.previewUrl;
     
     if (file.mimeType.startsWith('image/')) type = 'image';
     else if (file.mimeType.startsWith('video/')) type = 'video';
@@ -65,6 +80,39 @@ export default function StoryboardAssetsPanel({ projectId }) {
     event.dataTransfer.setData('application/reactflow', type);
     event.dataTransfer.setData('application/payload', JSON.stringify(payload));
     event.dataTransfer.effectAllowed = 'all';
+  };
+
+  const resolvePreviewUrl = async (file) => {
+    if (!file?.fileId) return null;
+
+    const existing = thumbnailSrcById[file.fileId];
+    if (existing) return existing;
+
+    try {
+      const token = await getToken();
+      const response = await getFilePreviewUrl(projectId, file.fileId, token);
+      const preview = response?.previewUrl || null;
+      if (preview) {
+        setThumbnailSrcById((prev) => ({ ...prev, [file.fileId]: preview }));
+        setThumbnailFailedById((prev) => ({ ...prev, [file.fileId]: false }));
+      }
+      return preview;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const handleImageError = async (file) => {
+    if (!file?.fileId) return;
+
+    // Retry once by fetching a fresh signed preview URL.
+    if (!thumbnailRetryById[file.fileId]) {
+      setThumbnailRetryById((prev) => ({ ...prev, [file.fileId]: true }));
+      const refreshed = await resolvePreviewUrl(file);
+      if (refreshed) return;
+    }
+
+    setThumbnailFailedById((prev) => ({ ...prev, [file.fileId]: true }));
   };
 
   const filteredFiles = files.filter(file => {
@@ -153,7 +201,18 @@ export default function StoryboardAssetsPanel({ projectId }) {
                             onDragStart={(e) => handleDragStart(e, file)}
                         >
                             {file.mimeType.startsWith('image/') ? (
-                                <img src={file.previewUrl} alt={file.filename} className="w-full h-full object-cover" />
+                                !thumbnailFailedById[file.fileId] && (thumbnailSrcById[file.fileId] || file.previewUrl) ? (
+                                  <img
+                                    src={thumbnailSrcById[file.fileId] || file.previewUrl}
+                                    alt={file.filename}
+                                    className="w-full h-full object-cover"
+                                    onError={() => handleImageError(file)}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-600 text-xs px-2 text-center">
+                                    No preview
+                                  </div>
+                                )
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-slate-900">
                                     <VideoIcon className="text-slate-400" />

@@ -459,32 +459,41 @@ export default function Projects() {
                                   <Eye className="mr-2 h-4 w-4" />
                                   View Project
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onSelect={async () => {
-                                    try {
-                                      const token = await getToken();
-                                      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-                                      const response = await fetch(`${apiUrl}/projects/${project._id}`, {
-                                        method: 'DELETE',
-                                        headers: {
-                                          'Authorization': `Bearer ${token}`
+                                {project.userRole === 'owner' && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={async () => {
+                                      try {
+                                        const token = await getToken();
+                                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                                        const response = await fetch(`${apiUrl}/projects/${project._id}`, {
+                                          method: 'DELETE',
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`
+                                          }
+                                        });
+                                        if (response.ok) {
+                                          toast.success('Project moved to trash');
+                                          fetchProjects();
+                                        } else {
+                                          let message = 'Failed to delete project';
+                                          try {
+                                            const errorData = await response.json();
+                                            message = errorData?.error || message;
+                                          } catch {
+                                            // Ignore parse errors and keep generic message
+                                          }
+                                          toast.error(message);
                                         }
-                                      });
-                                      if (response.ok) {
-                                        toast.success('Project moved to trash');
-                                        fetchProjects();
-                                      } else {
-                                        toast.error('Failed to delete project');
+                                      } catch (err) {
+                                        toast.error(err?.message || 'Failed to delete project');
                                       }
-                                    } catch (err) {
-                                      toast.error('Failed to delete project');
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Move to Trash
-                                </DropdownMenuItem>
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Move to Trash
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

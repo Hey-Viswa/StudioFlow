@@ -18,6 +18,12 @@ const getFileIcon = (mimeType) => {
 const FileThumbnail = ({ file, onClick }) => {
   const Icon = getFileIcon(file.mimeType)
   const isPreviewable = file.mimeType?.startsWith('image/') || file.mimeType?.startsWith('video/')
+  const previewSrc = file.previewUrl || file.url
+  const [thumbnailLoadFailed, setThumbnailLoadFailed] = React.useState(false)
+
+  React.useEffect(() => {
+    setThumbnailLoadFailed(false)
+  }, [previewSrc])
 
   return (
     <button
@@ -26,18 +32,20 @@ const FileThumbnail = ({ file, onClick }) => {
       aria-label={`Preview ${file.filename || file.originalFilename}`}
     >
       <div className="relative w-16 h-16 flex items-center justify-center rounded bg-muted">
-        {isPreviewable && file.previewUrl ? (
+        {isPreviewable && previewSrc && !thumbnailLoadFailed ? (
           file.mimeType.startsWith('video/') ? (
             <video
-              src={file.previewUrl}
+              src={previewSrc}
               className="w-full h-full object-cover rounded"
               muted
+              onError={() => setThumbnailLoadFailed(true)}
             />
           ) : (
             <img
-              src={file.previewUrl}
+              src={previewSrc}
               alt={file.filename}
               className="w-full h-full object-cover rounded"
+              onError={() => setThumbnailLoadFailed(true)}
             />
           )
         ) : (
