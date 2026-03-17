@@ -369,6 +369,12 @@ export default function ProjectDetail() {
   };
 
   const requestRevision = async () => {
+    const currentRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+    if (currentRole !== 'client') {
+      toast.error('Only clients can request revisions');
+      return;
+    }
+
     if (!revisionNotes.trim()) {
       toast.error('Please provide revision notes');
       return;
@@ -408,6 +414,17 @@ export default function ProjectDetail() {
   };
 
   const approveFinal = async () => {
+    const currentRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+    if (currentRole !== 'owner') {
+      toast.error('Only the project owner can approve final');
+      return;
+    }
+
+    if (project?.status !== 'needs-revision') {
+      toast.error('Approval is only available after a revision request');
+      return;
+    }
+
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -538,40 +555,61 @@ export default function ProjectDetail() {
 
   if (!project) return null;
 
-  return (
-    <div className="min-h-screen bg-background overflow-y-auto">
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-12">
-        {/* Breadcrumb Navigation */}
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/dashboard" className="flex items-center gap-1">
-                  <Home className="w-4 h-4" />
-                  Dashboard
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/dashboard/projects">Projects</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{project?.title || 'Loading...'}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+  const isOwner = project?.ownerId === userId || project?.userRole === 'owner';
+  const userRole = project?.userRole || (project?.ownerId === userId ? 'owner' : project?.members?.find(m => m.userId === userId)?.role);
+  const canRequestRevision = userRole === 'client';
+  const canApproveFinal = userRole === 'owner' && project?.status === 'needs-revision';
 
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
+  const taskStats = project?.stats?.tasks || {
+    total: 0,
+    completed: 0,
+    pending: 0
+  };
+
+  const revisionReason = project?.revisionNotes?.trim();
+
+  const invoiceStats = project?.invoiceStats || {
+    pendingCount: 0,
+    overdueCount: 0
+  };
+
+  return (
+    <div className="space-y-6 pb-20 fade-in p-6 max-w-screen-xl mx-auto">
+      <ProjectHeader
+        project={project}
+        userRole={project.userRole}
+        onInvite={project.userRole === 'owner' ? () => setActiveTab('team') : null}
+        onEdit={startEditing}
+        onTransferOwnership={() => setShowTransferModal(true)}
+        onRequestRevision={canRequestRevision ? () => setShowRevisionModal(true) : null}
+        onApproveFinal={canApproveFinal ? () => setShowApproveModal(true) : null}
+      />
+
+      {isOwner && project.status === 'needs-revision' && revisionReason && (
+        <Card className="border-orange-500/40 bg-orange-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-orange-600">
+              <RefreshCw className="h-4 w-4" />
+              Revision Requested
+            </CardTitle>
+            <CardDescription>
+              Reason shared by the client for this revision request.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+              {revisionReason}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ... (Stats Section) ... */}
+      <ProjectStats
+        project={project}
+        taskStats={taskStats}
+        invoiceStats={invoiceStats}
+      />
 
         {/* Project Info Card */}
         <Card>
@@ -1040,7 +1078,7 @@ export default function ProjectDetail() {
       )}
 
       {/* Request Revision Modal */}
-      {showRevisionModal && (
+      {canRequestRevision && showRevisionModal && (
         <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
           <DialogContent className="max-w-md bg-card border-border">
             <DialogHeader>
@@ -1098,7 +1136,7 @@ export default function ProjectDetail() {
       )}
 
       {/* Approve Final Modal */}
-      {showApproveModal && (
+      {canApproveFinal && showApproveModal && (
         <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
           <DialogContent className="max-w-md bg-card border-border">
             <DialogHeader>
@@ -1120,6 +1158,16 @@ export default function ProjectDetail() {
                   By approving, you confirm that all requirements have been met and the project is complete.
                 </p>
               </div>
+              {isOwner && project?.status === 'needs-revision' && revisionReason && (
+                <div className="mt-4 p-4 rounded-lg bg-orange-500/5 border border-orange-500/30 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">
+                    Revision Reason
+                  </p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                    {revisionReason}
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button

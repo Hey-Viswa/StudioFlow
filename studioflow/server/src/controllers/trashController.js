@@ -80,13 +80,9 @@ export const getTrashedProjects = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Find projects deleted by user or owned by user
+    // Personal trash scope: only items explicitly deleted by this user
     const trashedProjects = await Trash.find({
-      $or: [
-        { ownerId: userId },
-        { deletedBy: userId },
-        { 'members.userId': userId }
-      ]
+      deletedBy: userId
     }).sort({ deletedAt: -1 });
 
     // Add days remaining to each project
@@ -211,10 +207,7 @@ export const emptyTrash = async (req, res) => {
     const userId = req.userId;
 
     const result = await Trash.deleteMany({
-      $or: [
-        { ownerId: userId },
-        { deletedBy: userId }
-      ]
+      deletedBy: userId
     });
 
     res.json({
@@ -341,11 +334,7 @@ export const getAllTrashItems = async (req, res) => {
 
     // Get trashed projects
     const trashedProjects = await Trash.find({
-      $or: [
-        { ownerId: userId },
-        { deletedBy: userId },
-        { 'members.userId': userId }
-      ]
+      deletedBy: userId
     }).sort({ deletedAt: -1 });
 
     // Get deleted invoices
@@ -357,18 +346,9 @@ export const getAllTrashItems = async (req, res) => {
       ]
     }).sort({ deletedAt: -1 });
 
-    // Get archived files from projects where user is a collaborator
-    const userProjects = await Project.find({
-      $or: [
-        { ownerId: userId },
-        { 'members.userId': userId }
-      ]
-    }).select('_id');
-
-    const projectIds = userProjects.map(p => p._id);
-
+    // Personal file trash scope: only files archived by this user
     const archivedFiles = await ProjectFile.find({
-      projectId: { $in: projectIds },
+      uploaderId: userId,
       status: 'archived'
     }).sort({ updatedAt: -1 });
 

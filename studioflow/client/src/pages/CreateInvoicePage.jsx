@@ -44,6 +44,23 @@ import InvoiceItemRow from '../components/invoices/InvoiceItemRow';
 import { cn } from '../lib/utils';
 import { useInvoices } from '../hooks/useInvoices';
 
+const toLatestVersionFiles = (files = []) => {
+  const byBase = new Map();
+
+  files.forEach((file) => {
+    const baseKey = file.baseFileId || file._id;
+    const current = byBase.get(baseKey);
+    const currentVersion = current?.version || 1;
+    const fileVersion = file?.version || 1;
+
+    if (!current || fileVersion > currentVersion) {
+      byBase.set(baseKey, file);
+    }
+  });
+
+  return Array.from(byBase.values());
+};
+
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const { getToken } = useAuth();
@@ -109,18 +126,17 @@ export default function CreateInvoicePage() {
         notes: data.notes || '',
       };
 
-      await createInvoice(payload);
-      toast.success('Invoice created successfully');
-      navigate('/dashboard/invoices');
-    } catch (error) {
-      console.error('Failed to create invoice:', error);
-      toast.error('Failed to create invoice', {
-        description: error.message || 'Please try again',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchProjectFiles = async (projectId) => {
+  try {
+    setLoadingFiles(true);
+    const response = await api.get(`/projects/${projectId}/files`, { getToken });
+    setProjectFiles(toLatestVersionFiles(response.files || []));
+  } catch (error) {
+    console.error('Failed to fetch project files:', error);
+  } finally {
+    setLoadingFiles(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background">
@@ -263,29 +279,43 @@ export default function CreateInvoicePage() {
                     name="tax.percentage"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tax (%)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="1"
-                            placeholder="0"
-                            {...field}
-                            value={field.value || ''}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                              field.onChange(isNaN(val) ? 0 : val);
-                            }}
-                            onBlur={(e) => {
-                              let val = parseInt(e.target.value, 10);
-                              if (isNaN(val)) val = 0;
-                              val = Math.max(0, Math.min(100, Math.round(val)));
-                              field.onChange(val);
-                              field.onBlur();
-                            }}
-                          />
-                        </FormControl>
+                        <FormLabel>Link Files</FormLabel>
+                        <div className="border rounded-md p-2 max-h-60 overflow-y-auto bg-background space-y-2">
+                          {loadingFiles ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Loading files...
+                            </div>
+                          ) : projectFiles.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-2">No files found in this project.</p>
+                          ) : (
+                            projectFiles.map((file) => (
+                              <div key={file._id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded">
+                                <input
+                                  type="checkbox"
+                                  id={`file-${file._id}`}
+                                  checked={field.value?.includes(file._id)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    const current = field.value || [];
+                                    if (checked) {
+                                      field.onChange([...current, file._id]);
+                                    } else {
+                                      field.onChange(current.filter((id) => id !== file._id));
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <label
+                                  htmlFor={`file-${file._id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 truncate"
+                                >
+                                  {file.originalFilename}{file.version > 1 ? ` (v${file.version})` : ''}
+                                </label>
+                              </div>
+                            ))
+                          )}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

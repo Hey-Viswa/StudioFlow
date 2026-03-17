@@ -98,7 +98,7 @@ const ProjectCard = React.forwardRef(({
                   Request Revision
                 </DropdownMenuItem>
               )}
-              {onApproveFinal && (
+              {onApproveFinal && status === 'needs-revision' && (
                 <DropdownMenuItem onClick={() => onApproveFinal?.(_id)}>
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Approve Final

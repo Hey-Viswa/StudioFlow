@@ -352,7 +352,8 @@ export const getProjectInvoiceDetails = async (req, res) => {
     const userId = req.userId;
 
     const invoice = await ProjectInvoice.findById(invoiceId)
-      .populate('projectId', 'title brief');
+      .populate('projectId', 'title brief')
+      .populate('linkedFileIds', 'fileId filename originalFilename version mimeType');
 
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -507,6 +508,38 @@ export const updateProjectInvoice = async (req, res) => {
       if (updates.status !== 'paid') {
         invoice.paidAt = null;
       }
+
+      // If moved to sent from draft, persist snapshot and timestamps
+      if (invoice.status === 'sent' && !invoice.immutableSnapshot) {
+        invoice.immutableSnapshot = invoice.toObject();
+        invoice.sentAt = invoice.sentAt || new Date();
+      }
+
+      if (!transition.skipped) {
+        hasChanges = true;
+      }
+    }
+
+    if (updates.linkedFileIds) {
+      invoice.linkedFileIds = updates.linkedFileIds;
+      hasChanges = true;
+    }
+
+    if (updates.accessType) {
+      invoice.accessType = updates.accessType;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      // Increment version and add to history with the new effective version
+      const nextVersion = (invoice.version || 1) + 1;
+      invoice.version = nextVersion;
+      invoice.revisionHistory.push({
+        version: nextVersion,
+        changedBy: userId,
+        changedAt: new Date(),
+        changes: updates // Store the raw updates object for simplicity, or diff it
+      });
     }
 
     await invoice.save();

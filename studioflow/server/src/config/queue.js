@@ -24,7 +24,46 @@ export const emailQueue = new Bull('email', {
     removeOnComplete: true,
     removeOnFail: false
   }
-});
+} else {
+  // Already logged why queues are disabled above
+
+  const createMockQueue = (label) => {
+    const processors = new Map();
+
+    return {
+      process: (nameOrHandler, maybeHandler) => {
+        if (typeof nameOrHandler === 'function') {
+          processors.set('__default__', nameOrHandler);
+          return;
+        }
+
+        if (typeof nameOrHandler === 'string' && typeof maybeHandler === 'function') {
+          processors.set(nameOrHandler, maybeHandler);
+        }
+      },
+      add: async (nameOrData, maybeData) => {
+        let jobName = '__default__';
+        let data = nameOrData;
+
+        if (typeof nameOrData === 'string') {
+          jobName = nameOrData;
+          data = maybeData;
+        }
+
+        console.log(`ℹ️ Mock Queue (${label}): Processing job`, jobName);
+        const processor = processors.get(jobName) || processors.get('__default__');
+        if (processor) {
+          await processor({ data });
+        }
+      },
+      on: () => { },
+      isReady: () => false
+    };
+  };
+
+  emailQueue = createMockQueue('email');
+  previewQueue = createMockQueue('preview');
+}
 
 // Email transporter configuration
 const createTransporter = () => {

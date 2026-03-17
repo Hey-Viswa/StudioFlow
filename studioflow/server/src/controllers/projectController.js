@@ -195,7 +195,7 @@ export const listProjects = async (req, res) => {
     // Find projects where user is owner OR member, and NOT deleted
     // Use lean() for better performance and select only necessary fields
     const projects = await Project.find(query)
-      .select('title brief status progress ownerId members createdAt updatedAt dueDate comments') // Only needed fields
+      .select('title brief status progress ownerId createdAt updatedAt dueDate stats revisionNotes') // Added stats, removed members/comments
       .lean() // Return plain objects for better performance
       .sort({ createdAt: -1 }); // Most recent first
 
@@ -526,10 +526,48 @@ export const updateProject = async (req, res) => {
     // Allow clients to request revision or approve final
     const isClientAction = status === 'needs-revision' || status === 'finalized';
 
-    // Only owner can update project details (except client revision/approval)
-    if (!isOwner && !isClientAction) {
-      console.log('❌ User is not owner:', { userId, ownerId: project.ownerId });
-      return res.status(403).json({ error: 'Only project owner can update project details' });
+    // If trying to update title, brief, or dueDate -> Needs PROJECT_UPDATE
+    if ((title || brief || dueDate) && !checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+      return res.status(403).json({ error: 'You do not have permission to edit project details' });
+    }
+
+    // If trying to update tasks -> Needs TASK permissions
+    if (tasks) {
+      const canManageTasks = checkPermission(userRole, PERMISSIONS.TASK_CREATE) ||
+        checkPermission(userRole, PERMISSIONS.TASK_UPDATE) ||
+        checkPermission(userRole, PERMISSIONS.TASK_DELETE);
+
+      if (!canManageTasks) {
+        return res.status(403).json({ error: 'You do not have permission to manage tasks' });
+      }
+    }
+
+    // If trying to update status
+    if (status) {
+      // Revision flow guard: once a revision is requested, only owner can resolve it.
+      if (project.status === 'needs-revision' && ['finalized', 'completed', 'active'].includes(status) && userRole !== ROLES.OWNER) {
+        return res.status(403).json({ error: 'Only the project owner can resolve a revision request' });
+      }
+
+      if (status === 'needs-revision') {
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_REQUEST_REVISION)) {
+          return res.status(403).json({ error: 'You do not have permission to request revisions' });
+        }
+      } else if (status === 'finalized') {
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_APPROVE)) {
+          return res.status(403).json({ error: 'You do not have permission to approve the project' });
+        }
+      } else {
+        // Other status changes (active, on-hold, etc.) require generic update permission
+        if (!checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+          return res.status(403).json({ error: 'You do not have permission to change project status' });
+        }
+      }
+    }
+
+    // If trying to update progress manually
+    if (progress !== undefined && !checkPermission(userRole, PERMISSIONS.PROJECT_UPDATE)) {
+      return res.status(403).json({ error: 'You do not have permission to update progress' });
     }
 
     // Validate character limits
@@ -552,19 +590,38 @@ export const updateProject = async (req, res) => {
       console.log('� Tasks updated, auto-calculating progress...');
     }
 
+    const normalizedRevisionNotes = typeof revisionNotes === 'string' ? revisionNotes.trim() : '';
+
     // Manual status override (only if not letting auto-calc handle it)
     if (status !== undefined && !tasks) {
       project.status = status;
 
       // Add system comment for status changes
-      if (status === 'needs-revision' && revisionNotes) {
-        project.comments.push({
-          userId,
-          userName,
-          text: `Revision requested: ${revisionNotes}`,
+      if (status === 'needs-revision') {
+        if (!normalizedRevisionNotes) {
+          return res.status(400).json({ error: 'Revision notes are required when requesting revisions' });
+        }
+
+        // Persist latest revision reason so owner can preview it outside comments.
+        project.revisionNotes = normalizedRevisionNotes;
+
+        const revisionCommentContent = `Revision requested: ${normalizedRevisionNotes}`;
+        const existingRevisionComment = await Comment.findOne({
+          projectId: id,
           isSystemMessage: true,
-          createdAt: new Date()
-        });
+          content: revisionCommentContent,
+          createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
+        }).lean();
+
+        if (!existingRevisionComment) {
+          await Comment.create({
+            projectId: id,
+            userId,
+            userName,
+            content: revisionCommentContent,
+            isSystemMessage: true
+          });
+        }
       } else if (status === 'finalized') {
         project.comments.push({
           userId,
@@ -591,11 +648,12 @@ export const updateProject = async (req, res) => {
     // Save will trigger pre-save middleware that auto-calculates progress
     await project.save();
 
+    const taskList = Array.isArray(project.tasks) ? project.tasks : [];
     console.log('✅ Project updated successfully:', {
       progress: project.progress,
       status: project.status,
-      completedTasks: project.tasks.filter(t => t.status === 'completed').length,
-      totalTasks: project.tasks.length
+      completedTasks: taskList.filter(t => t.status === 'completed').length,
+      totalTasks: taskList.length
     });
 
     // Clear cache for all project members
@@ -810,8 +868,9 @@ export const listTrash = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Find projects that were deleted by this user and haven't been 30 days yet
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const trashItems = await Trash.find({
+      deletedBy: userId
+    }).sort({ deletedAt: -1 });
 
     // Use lean() and select only needed fields
     const trashedProjects = await Project.find({

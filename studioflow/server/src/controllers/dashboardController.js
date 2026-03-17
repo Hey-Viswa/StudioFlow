@@ -80,7 +80,46 @@ export const getRecentFiles = async (req, res) => {
       .limit(limit)
       .lean();
 
-    res.status(200).json({ files });
+    // No need to filter visibleFiles again as query handled it for clients
+    const visibleFiles = files;
+
+    // Generate preview URLs
+    const processedFiles = await Promise.all(visibleFiles.map(async (file) => {
+      let url = null;
+      let previewUrl = null;
+      let urlError = null;
+
+      // Priority 1: Use storageKey if available (S3/R2)
+      if (file.storageKey) {
+        try {
+          // Generate signed URL for access (valid for 1 hour)
+          url = await storageAdapter.getSignedDownloadUrl(file.storageKey, {
+            filename: file.originalFilename || file.filename,
+            forceDownload: false,
+            contentType: file.mimeType,
+            ttl: 3600,
+          });
+        } catch (err) {
+          console.warn(`Failed to generate signed URL for file ${file._id}:`, err.message);
+          urlError = err?.name || 'SIGNED_URL_FAILED';
+        }
+      }
+
+      // Priority 2: Use stored URL only for legacy/non-storageKey records.
+      // Do not fall back for storage-backed files, or client may hit raw private S3 URL.
+      if (!url && !file.storageKey && file.url) {
+        url = file.url;
+      }
+
+      // Generate preview URL
+      if (url && file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) {
+        previewUrl = url;
+      }
+
+      return { ...file, url, previewUrl, urlError };
+    }));
+
+    res.status(200).json({ files: processedFiles });
   } catch (error) {
     console.error('❌ Error fetching recent files:', error);
     res.status(500).json({ error: 'Failed to fetch files' });

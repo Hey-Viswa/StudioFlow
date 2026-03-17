@@ -1,9 +1,52 @@
 import Project from '../models/Project.js';
+import Comment from '../models/Comment.js';
+import ProjectFile from '../models/ProjectFile.js';
+import storageAdapter from '../utils/storageAdapter.js';
 import { createNotificationWithIdempotency } from '../services/notificationServiceV2.js';
+import ProjectMember from '../models/ProjectMember.js';
+import { checkPermission, PERMISSIONS, ROLES } from '../utils/permissions.js';
+import { logAudit } from '../services/auditService.js';
+import { taskQueue } from '../queues/automationQueue.js';
+// Removed unused feature flags import
 
 /**
  * Enhanced comment controller with threading, reactions, and mentions
  */
+
+/**
+ * Helper: Get user's role in the project
+ */
+async function getProjectRole(projectId, userId) {
+  const project = await Project.findById(projectId).select('ownerId settings').lean();
+  if (!project) return { role: null, project: null };
+
+  if (String(project.ownerId) === String(userId)) {
+    return { role: ROLES.OWNER, project };
+  }
+
+  const membership = await ProjectMember.findOne({
+    projectId,
+    userId,
+    status: { $ne: 'inactive' }
+  });
+
+  return { role: membership?.role || null, project };
+}
+
+function extractStorageKeyFromAttachment(att) {
+  if (!att) return null;
+  if (att.key && typeof att.key === 'string') return att.key;
+  if (!att.url || typeof att.url !== 'string') return null;
+
+  try {
+    const parsed = new URL(att.url);
+    // Signed URLs include object key in pathname. Strip leading slash.
+    const pathKey = parsed.pathname?.replace(/^\//, '');
+    return pathKey || null;
+  } catch {
+    return null;
+  }
+}
 
 export const getComments = async (req, res) => {
   try {
@@ -31,7 +74,110 @@ export const getComments = async (req, res) => {
       reactions: comment.reactions ? Object.fromEntries(comment.reactions) : {}
     }));
 
-    res.status(200).json({ comments });
+    // Fetch comments from global collection
+    const comments = await Comment.find({ projectId })
+      .sort({ createdAt: -1 }) // Newest first
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const allAttachments = comments.flatMap((c) => Array.isArray(c.attachments) ? c.attachments : []);
+    const fileIds = [...new Set(allAttachments.map((a) => a?.fileId).filter(Boolean))];
+    const storageKeys = [...new Set(allAttachments.map((a) => extractStorageKeyFromAttachment(a)).filter(Boolean))];
+
+    const projectFiles = (fileIds.length > 0 || storageKeys.length > 0)
+      ? await ProjectFile.find({
+          projectId,
+          status: { $ne: 'deleted' },
+          $or: [
+            ...(fileIds.length > 0 ? [{ fileId: { $in: fileIds } }] : []),
+            ...(storageKeys.length > 0 ? [{ storageKey: { $in: storageKeys } }] : [])
+          ]
+        })
+          .select('fileId storageKey filename originalFilename mimeType size')
+          .lean()
+      : [];
+
+    const fileMap = new Map(projectFiles.map((f) => [f.fileId, f]));
+    const keyMap = new Map(projectFiles.map((f) => [f.storageKey, f]));
+
+    // Convert reactions map and normalize/regenerate attachment URLs
+    const formattedComments = await Promise.all(comments.map(async (comment) => {
+      if (comment.attachments && comment.attachments.length > 0) {
+        const resolvedAttachments = await Promise.all(comment.attachments.map(async (att) => {
+          const extractedKey = extractStorageKeyFromAttachment(att);
+          const fileRecord = (att?.fileId ? fileMap.get(att.fileId) : null) || (extractedKey ? keyMap.get(extractedKey) : null);
+          let previewUrl = att.previewUrl || null;
+          let url = att.url || null;
+
+          if (fileRecord?.storageKey) {
+            try {
+              const signed = await storageAdapter.getSignedDownloadUrl(fileRecord.storageKey, {
+                filename: fileRecord.originalFilename || fileRecord.filename,
+                forceDownload: false,
+                contentType: fileRecord.mimeType,
+                ttl: 3600
+              });
+              previewUrl = signed;
+              url = signed;
+            } catch (err) {
+              // Keep existing fields if re-signing fails.
+            }
+          }
+
+          if (process.env.NODE_ENV === 'production' && url && url.includes('localhost:5000')) {
+            url = url.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio');
+          }
+
+          return {
+            fileId: att.fileId || null,
+            filename: att.filename || att.name || fileRecord?.filename || 'Attachment',
+            name: att.name || att.filename || fileRecord?.filename || 'Attachment',
+            mimeType: att.mimeType || att.type || fileRecord?.mimeType || 'application/octet-stream',
+            type: att.type || att.mimeType || fileRecord?.mimeType || 'application/octet-stream',
+            size: att.size || fileRecord?.size || 0,
+            key: att.key || extractedKey || null,
+            url,
+            previewUrl
+          };
+        }));
+
+        comment.attachments = resolvedAttachments;
+      }
+
+      // Fix attachment URLs in production (replace localhost with production domain)
+      if (process.env.NODE_ENV === 'production' && comment.attachments && comment.attachments.length > 0) {
+        comment.attachments = comment.attachments.map(att => {
+          if (att.url && att.url.includes('localhost:5000')) {
+            return {
+              ...att,
+              url: att.url.replace(/https?:\/\/localhost:5000/, 'https://www.studioflow.studio')
+            };
+          }
+          return att;
+        });
+      }
+
+      return {
+        ...comment,
+        reactions: comment.reactions ? Object.fromEntries(comment.reactions instanceof Map ? comment.reactions : new Map(Object.entries(comment.reactions))) : {}
+      };
+    }));
+
+    // Log audit event
+    await logAudit({
+      userId,
+      action: 'comment.view',
+      resourceType: 'project',
+      resourceId: projectId,
+      details: {
+        page,
+        limit
+      },
+      req
+    });
+
+    res.status(200).json({ comments: formattedComments });
   } catch (error) {
     console.error('❌ Error fetching comments:', error);
     res.status(500).json({ error: 'Failed to fetch comments' });
@@ -45,9 +191,23 @@ export const addComment = async (req, res) => {
     const userId = req.userId;
     const userName = req.userName || '';
     const userEmail = req.userEmail || '';
+    const normalizedText = typeof text === 'string' ? text.trim() : '';
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments.map((att) => ({
+          fileId: att?.fileId || null,
+          filename: att?.filename || att?.name || 'Attachment',
+          url: att?.url || null,
+          previewUrl: att?.previewUrl || null,
+          mimeType: att?.mimeType || att?.type || 'application/octet-stream',
+          type: att?.type || att?.mimeType || 'application/octet-stream',
+          size: att?.size || 0,
+          key: att?.key || null,
+        }))
+      : [];
+    const hasAttachments = normalizedAttachments.length > 0;
 
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: 'Comment text is required' });
+    if (!normalizedText && !hasAttachments) {
+      return res.status(400).json({ error: 'Comment text or attachment is required' });
     }
 
     const project = await Project.findById(projectId).select('comments members ownerId');
@@ -77,10 +237,10 @@ export const addComment = async (req, res) => {
       userId,
       userName,
       userEmail,
-      text: text.trim(),
+      content: normalizedText || 'Attachment',
       parentId: parentId || null,
       reactions: new Map(),
-      attachments: attachments || [],
+      attachments: normalizedAttachments,
       mentions: mentions || [],
       createdAt: new Date()
     };
@@ -105,38 +265,22 @@ export const addComment = async (req, res) => {
 
     // Notify project owner and mentioned users
     try {
-      const notifyUserIds = [];
-      
-      // Notify project owner if not the commenter
-      if (project.ownerId !== userId) {
-        notifyUserIds.push(project.ownerId);
-      }
-      
-      // Notify mentioned users
-      if (mentions && mentions.length > 0) {
-        mentions.forEach(mentionedUserId => {
-          if (mentionedUserId !== userId && !notifyUserIds.includes(mentionedUserId)) {
-            notifyUserIds.push(mentionedUserId);
-          }
-        });
-      }
-      
-      // Notify parent comment author if replying
-      if (parentId) {
-        const parentComment = project.comments.id(parentId);
-        if (parentComment && parentComment.userId !== userId && !notifyUserIds.includes(parentComment.userId)) {
-          notifyUserIds.push(parentComment.userId);
-        }
-      }
-      
-      if (notifyUserIds.length > 0) {
-        await createBulkNotifications({
-          userIds: notifyUserIds,
-          type: mentions && mentions.length > 0 ? 'comment-mentioned' : 'comment-added',
-          title: mentions && mentions.length > 0 ? '🔔 You were mentioned' : '💬 New Comment',
-          message: `${userName} commented: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
-          link: `/dashboard/projects/${projectId}`,
-          priority: mentions && mentions.length > 0 ? 'high' : 'medium',
+      // Import dynamically to avoid circular dependency issues
+      const { triggerNotification } = await import('../services/notificationService.js');
+
+      await triggerNotification(
+        'comment.created',
+        {
+          projectId,
+          commentId: commentObj._id,
+          commenterName: userName,
+          text: normalizedText,
+          title: '💬 New Comment', // Worker will override if mentioned
+          message: normalizedText
+            ? `${userName} commented: ${normalizedText.substring(0, 100)}${normalizedText.length > 100 ? '...' : ''}`
+            : `${userName} added an attachment`,
+          link: `/dashboard/projects/${projectId}?tab=comments`,
+          priority: 'medium', // Worker will override if mentioned
           category: 'comment',
           metadata: {
             projectId,
@@ -147,6 +291,55 @@ export const addComment = async (req, res) => {
       }
     } catch (notifError) {
       console.error('Error sending comment notifications:', notifError);
+    }
+
+    // --- AUTOMATION HOOK: Task Creation ---
+    // Enqueue job for async process OR run direct if queue disabled/err
+    // Always run for explicit task tags to keep #todo/#bug reliable in production.
+    const lowerText = normalizedText.toLowerCase();
+    const hasTaskTag = lowerText.includes('#todo') || lowerText.includes('#bug');
+    if (hasTaskTag) {
+      const automationPayload = {
+        commentId: newComment._id,
+        projectId,
+        content: normalizedText,
+        userId,
+        link: `/dashboard/projects/${projectId}?tab=comments`
+      };
+
+      try {
+        // console.log(`🔍 SB_DEBUG: ENABLE_REDIS_QUEUE = "${process.env.ENABLE_REDIS_QUEUE}"`);
+        let queued = false;
+
+        // TEMPORARY FIX: Force direct execution to ensure reliability in production until Redis worker is verified
+        // if (process.env.ENABLE_REDIS_QUEUE === 'true') {
+        //   try {
+        //     taskQueue.add(automationPayload, {
+        //       attempts: 3,
+        //       backoff: { type: 'exponential', delay: 2000 },
+        //       removeOnComplete: true
+        //     });
+        //     // console.log(`🚀 Queued task automation for comment ${newComment._id}`);
+        //     queued = true;
+        //   } catch (qErr) {
+        //     console.warn('⚠️ Redis queue add failed, falling back to direct:', qErr.message);
+        //   }
+        // }
+
+        if (!queued) {
+          // Direct execution fallback
+          // console.log('ℹ️ SB_DEBUG: Running task automation directly (No Queue)');
+          try {
+            const automationService = (await import('../services/automationService.js')).default;
+            await automationService.processTaskAutomation(automationPayload);
+            // console.log('SB_DEBUG: Direct automation finished successfully');
+          } catch (directErr) {
+            console.error('❌ Automation error:', directErr);
+          }
+        }
+      } catch (queueError) {
+        console.error('⚠️ Failed to enqueue task automation job:', queueError.message);
+      }
     }
 
     res.status(201).json({ comment: commentObj });

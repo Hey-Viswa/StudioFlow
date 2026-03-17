@@ -398,85 +398,161 @@ export default function Projects() {
                                 </Badge>
                               )}
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              Owner: {project.ownerName || 'Unknown'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {client?.name || <span className="text-muted-foreground">No client</span>}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={statusConfig[project.status]?.color || statusConfig.active.color}
-                          >
-                            {statusConfig[project.status]?.badge || 'Active'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3 w-[180px]">
-                            <Progress 
-                              value={project.progress || 0} 
-                              className="h-2.5 flex-1" 
-                            />
-                            <span className="text-sm font-semibold w-12 text-right shrink-0">
-                              {project.progress || 0}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatDate(project.dueDate)}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => navigate(`/dashboard/projects/${project._id}`)}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Project
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive"
-                                onSelect={async () => {
-                                  try {
-                                    const token = await getToken();
-                                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-                                    const response = await fetch(`${apiUrl}/projects/${project._id}`, {
-                                      method: 'DELETE',
-                                      headers: {
-                                        'Authorization': `Bearer ${token}`
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={statusConfig[project.status]?.color || statusConfig.active.color}
+                            >
+                              {statusConfig[project.status]?.badge || 'Active'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3 w-[180px]">
+                              <Progress
+                                value={project.progress || 0}
+                                className="h-2.5 flex-1"
+                              />
+                              <span className="text-sm font-semibold w-12 text-right shrink-0">
+                                {project.progress || 0}%
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{formatDate(project.dueDate)}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onSelect={() => navigate(`/dashboard/projects/${project._id}`)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Project
+                                </DropdownMenuItem>
+                                {project.userRole === 'owner' && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={async () => {
+                                      try {
+                                        const token = await getToken();
+                                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                                        const response = await fetch(`${apiUrl}/projects/${project._id}`, {
+                                          method: 'DELETE',
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`
+                                          }
+                                        });
+                                        if (response.ok) {
+                                          toast.success('Project moved to trash');
+                                          fetchProjects();
+                                        } else {
+                                          let message = 'Failed to delete project';
+                                          try {
+                                            const errorData = await response.json();
+                                            message = errorData?.error || message;
+                                          } catch {
+                                            // Ignore parse errors and keep generic message
+                                          }
+                                          toast.error(message);
+                                        }
+                                      } catch (err) {
+                                        toast.error(err?.message || 'Failed to delete project');
                                       }
-                                    });
-                                    if (response.ok) {
-                                      toast.success('Project moved to trash');
-                                      fetchProjects();
-                                    } else {
-                                      toast.error('Failed to delete project');
-                                    }
-                                  } catch (err) {
-                                    toast.error('Failed to delete project');
-                                  }
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Move to Trash
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Move to Trash
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4 p-4">
+              {filteredProjects.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No projects found.</p>
+                </div>
+              ) : (
+                filteredProjects.map((project) => {
+                  const client = project.members?.find(m => m.role === 'client');
+                  return (
+                    <div
+                      key={project._id}
+                      className="bg-card border rounded-lg p-4 space-y-3 cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => navigate(`/dashboard/projects/${project._id}`)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{project.title}</h3>
+                            {project.isShared && (
+                              <Badge variant="secondary" className="text-[10px] px-1 h-5">
+                                Shared
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Owner: {project.ownerName || 'Unknown'}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={statusConfig[project.status]?.color || statusConfig.active.color}
+                        >
+                          {statusConfig[project.status]?.badge || 'Active'}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">Members</p>
+                          <div className="flex -space-x-2 overflow-hidden mt-1">
+                            {project.members?.slice(0, 3).map((member, i) => (
+                              <Avatar key={i} className="inline-block border-2 border-background w-6 h-6">
+                                <AvatarImage src={member.avatar} />
+                                <AvatarFallback className="text-[10px]">{member.name?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                            ))}
+                            {project.members?.length > 3 && (
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-background bg-muted text-[8px] font-medium">
+                                +{project.members.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Due Date</p>
+                          <p>{formatDate(project.dueDate)}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-medium">{project.progress || 0}%</span>
+                        </div>
+                        <Progress value={project.progress || 0} className="h-2" />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
           
           {/* Footer with pagination */}

@@ -93,11 +93,21 @@ const ProjectSchema = new mongoose.Schema({
       type: Date,
       default: null
     }
-  }],
-  comments: [{
-    userId: {
-      type: String,
-      required: true
+  },
+  finalizedAt: {
+    type: Date,
+    default: null
+  },
+  revisionNotes: {
+    type: String,
+    default: '',
+    maxlength: [500, 'Revision notes must be 500 characters or less']
+  },
+  // Cached counters
+  stats: {
+    fileCount: {
+      type: Number,
+      default: 0
     },
     userName: {
       type: String,

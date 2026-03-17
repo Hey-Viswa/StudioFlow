@@ -324,10 +324,11 @@ export function ProjectFilesPanel({ projectId, project }) {
 /**
  * Individual file item
  */
-function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing }) {
-  const isPreviewable = file.mimeType.startsWith('image/') || 
-                        file.mimeType.startsWith('video/') || 
-                        file.mimeType === 'application/pdf';
+function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onPreview, onShare, onManageSharing, onPay, onApprove, processingPayment, onShowcase, onUploadVersion, canManageFiles, canDeleteFiles, isSelected, onSelect }) {
+  const [thumbnailLoadFailed, setThumbnailLoadFailed] = useState(false);
+  const isPreviewable = file.mimeType.startsWith('image/') ||
+    ['video/mp4', 'video/webm', 'video/ogg'].includes(file.mimeType) ||
+    file.mimeType === 'application/pdf';
   const isArchived = file.status === 'archived';
   const isShared = file.sharedWith && file.sharedWith.length > 0;
   const isOwner = userRole === ROLES.OWNER;
@@ -337,8 +338,44 @@ function FileItem({ file, userRole, userId, onDelete, onRestore, onDownload, onP
   return (
     <Card className={cn("p-4 hover:bg-muted/50 transition-colors", isArchived && "opacity-60 bg-muted/30")}>
       <div className="flex items-center gap-4">
-        {/* Icon */}
-        <div className="flex-shrink-0 text-3xl">{getFileIcon(file.mimeType)}</div>
+        {/* Checkbox for owner */}
+        {canManageFiles && !isArchived && (
+          <Checkbox checked={isSelected} onCheckedChange={onSelect} onClick={(e) => e.stopPropagation()} />
+        )}
+
+        {/* Icon or Thumbnail */}
+        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-muted rounded overflow-hidden relative">
+          {/* Approval Badge Overlay */}
+          {approvalStatus === 'approved' && (
+            <div className="absolute top-0 right-0 p-0.5 bg-green-500 rounded-bl-md z-10">
+              <div className="w-2 h-2 rounded-full bg-white" />
+            </div>
+          )}
+
+          {!thumbnailLoadFailed && file.previewUrl && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/')) ? (
+            file.mimeType.startsWith('video/') ? (
+              <video 
+                src={`${file.previewUrl}#t=0.1`} 
+                className="w-full h-full object-cover" 
+                preload="metadata"
+                muted
+                playsInline
+                onError={() => setThumbnailLoadFailed(true)}
+                onMouseOver={e => e.target.play().catch(() => {})}
+                onMouseOut={e => { e.target.pause(); e.target.currentTime = 0.1; }}
+              />
+            ) : (
+              <img
+                src={file.previewUrl}
+                alt={file.filename}
+                className="w-full h-full object-cover"
+                onError={() => setThumbnailLoadFailed(true)}
+              />
+            )
+          ) : (
+            <div className="text-2xl">{getFileIcon(file.mimeType)}</div>
+          )}
+        </div>
 
         {/* File Info */}
         <div className="flex-1 min-w-0">

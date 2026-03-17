@@ -391,6 +391,39 @@ const CommentItem = ({
     setIsEditing(false)
   }
 
+  const { getToken } = useAuth()
+
+  const handleFileClick = async (e, file) => {
+    e.preventDefault()
+    const directUrl = file.previewUrl || file.url
+
+    if (directUrl && !projectId) {
+      // For optimistic files with object URLs, just open them
+      if (file.isOptimistic) {
+        window.open(directUrl, '_blank')
+        return
+      }
+      window.open(directUrl, '_blank')
+      return
+    }
+
+    // Use signed URL if available or fetch one
+    if (projectId && file.fileId) {
+      try {
+        const token = await getToken()
+        const response = await getFilePreviewUrl(projectId, file.fileId, token)
+        window.open(response.previewUrl, '_blank')
+      } catch (error) {
+        console.error("Failed to get preview URL:", error)
+        toast.error("Failed to open file")
+      }
+    } else if (directUrl) {
+      window.open(directUrl, '_blank')
+    } else {
+      toast.error("Cannot open file: Missing URL or ID")
+    }
+  }
+
   return (
     <div className={cn("group", isNested && "ml-8 mt-3")}>
       <div className="flex gap-3">
@@ -491,13 +524,58 @@ const CommentItem = ({
               </div>
 
               {comment.attachments?.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {comment.attachments.map((file, idx) => (
-                    <Badge key={idx} variant="outline">
-                      <Paperclip className="h-3 w-3 mr-1" />
-                      {file.name}
-                    </Badge>
-                  ))}
+                <div className="mt-2 space-y-2">
+                  {/* Image Grid */}
+                  {comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length > 0 && (
+                    <div className={cn(
+                      "grid gap-2",
+                      comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length === 1 ? "grid-cols-1 max-w-sm" :
+                        comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).length === 2 ? "grid-cols-2" :
+                          "grid-cols-2 sm:grid-cols-3"
+                    )}>
+                      {comment.attachments.filter(f => (f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
+                        <a
+                          key={`img-${idx}`}
+                          href={file.previewUrl || file.url || '#'}
+                          onClick={(e) => handleFileClick(e, file)}
+                          className="relative aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted/20 group/image cursor-pointer"
+                        >
+                          <img
+                            src={file.previewUrl || file.url}
+                            alt={file.filename || file.name}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Other Files */}
+                  {comment.attachments.filter(f => !(f.mimeType || f.type)?.startsWith('image/')).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {comment.attachments.filter(f => !(f.mimeType || f.type)?.startsWith('image/')).map((file, idx) => (
+                        <a
+                          key={`file-${idx}`}
+                          href={file.previewUrl || file.url || '#'}
+                          onClick={(e) => handleFileClick(e, file)}
+                          className="flex items-center gap-3 rounded-lg border border-border/60 bg-card p-3 text-sm shadow-sm hover:border-primary/50 hover:shadow-md transition-all group/file max-w-xs cursor-pointer"
+                        >
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Paperclip className="h-5 w-5" />
+                          </div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="truncate font-medium text-foreground/90 group-hover/file:text-primary transition-colors">
+                              {file.filename || file.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {file.size ? (file.size / 1024 < 1024 ? `${Math.round(file.size / 1024)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`) : 'Attachment'}
+                            </span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -164,6 +164,15 @@ export default function ClientDashboard() {
 
   const handleExportCharts = () => {
     try {
+      const escapeCsvValue = (value) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (/[",\n\r]/.test(str)) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
       // Prepare data for CSV
       const csvRows = [];
 
@@ -202,7 +211,7 @@ export default function ClientDashboard() {
 
       // Convert to CSV string
       const csvContent = "data:text/csv;charset=utf-8,"
-        + csvRows.map(e => e.join(",")).join("\n");
+        + csvRows.map((row) => row.map(escapeCsvValue).join(',')).join("\n");
 
       // Create download link
       const encodedUri = encodeURI(csvContent);
@@ -377,8 +386,8 @@ export default function ClientDashboard() {
                     onView={(id) => navigate(`/dashboard/projects/${id}`)}
                     onOpenFiles={(id) => navigate(`/dashboard/projects/${id}/files`)}
                     onOpenComments={(id) => navigate(`/dashboard/projects/${id}?tab=comments`)}
-                    onRequestRevision={handleRequestRevision}
-                    onApproveFinal={handleApproveFinal}
+                    onRequestRevision={project.userRole === 'client' ? handleRequestRevision : undefined}
+                    onApproveFinal={project.userRole === 'owner' ? handleApproveFinal : undefined}
                   />
                 ))}
               </div>

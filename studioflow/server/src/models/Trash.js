@@ -78,8 +78,8 @@ trashSchema.index({ deletedAt: 1 }); // For TTL and sorting
 trashSchema.index({ originalProjectId: 1 });
 
 // Helper method to check if user can restore
-trashSchema.methods.canRestore = function(userId) {
-  return this.ownerId === userId || this.deletedBy === userId;
+trashSchema.methods.canRestore = function (userId) {
+  return this.deletedBy === userId;
 };
 
 // Helper method to get days remaining before auto-deletion
